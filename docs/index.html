@@ -79,6 +79,9 @@ table th{background:var(--chip); color:var(--navy); font-weight:700}
 table.fntbl tr{cursor:pointer}
 table.fntbl tr:hover td{background:#f6f9fd}
 table.fntbl tr.sel td{background:#e7f0fd}
+table.fntbl th.sortable{cursor:pointer; user-select:none; white-space:nowrap}
+table.fntbl th.sortable:hover{background:#e2eaf6}
+table.fntbl th.sortable .sortarrow{display:inline-block; width:10px; font-size:10px; color:var(--blue)}
 .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12px}
 .tag{display:inline-block; font-size:11px; padding:2px 7px; border-radius:5px; background:var(--chip); color:var(--navy); margin-right:4px}
 .tag.low{background:#fdf1dd; color:var(--amber)}
@@ -144,10 +147,16 @@ footer.foot{padding:26px 0 50px; text-align:center; color:var(--sub); font-size:
       <div class="chips" id="catChips"></div>
       <div class="split" style="margin-top:14px">
         <div>
+          <input type="text" id="fnSearch" placeholder="함수명 검색…" style="width:100%; border:1px solid var(--line); border-radius:7px; padding:8px 10px; font-size:13px; margin-bottom:8px; font-family:inherit">
           <table class="fntbl" id="fnTableWrap">
-            <thead><tr><th>함수명</th><th>분류</th><th style="width:70px">분기수</th></tr></thead>
+            <thead><tr>
+              <th class="sortable" data-col="name">함수명 <span class="sortarrow"></span></th>
+              <th class="sortable" data-col="category">분류 <span class="sortarrow"></span></th>
+              <th class="sortable" data-col="branches" style="width:70px">분기수 <span class="sortarrow"></span></th>
+            </tr></thead>
             <tbody id="fnTable"></tbody>
           </table>
+          <div id="fnEmpty" class="hint hidden" style="padding:16px; text-align:center">검색 결과가 없습니다.</div>
         </div>
         <div id="detailPane"><div class="ph">왼쪽 목록에서 함수를 선택하면<br>제어 로직 상세와 흐름도가 표시됩니다</div></div>
       </div>
@@ -636,13 +645,36 @@ function renderChips(){
   $('catChips').innerHTML=html;
   $('catChips').querySelectorAll('.chip').forEach(el=>el.onclick=()=>{ CAT_FILTER=parseInt(el.dataset.c,10); renderChips(); renderTable(); });
 }
+let FN_SEARCH='';
+let FN_SORT={col:null, dir:1}; // col: 'name'|'category'|'branches', dir: 1=asc,-1=desc
+function catNameOf(f){ return f.category>=0 ? CATEGORIES[f.category].name : '기타'; }
 function renderTable(){
   const a=ANALYSIS;
-  const list = CAT_FILTER===-2 ? a.fns : a.fns.filter(f=>f.category===CAT_FILTER);
+  let list = CAT_FILTER===-2 ? a.fns.slice() : a.fns.filter(f=>f.category===CAT_FILTER);
+  if(FN_SEARCH.trim()){
+    const q=FN_SEARCH.trim().toLowerCase();
+    list=list.filter(f=>f.name.toLowerCase().includes(q));
+  }
+  if(FN_SORT.col){
+    const dir=FN_SORT.dir;
+    list.sort((x,y)=>{
+      let a1,b1;
+      if(FN_SORT.col==='name'){ a1=x.name.toLowerCase(); b1=y.name.toLowerCase(); }
+      else if(FN_SORT.col==='category'){ a1=catNameOf(x); b1=catNameOf(y); }
+      else { a1=x.branches.length; b1=y.branches.length; }
+      if(a1<b1) return -1*dir;
+      if(a1>b1) return 1*dir;
+      return 0;
+    });
+  }
+  $('fnTableWrap').querySelectorAll('th.sortable').forEach(th=>{
+    const arrow=th.querySelector('.sortarrow');
+    arrow.textContent = (FN_SORT.col===th.dataset.col) ? (FN_SORT.dir===1?'▲':'▼') : '';
+  });
   $('fnTable').innerHTML=list.map(f=>{
-    const catName = f.category>=0 ? CATEGORIES[f.category].name : '기타';
-    return `<tr data-n="${esc(f.name)}"><td class="mono">${esc(f.name)}()</td><td>${esc(catName)}</td><td style="text-align:center">${f.branches.length}</td></tr>`;
+    return `<tr data-n="${esc(f.name)}"><td class="mono">${esc(f.name)}()</td><td>${esc(catNameOf(f))}</td><td style="text-align:center">${f.branches.length}</td></tr>`;
   }).join('');
+  $('fnEmpty').classList.toggle('hidden', list.length>0);
   $('fnTable').querySelectorAll('tr').forEach(tr=>tr.onclick=()=>{
     $('fnTable').querySelectorAll('tr').forEach(t=>t.classList.remove('sel'));
     tr.classList.add('sel');
@@ -1274,10 +1306,21 @@ function init(){
 
   $('btnSample').onclick=()=>{ $('codeInput').value=SAMPLE_C; $('fileinfo').textContent='샘플 코드 로드 완료 (합성 데모)'; };
 
+  $('fnSearch').addEventListener('input', e=>{ FN_SEARCH=e.target.value; if(ANALYSIS) renderTable(); });
+  $('fnTableWrap').querySelectorAll('th.sortable').forEach(th=>{
+    th.onclick=()=>{
+      const col=th.dataset.col;
+      if(FN_SORT.col===col) FN_SORT.dir*=-1;
+      else { FN_SORT.col=col; FN_SORT.dir=1; }
+      if(ANALYSIS) renderTable();
+    };
+  });
+
   $('btnAnalyze').onclick=()=>{
     const src=$('codeInput').value;
     if(!src.trim()){ alert('분석할 C 코드가 없습니다. 파일을 업로드하거나 붙여넣어 주세요.'); return; }
     ANALYSIS=runAnalysis(src);
+    FN_SEARCH=''; $('fnSearch').value=''; FN_SORT={col:null, dir:1};
     renderStats(); renderChips(); renderTable();
     $('detailPane').innerHTML='<div class="ph">왼쪽 목록에서 함수를 선택하면<br>제어 로직 상세와 흐름도가 표시됩니다</div>';
     setPhase(2);
