@@ -1,0 +1,1297 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MCU 소스코드 역설계 · 기능 사양서 자동 생성기</title>
+<meta name="robots" content="noindex, nofollow">
+<style>
+:root{
+  --navy:#0f2748; --navy2:#173a68; --blue:#2f6fd6; --teal:#1f8a70; --amber:#b26a00; --red:#c0392b;
+  --bg:#f4f7fb; --panel:#ffffff; --line:#dbe3ee; --line2:#eef2f8; --ink:#182338; --sub:#5b6b7f;
+  --chip:#eef3fa; --container-wide:1180px; --container-pad:20px;
+}
+@media (min-width:640px){ :root{ --container-pad:28px; } }
+@media (min-width:1024px){ :root{ --container-pad:36px; } }
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+  font-family:"Pretendard","Malgun Gothic","맑은 고딕",-apple-system,BlinkMacSystemFont,sans-serif;
+  word-break:keep-all; overflow-wrap:break-word;}
+.wrap{max-width:calc(var(--container-wide) + 2*var(--container-pad)); margin:0 auto; padding:0 var(--container-pad);}
+a{color:var(--blue)}
+h1,h2,h3,h4{color:var(--navy); margin:0 0 8px}
+header.top{background:linear-gradient(135deg,var(--navy),var(--navy2)); color:#fff; padding:28px 0 22px}
+header.top .badge{display:inline-block; font-size:12px; background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.28);
+  border-radius:999px; padding:4px 12px; margin-top:10px; color:#dce8fb}
+header.top h1{color:#fff; font-size:22px}
+header.top p{color:#c7d6ee; margin:4px 0 0; font-size:14px}
+
+.stepper{display:flex; gap:8px; margin:18px 0 22px; flex-wrap:wrap}
+.step{flex:1 1 160px; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px 14px;
+  font-size:13px; color:var(--sub); position:relative}
+.step b{display:block; color:var(--ink); font-size:14px}
+.step.active{border-color:var(--blue); box-shadow:0 0 0 3px rgba(47,111,214,.12)}
+.step.active b{color:var(--blue)}
+.step.done{border-color:var(--teal)}
+.step.done b{color:var(--teal)}
+
+.card{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:20px; margin-bottom:18px}
+.card h2{font-size:17px; border-bottom:2px solid var(--line2); padding-bottom:10px; margin-bottom:14px}
+.hint{font-size:12.5px; color:var(--sub)}
+.note{font-size:12.5px; color:var(--sub); background:var(--chip); border-radius:8px; padding:10px 12px; margin-top:10px; line-height:1.6}
+.warn{color:var(--amber)}
+
+#dropzone{border:2px dashed #b7c6dd; border-radius:12px; padding:32px 18px; text-align:center; cursor:pointer; background:#fafcff}
+#dropzone.drag{border-color:var(--blue); background:#eef4ff}
+#dropzone .big{font-size:15px; color:var(--navy); font-weight:700}
+#dropzone .small{font-size:12.5px; color:var(--sub); margin-top:6px}
+#fileinfo{margin-top:10px; font-size:13px; color:var(--teal)}
+
+textarea#codeInput{width:100%; min-height:140px; border:1px solid var(--line); border-radius:8px; padding:10px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12.5px; margin-top:12px}
+
+.btnrow{display:flex; gap:10px; flex-wrap:wrap; margin-top:14px}
+button{cursor:pointer; border:none; border-radius:8px; padding:10px 18px; font-size:13.5px; font-weight:600;
+  font-family:inherit}
+.btn-primary{background:var(--blue); color:#fff}
+.btn-primary:hover{background:#255ec2}
+.btn-ghost{background:#fff; color:var(--navy); border:1px solid var(--line)}
+.btn-ghost:hover{background:var(--chip)}
+.btn-gold{background:#c98a12; color:#fff}
+button:disabled{opacity:.45; cursor:not-allowed}
+
+.statsGrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(0,1fr)); grid-auto-flow:column; gap:12px}
+@media (max-width:640px){ .statsGrid{grid-auto-flow:row; grid-template-columns:repeat(2,minmax(0,1fr))} }
+.statbox{background:var(--chip); border-radius:10px; padding:12px 14px; text-align:center}
+.statbox .num{font-size:22px; font-weight:800; color:var(--navy)}
+.statbox .lbl{font-size:12px; color:var(--sub); margin-top:2px}
+
+.chips{display:flex; flex-wrap:wrap; gap:8px; margin:12px 0}
+.chip{background:var(--chip); border:1px solid var(--line); border-radius:999px; padding:6px 13px; font-size:12.5px; cursor:pointer; color:var(--navy)}
+.chip.on{background:var(--blue); color:#fff; border-color:var(--blue)}
+
+.split{display:grid; grid-template-columns:minmax(0,1.15fr) minmax(0,1fr); gap:16px}
+@media (max-width:900px){ .split{grid-template-columns:minmax(0,1fr)} }
+
+table{width:100%; border-collapse:collapse; font-size:13px}
+table th,table td{border:1px solid var(--line); padding:8px 10px; text-align:left; vertical-align:top}
+table th{background:var(--chip); color:var(--navy); font-weight:700}
+table.fntbl tr{cursor:pointer}
+table.fntbl tr:hover td{background:#f6f9fd}
+table.fntbl tr.sel td{background:#e7f0fd}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12px}
+.tag{display:inline-block; font-size:11px; padding:2px 7px; border-radius:5px; background:var(--chip); color:var(--navy); margin-right:4px}
+.tag.low{background:#fdf1dd; color:var(--amber)}
+
+#detailPane{max-height:640px; overflow:auto; border:1px solid var(--line); border-radius:10px; padding:14px; background:#fbfcfe}
+#detailPane .ph{color:var(--sub); font-size:13px; text-align:center; padding:60px 10px}
+.branchline{font-size:12.5px; padding:3px 0; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+
+.formgrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px}
+.formgrid label{font-size:12.5px; color:var(--sub); display:block; margin-bottom:4px}
+.formgrid input,.formgrid select{width:100%; border:1px solid var(--line); border-radius:7px; padding:8px 10px; font-size:13px; font-family:inherit}
+.chkrow{display:flex; align-items:center; gap:6px; font-size:13px; margin-top:10px}
+
+svg.flow text{font-family:inherit; font-size:11.5px}
+.xok{color:var(--teal); font-weight:700}
+.xwarn{color:var(--amber); font-weight:700}
+
+footer.foot{padding:26px 0 50px; text-align:center; color:var(--sub); font-size:12px}
+.hidden{display:none !important}
+</style>
+</head>
+<body>
+
+<header class="top"><div class="wrap">
+  <h1>MCU 소스코드 역설계 · 기능 사양서 자동 생성기</h1>
+  <p>C 소스코드를 업로드하면 함수 구조·제어 로직·CAN 통신 신호를 분석하여 기능 사양서(Draft)를 Word 문서로 생성합니다.</p>
+  <span class="badge">🔒 업로드한 소스코드는 브라우저 밖으로 전송되지 않습니다 (100% 클라이언트 처리)</span>
+</div></header>
+
+<div class="wrap">
+  <div class="stepper">
+    <div class="step active" id="st1"><b>Phase 1</b>소스코드 업로드</div>
+    <div class="step" id="st2"><b>Phase 2</b>구조 분석 결과</div>
+    <div class="step" id="st3"><b>Phase 3</b>사양서 Draft 미리보기</div>
+    <div class="step" id="st4"><b>Phase 4</b>교차 검증 · Word 다운로드</div>
+  </div>
+
+  <!-- ===================== PHASE 1 ===================== -->
+  <section id="phase1">
+    <div class="card">
+      <h2>Phase 1. 소스코드 업로드</h2>
+      <div id="dropzone">
+        <div class="big">C 파일을 여기로 끌어다 놓거나 클릭해서 선택하세요</div>
+        <div class="small">확장자 .c / .h / .txt · CP949(EUC-KR)·UTF-8 자동 인식 · 여러 개 선택 시 이어붙여 분석</div>
+        <input type="file" id="fileInput" accept=".c,.h,.txt" multiple style="display:none">
+      </div>
+      <div id="fileinfo"></div>
+      <div class="hint" style="margin-top:12px">또는 코드를 직접 붙여넣기:</div>
+      <textarea id="codeInput" placeholder="// C 소스코드를 여기에 붙여넣으세요"></textarea>
+      <div class="btnrow">
+        <button class="btn-primary" id="btnAnalyze">분석 시작 →</button>
+        <button class="btn-ghost" id="btnSample">샘플 코드 불러오기 (합성 데모)</button>
+      </div>
+      <div class="note">샘플 코드는 실제 고객사 로직이 아닌, 지게차 MCU 제어기 구조를 모사해 자체 제작한 합성(가상) 예시입니다. 기능 확인용으로만 사용하세요.</div>
+    </div>
+  </section>
+
+  <!-- ===================== PHASE 2 ===================== -->
+  <section id="phase2" class="hidden">
+    <div class="card">
+      <h2>Phase 2. 소스코드 구조 분석 결과</h2>
+      <div class="statsGrid" id="statsGrid"></div>
+      <div class="chips" id="catChips"></div>
+      <div class="split" style="margin-top:14px">
+        <div>
+          <table class="fntbl" id="fnTableWrap">
+            <thead><tr><th>함수명</th><th>분류</th><th style="width:70px">분기수</th></tr></thead>
+            <tbody id="fnTable"></tbody>
+          </table>
+        </div>
+        <div id="detailPane"><div class="ph">왼쪽 목록에서 함수를 선택하면<br>제어 로직 상세와 흐름도가 표시됩니다</div></div>
+      </div>
+      <div class="btnrow">
+        <button class="btn-ghost" onclick="setPhase(1)">← 이전</button>
+        <button class="btn-primary" id="btnToPhase3">다음: 사양서 Draft 미리보기 →</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== PHASE 3 ===================== -->
+  <section id="phase3" class="hidden">
+    <div class="card">
+      <h2>Phase 3. 기능 사양서 Draft — 표지 정보 입력</h2>
+      <div class="formgrid">
+        <div><label>문서 제목</label><input id="mTitle" placeholder="MCU 제어 시스템 기능 사양서"></div>
+        <div><label>관리번호</label><input id="mDocNo" placeholder="예: CSE-XX-XX"></div>
+        <div><label>Rev.</label><input id="mRev" value="Rev.01"></div>
+        <div><label>회사/부서명</label><input id="mOrg" placeholder="[확인 필요]"></div>
+        <div><label>담당</label><input id="mOwner" placeholder="[확인 필요]"></div>
+        <div><label>검토</label><input id="mReview" placeholder="[확인 필요]"></div>
+        <div><label>승인</label><input id="mApprove" placeholder="[확인 필요]"></div>
+      </div>
+      <div class="chkrow"><input type="checkbox" id="mConfidential"><label for="mConfidential">표지에 "대 외 비" 표시</label></div>
+      <div class="note">본 문서는 소스코드 자동 분석 기반 Draft입니다. <b class="warn">[확인 필요]</b> 표기 항목은 소스코드만으로 확정할 수 없어 실무 검토가 필요한 사항입니다.</div>
+    </div>
+    <div class="card">
+      <h2>사양서 미리보기</h2>
+      <div id="specPreview"></div>
+      <div class="btnrow">
+        <button class="btn-ghost" onclick="setPhase(2)">← 이전</button>
+        <button class="btn-primary" id="btnToPhase4">다음: 교차 검증 →</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== PHASE 4 ===================== -->
+  <section id="phase4" class="hidden">
+    <div class="card">
+      <h2>Phase 4. 교차 검증 (사양서 ↔ 소스코드)</h2>
+      <div class="hint">사양서에 수록된 각 기능 항목이 실제 소스 근거를 갖는지, 자동 추정 항목 중 실무 확인이 필요한 항목이 무엇인지 점검합니다.</div>
+      <div id="xcheckResult" style="margin-top:12px"></div>
+      <div class="btnrow">
+        <button class="btn-ghost" onclick="setPhase(3)">← 이전</button>
+        <button class="btn-gold" id="btnDocx">📄 Word(.docx) 사양서 다운로드</button>
+        <button class="btn-ghost" onclick="location.reload()">새로 분석하기</button>
+      </div>
+    </div>
+  </section>
+
+  <footer class="foot">MCU 소스코드 역설계 · 기능 사양서 자동 생성기 — 전 과정 브라우저 로컬 처리, 외부 전송 없음</footer>
+</div>
+
+<script>
+'use strict';
+/* =====================================================================================
+   0. 공통 유틸
+   ===================================================================================== */
+const $=id=>document.getElementById(id);
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function clamp(s,n){ s=String(s||''); return s.length>n? s.slice(0,n-1)+'…' : s; }
+
+const CATEGORIES=[
+  {name:'동력 및 주행 제어', kw:['torque','speed','rpm','gear','shift','engine','drive','accel','throttle','moving','average']},
+  {name:'안전 및 Fail-Safe', kw:['seatbelt','belt','safety','fail','neutral','error','interlock','protect','restart','parking','clutch','buzzer']},
+  {name:'차량 편의 및 보안', kw:['password','esl','lock','hac','hill','assist','dcsr','key','setting','display','master','user']},
+  {name:'유지보수 시스템', kw:['maintenance','filter','oil','service','hour','interval','h1098','lamp','replace','count']},
+  {name:'센서/신호 처리(참고)', kw:['ad','sensor','value','temp','temperature','pressure','load','fuel','voltage','ain']},
+];
+
+/* =====================================================================================
+   1. 텍스트 디코딩 (CP949/UTF-8 자동판별)
+   ===================================================================================== */
+function decodeBuffer(buf){
+  const bytes=new Uint8Array(buf);
+  try{
+    const dec=new TextDecoder('utf-8',{fatal:true});
+    return dec.decode(bytes);
+  }catch(e){
+    try{ return new TextDecoder('euc-kr').decode(bytes); }
+    catch(e2){ return new TextDecoder('utf-8',{fatal:false}).decode(bytes); }
+  }
+}
+
+/* =====================================================================================
+   2. 전처리기(#if/#ifdef/#ifndef/#elif/#else/#endif) 조건부 컴파일 해석
+      - 리터럴 0/1, defined(), 단순 정수 상수식만 안전하게 평가
+      - 해석 불가능한 매크로는 "미해당(#else 채택)"으로 기본값 처리하고 flags 에 기록 (§6.1 확인필요 원칙)
+   ===================================================================================== */
+function resolvePreprocessor(src){
+  const lines=src.split(/\r\n|\r|\n/);
+  const out=new Array(lines.length);
+  const defines={};
+  const flags=[]; // {line, macro}
+  const stack=[]; // {taken, everTaken, parentActive}
+
+  function activeNow(){
+    for(const f of stack) if(!f.taken) return false;
+    return true;
+  }
+  function safeEval(expr){
+    expr=expr.trim();
+    if(expr==='') return {val:false, unknown:true};
+    // defined(X) / defined X  치환
+    expr=expr.replace(/defined\s*\(\s*([A-Za-z_]\w*)\s*\)/g,(m,n)=> (n in defines)?'1':'0');
+    expr=expr.replace(/defined\s+([A-Za-z_]\w*)/g,(m,n)=> (n in defines)?'1':'0');
+    // 알려진 매크로 치환 (정수 리터럴 값만)
+    expr=expr.replace(/\b([A-Za-z_]\w*)\b/g,(m,n)=>{
+      if(n in defines){
+        const v=String(defines[n]).trim();
+        return /^-?\d+$/.test(v)? v : '__U__';
+      }
+      return '__U__';
+    });
+    if(expr.indexOf('__U__')>=0) return {val:false, unknown:true};
+    if(!/^[\d\s()!&|=<>+\-*/]*$/.test(expr)) return {val:false, unknown:true};
+    try{
+      // eslint-disable-next-line no-new-func
+      const v=Function('return ('+ (expr||'0') +');')();
+      return {val: !!v, unknown:false};
+    }catch(e){ return {val:false, unknown:true}; }
+  }
+
+  for(let i=0;i<lines.length;i++){
+    const raw=lines[i];
+    const t=raw.trim();
+    const m=/^#\s*(if|ifdef|ifndef|elif|else|endif|define|undef)\b(.*)$/.exec(t);
+    if(m){
+      const kw=m[1];
+      let rest=m[2].trim();
+      rest=rest.replace(/\/\/.*$/,'').replace(/\/\*.*?\*\//g,'').trim();
+      const parentActiveBefore = activeNow();
+      if(kw==='if'||kw==='ifdef'||kw==='ifndef'){
+        let r;
+        if(kw==='ifdef') r={val:(rest in defines), unknown:false};
+        else if(kw==='ifndef') r={val:!(rest in defines), unknown:false};
+        else r=safeEval(rest);
+        if(r.unknown) flags.push({line:i+1, macro:rest||'(빈 조건)'});
+        stack.push({taken:r.val, everTaken:r.val});
+      } else if(kw==='elif'){
+        const f=stack[stack.length-1];
+        if(f){
+          if(f.everTaken){ f.taken=false; }
+          else{ const r=safeEval(rest); if(r.unknown) flags.push({line:i+1, macro:rest||'(빈 조건)'}); f.taken=r.val; f.everTaken=f.everTaken||r.val; }
+        }
+      } else if(kw==='else'){
+        const f=stack[stack.length-1];
+        if(f){ f.taken = !f.everTaken; f.everTaken = true; }
+      } else if(kw==='endif'){
+        stack.pop();
+      } else if(kw==='define'){
+        if(parentActiveBefore){
+          const dm=/^([A-Za-z_]\w*)(\([^)]*\))?\s*(.*)$/.exec(rest);
+          if(dm){ defines[dm[1]] = dm[2] ? '' : (dm[3]||'').replace(/\/\/.*$/,'').trim(); }
+        }
+      } else if(kw==='undef'){
+        if(parentActiveBefore) delete defines[rest];
+      }
+      out[i]=''; // 지시문 라인 자체는 코드에서 제거(라인 번호는 보존)
+      continue;
+    }
+    out[i] = activeNow() ? raw : '';
+  }
+  return {resolved: out.join('\n'), defines, flags};
+}
+
+/* =====================================================================================
+   3. 문자열/주석 마스킹 (길이·라인 보존, 파서가 코드로 오인하지 않도록 공백 치환)
+   ===================================================================================== */
+function maskLiterals(resolvedSrc){
+  const n=resolvedSrc.length;
+  const out=resolvedSrc.split('');
+  const comments=[]; // {line, text}
+  let line=1, i=0;
+  function lineAt(){ return line; }
+  while(i<n){
+    const c=resolvedSrc[i];
+    if(c==='\n'){ line++; i++; continue; }
+    if(c==='/' && resolvedSrc[i+1]==='/'){
+      const start=i, startLine=line;
+      let j=i;
+      while(j<n && resolvedSrc[j]!=='\n'){ out[j]=' '; j++; }
+      const txt=resolvedSrc.slice(start,j).replace(/^\/\/+\s*/,'').trim();
+      if(txt) comments.push({line:startLine, text:txt});
+      i=j; continue;
+    }
+    if(c==='/' && resolvedSrc[i+1]==='*'){
+      const start=i, startLine=line;
+      let j=i+2;
+      while(j<n-1 && !(resolvedSrc[j]==='*'&&resolvedSrc[j+1]==='/')){ if(resolvedSrc[j]==='\n')line++; out[j]=' '; j++; }
+      out[j]=' '; out[j+1]=' ';
+      const txt=resolvedSrc.slice(start+2,j).replace(/\*/g,' ').trim();
+      if(txt) comments.push({line:startLine, text:txt});
+      i=j+2; continue;
+    }
+    if(c==='"'){
+      out[i]=' '; i++;
+      while(i<n && resolvedSrc[i]!=='"'){ if(resolvedSrc[i]==='\\'){ out[i]=' '; i++; } if(i<n){ if(resolvedSrc[i]==='\n')line++; out[i]=' '; i++; } }
+      if(i<n){ out[i]=' '; i++; }
+      continue;
+    }
+    if(c==="'"){
+      out[i]=' '; i++;
+      while(i<n && resolvedSrc[i]!=="'"){ if(resolvedSrc[i]==='\\'){ out[i]=' '; i++; } if(i<n){ out[i]=' '; i++; } }
+      if(i<n){ out[i]=' '; i++; }
+      continue;
+    }
+    i++;
+  }
+  return {masked: out.join(''), comments};
+}
+
+/* =====================================================================================
+   4. 라인 인덱스 / 괄호 매칭
+   ===================================================================================== */
+function buildLineIndex(src){
+  const starts=[0];
+  for(let i=0;i<src.length;i++) if(src[i]==='\n') starts.push(i+1);
+  return starts;
+}
+function lineOf(starts, pos){
+  let lo=0, hi=starts.length-1;
+  while(lo<hi){ const mid=(lo+hi+1)>>1; if(starts[mid]<=pos) lo=mid; else hi=mid-1; }
+  return lo+1;
+}
+function matchBrace(src, openPos){
+  let depth=0;
+  for(let i=openPos;i<src.length;i++){
+    if(src[i]==='{') depth++;
+    else if(src[i]==='}'){ depth--; if(depth===0) return i; }
+  }
+  return -1;
+}
+
+/* =====================================================================================
+   5. #define 추출은 resolvePreprocessor 에서 처리됨(defines)
+   6. 함수 추출 (전역 스코프의 "returnType name(params) {" 패턴, 중괄호 깊이 0에서만 매칭)
+   ===================================================================================== */
+function parseFunctions(masked, raw, lineStarts){
+  const fns=[];
+  const sigRe=/(^|\n)[ \t]*([A-Za-z_][\w \t\*]*?)[ \t\*]+([A-Za-z_]\w*)[ \t]*\(([^;{}()]*)\)[ \t\r\n]*\{/g;
+  let m;
+  const seenPos=new Set();
+  while((m=sigRe.exec(masked))){
+    const openBrace = m.index + m[0].length - 1;
+    if(seenPos.has(openBrace)) continue;
+    // 이 위치가 이미 다른 함수 본문 내부인지 확인(중괄호 깊이 재계산)
+    let depthBefore=0;
+    for(let k=0;k<m.index;k++){ if(masked[k]==='{') depthBefore++; else if(masked[k]==='}') depthBefore--; }
+    if(depthBefore!==0) continue;
+    const closeBrace=matchBrace(masked, openBrace);
+    if(closeBrace<0) continue;
+    seenPos.add(openBrace);
+    const name=m[3];
+    const retType=m[2].trim();
+    const params=m[4].trim();
+    const startLine=lineOf(lineStarts, m.index + m[0].indexOf(name));
+    const endLine=lineOf(lineStarts, closeBrace);
+    const bodyMasked=masked.slice(openBrace+1, closeBrace);
+    const bodyRaw=raw.slice(openBrace+1, closeBrace);
+    fns.push({name, retType, params, startLine, endLine, bodyMasked, body:bodyRaw, openBrace, closeBrace});
+    sigRe.lastIndex = closeBrace;
+  }
+  return fns;
+}
+
+/* =====================================================================================
+   7. 함수별 주석 매핑
+   ===================================================================================== */
+function attachComments(fns, allComments){
+  const sorted=fns.slice().sort((a,b)=>a.startLine-b.startLine);
+  sorted.forEach((f,idx)=>{
+    const prevEnd = idx>0 ? sorted[idx-1].endLine : 0;
+    const lower = Math.max(f.startLine-6, prevEnd+1);
+    f.comments = allComments.filter(c=>c.line>=lower && c.line<=f.endLine).map(c=>c.text);
+  });
+}
+
+/* =====================================================================================
+   8. 제어 흐름 트리 추출 (if/else/switch/return, 최대 깊이 4, 최대 노드 40)
+   ===================================================================================== */
+function scanBlock(text, depth){
+  const nodes=[]; const n=text.length; let i=0;
+  const re=/\b(if|else|switch|return)\b/g;
+  while(i<n && nodes.length<40){
+    re.lastIndex=i;
+    const m=re.exec(text);
+    if(!m) break;
+    const kw=m[1]; let j=m.index+kw.length;
+    if(kw==='return'){
+      const semi=text.indexOf(';', j);
+      const label=(semi>-1? text.slice(j, Math.min(semi, j+50)) : text.slice(j,j+50)).replace(/\s+/g,' ').trim();
+      nodes.push({type:'return', label: label||'(값 없음)'});
+      i = semi>-1? semi+1 : j;
+      continue;
+    }
+    while(j<n && /\s/.test(text[j])) j++;
+    if(text[j]!=='('){
+      // else 단독(조건 없음)
+      if(kw==='else'){
+        let b=j; while(b<n && /\s/.test(text[b])) b++;
+        let childText='', after=b;
+        if(text[b]==='{'){
+          const e=matchBrace(text,b);
+          if(e>=0){ childText=text.slice(b+1,e); after=e+1; } else after=n;
+        } else { const semi=text.indexOf(';',b); childText= semi>-1? text.slice(b,semi+1):''; after= semi>-1? semi+1:b; }
+        nodes.push({type:'else', cond:'그 외', children: depth<4? scanBlock(childText, depth+1):[]});
+        i=after; continue;
+      }
+      i=j; continue;
+    }
+    let depthP=0, k=j;
+    for(; k<n; k++){ if(text[k]==='(') depthP++; else if(text[k]===')'){ depthP--; if(depthP===0){k++; break;} } }
+    const cond=text.slice(j+1,Math.max(j+1,k-1)).replace(/\s+/g,' ').trim();
+    let b=k; while(b<n && /\s/.test(text[b])) b++;
+    let childText='', after=b;
+    if(text[b]==='{'){
+      const e=matchBrace(text,b);
+      if(e>=0){ childText=text.slice(b+1,e); after=e+1; } else after=n;
+    } else { const semi=text.indexOf(';',b); childText= semi>-1? text.slice(b,semi+1):''; after= semi>-1? semi+1:b; }
+    nodes.push({
+      type: kw==='switch'?'switch':'branch',
+      cond: clamp(cond,70),
+      children: depth<4? scanBlock(childText, depth+1):[]
+    });
+    i=after;
+  }
+  return nodes;
+}
+function buildFlow(fn){ return scanBlock(fn.bodyMasked, 0); }
+
+/* 사양서/표 용 1차 분기 목록(요약) */
+function flattenBranches(nodes, depth, out){
+  out=out||[];
+  nodes.forEach(n=>{
+    if(n.type==='return') out.push({kw:'RETURN', cond:n.label, depth});
+    else if(n.type==='else') out.push({kw:'ELSE', cond:n.cond, depth});
+    else out.push({kw:n.type==='switch'?'SWITCH':'IF', cond:n.cond, depth});
+    if(n.children && n.children.length && depth<1) flattenBranches(n.children, depth+1, out);
+  });
+  return out;
+}
+
+/* =====================================================================================
+   9. CAN/J1939 신호 추출 (구조체.필드, RX_/CAN_ 접두 + PGN 숫자 접미)
+   ===================================================================================== */
+function extractCAN(fn){
+  const text=fn.bodyMasked, seen=new Set(), sig=[];
+  let m;
+  const re1=/\b([A-Za-z_]\w*SPN)\.(\w+)\b/g;
+  while((m=re1.exec(text))){ const nm=m[1]+'.'+m[2]; if(!seen.has(nm)){ seen.add(nm); sig.push({kind:'필드 참조', name:nm}); } }
+  const re2=/\b((?:RX|TX)_[A-Za-z0-9_]*?_(\d{3,6}))\b/g;
+  while((m=re2.exec(text))){ const nm=m[1]; if(!seen.has(nm)){ seen.add(nm); sig.push({kind: nm.startsWith('RX')?'CAN 수신 메시지':'CAN 송신 메시지', name:nm, pgn:m[2]}); } }
+  const re3=/\bCAN_[A-Za-z0-9_]*?_(\d{3,6})\b/g;
+  while((m=re3.exec(text))){ const nm=m[0]; if(!seen.has(nm)){ seen.add(nm); sig.push({kind:'CAN 메시지 구조체', name:nm, pgn:m[1]}); } }
+  return sig;
+}
+
+/* =====================================================================================
+   10. 분류(카테고리) + 설명 자동 생성 (이름/주석/분기 키워드 기반, 확신도 표시)
+   ===================================================================================== */
+function tokenize(name){
+  return name.replace(/([a-z0-9])([A-Z])/g,'$1_$2').split(/[_\d]+/).map(s=>s.toLowerCase()).filter(Boolean);
+}
+/* 짧은 키워드(3자 이하)는 부분일치 시 다른 단어에 우연히 포함되는 오탐이 잦아
+   (예: 'ain' ⊂ 'maintenance') 토큰/텍스트 전체를 단어 경계로 매칭한다 */
+function kwHitTok(tok,k){ return k.length<=3 ? tok===k : tok.includes(k); }
+/* JS \b는 '_'를 단어문자로 취급해 'rpm_310'에서 'rpm'을 놓친다 — 영문자 연속 구간으로 직접 토큰화해서 대조 */
+function kwHitText(text,k){
+  if(k.length>3) return text.includes(k);
+  const toks=text.toLowerCase().match(/[a-z]+/g);
+  return !!toks && toks.includes(k);
+}
+function classify(fn){
+  const nameTok=tokenize(fn.name);
+  const branchText=(fn.branchSummary||[]).map(b=>b.cond).join(' ').toLowerCase();
+  const canText=(fn.canSignals||[]).map(c=>c.name).join(' ').toLowerCase();
+  let best=-1, bestScore=0;
+  CATEGORIES.forEach((c,i)=>{
+    let score=0;
+    c.kw.forEach(k=>{
+      if(nameTok.some(t=>kwHitTok(t,k))) score+=3;
+      if(kwHitText(branchText,k)) score+=1;
+      if(kwHitText(canText,k)) score+=1;
+    });
+    if(score>bestScore){ bestScore=score; best=i; }
+  });
+  return best>=0 ? best : -1;
+}
+function describeFunc(fn){
+  const nameTok=tokenize(fn.name);
+  const verbMap=[
+    [/^(check|is)/i,'상태를 판별한다'],
+    [/^(set|save|change)/i,'값을 설정/저장한다'],
+    [/^(make|cal|calc)/i,'값을 산출/계산한다'],
+    [/control$/i,'동작을 제어한다'],
+    [/^(init|initialize)/i,'변수를 초기화한다'],
+    [/^read/i,'설정을 읽어온다'],
+    [/^reset/i,'값을 초기 상태로 되돌린다'],
+    [/setting$/i,'설정값을 저장/변경한다'],
+    [/(^|_)save(_|$)/i,'값을 저장한다'],
+    [/change/i,'값을 변경한다'],
+    [/process$/i,'처리 루틴을 수행한다'],
+  ];
+  let verb=null;
+  for(const [re,txt] of verbMap) if(re.test(fn.name)){ verb=txt; break; }
+  const domainHit=[];
+  CATEGORIES.forEach(c=>{ c.kw.forEach(k=>{ if(nameTok.some(t=>kwHitTok(t,k))) domainHit.push(k); }); });
+  const uniqDomain=[...new Set(domainHit)];
+  if(verb && uniqDomain.length){
+    return {text:`${uniqDomain.slice(0,3).join('/')} 관련 ${verb}`, confident:true};
+  }
+  if(verb){
+    return {text:`함수명 기준 자동 추정: ${verb}`, confident:false};
+  }
+  return {text:'함수명·구조 기반 자동 추정 — 상세 로직은 소스 원문 확인 필요', confident:false};
+}
+
+/* =====================================================================================
+   11. 전체 분석 파이프라인
+   ===================================================================================== */
+let ANALYSIS=null, SELECTED_FN=null;
+
+function runAnalysis(source){
+  const totalLines=source.split(/\r\n|\r|\n/).length;
+  const pp=resolvePreprocessor(source);
+  const {masked, comments}=maskLiterals(pp.resolved);
+  const lineStarts=buildLineIndex(pp.resolved);
+  let fns=parseFunctions(masked, pp.resolved, lineStarts);
+  attachComments(fns, comments);
+
+  // 중복 함수명(전처리기 미해결로 두 정의가 동시에 남은 경우) 감지 — 마지막 정의를 채택
+  const byName={};
+  fns.forEach(f=>{ (byName[f.name]=byName[f.name]||[]).push(f); });
+  const duplicates=Object.keys(byName).filter(n=>byName[n].length>1);
+  fns = Object.keys(byName).map(n=>byName[n][byName[n].length-1]);
+  fns.sort((a,b)=>a.startLine-b.startLine);
+
+  fns.forEach(f=>{
+    f.flow=buildFlow(f);
+    f.branches=flattenBranches(f.flow,0,[]);
+    f.branchSummary=f.branches;
+    f.canSignals=extractCAN(f);
+    f.category=classify(f);
+    const d=describeFunc(f); f.desc=d.text; f.descConfident=d.confident;
+  });
+
+  return {
+    totalLines, fns, defines:pp.defines, ppFlags:pp.flags, duplicates,
+    canAll: fns.flatMap(f=>f.canSignals)
+  };
+}
+
+/* =====================================================================================
+   12. Phase 전환 / 렌더링
+   ===================================================================================== */
+function setPhase(n){
+  [1,2,3,4].forEach(i=>{
+    $('phase'+i).classList.toggle('hidden', i!==n);
+    const s=$('st'+i);
+    s.classList.toggle('active', i===n);
+    s.classList.toggle('done', i<n);
+  });
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+function renderStats(){
+  const a=ANALYSIS;
+  const items=[
+    ['총 라인 수', a.totalLines.toLocaleString()],
+    ['추출 함수 수', a.fns.length],
+    ['#define 파라미터', Object.keys(a.defines).length],
+    ['CAN/신호 참조', a.canAll.length],
+    ['확인 필요 조건부', a.ppFlags.length],
+  ];
+  $('statsGrid').innerHTML=items.map(([l,v])=>`<div class="statbox"><div class="num">${v}</div><div class="lbl">${esc(l)}</div></div>`).join('');
+}
+let CAT_FILTER=-2; // -2=전체
+function renderChips(){
+  const a=ANALYSIS;
+  const counts=CATEGORIES.map((c,i)=>a.fns.filter(f=>f.category===i).length);
+  const etcCount=a.fns.filter(f=>f.category===-1).length;
+  let html=`<div class="chip ${CAT_FILTER===-2?'on':''}" data-c="-2">전체 (${a.fns.length})</div>`;
+  CATEGORIES.forEach((c,i)=>{ if(counts[i]>0) html+=`<div class="chip ${CAT_FILTER===i?'on':''}" data-c="${i}">${esc(c.name)} (${counts[i]})</div>`; });
+  if(etcCount>0) html+=`<div class="chip ${CAT_FILTER===-1?'on':''}" data-c="-1">기타 (${etcCount})</div>`;
+  $('catChips').innerHTML=html;
+  $('catChips').querySelectorAll('.chip').forEach(el=>el.onclick=()=>{ CAT_FILTER=parseInt(el.dataset.c,10); renderChips(); renderTable(); });
+}
+function renderTable(){
+  const a=ANALYSIS;
+  const list = CAT_FILTER===-2 ? a.fns : a.fns.filter(f=>f.category===CAT_FILTER);
+  $('fnTable').innerHTML=list.map(f=>{
+    const catName = f.category>=0 ? CATEGORIES[f.category].name : '기타';
+    return `<tr data-n="${esc(f.name)}"><td class="mono">${esc(f.name)}()</td><td>${esc(catName)}</td><td style="text-align:center">${f.branches.length}</td></tr>`;
+  }).join('');
+  $('fnTable').querySelectorAll('tr').forEach(tr=>tr.onclick=()=>{
+    $('fnTable').querySelectorAll('tr').forEach(t=>t.classList.remove('sel'));
+    tr.classList.add('sel');
+    showDetail(tr.dataset.n);
+  });
+}
+function wrapText(t,max){
+  const words=String(t).split(' '); const lines=[]; let cur='';
+  words.forEach(w=>{ if((cur+' '+w).trim().length>max){ lines.push(cur.trim()); cur=w; } else cur=(cur+' '+w).trim(); });
+  if(cur) lines.push(cur);
+  return lines.slice(0,3);
+}
+/* ---- 다이아몬드/화살표 플로우차트 렌더러 (Phase2 화면 전용 — Word는 flowToDocxParas 사용) ---- */
+const FLOW_DW=168, FLOW_DH=48, FLOW_RW=156, FLOW_RH=28, FLOW_GAP=16, FLOW_SIDE=196, FLOW_PAD=18, FLOW_MAXNODES=26;
+let FLOW_SVG_SEQ=0;
+
+/* if 노드 뒤에 바로 오는 else 노드를 하나의 결정(참/거짓 두 갈래)으로 합친다 */
+function pairBranches(nodes){
+  const out=[];
+  for(let i=0;i<nodes.length;i++){
+    const n=nodes[i];
+    if(n.type==='return'){ out.push({kind:'return', label:n.label}); continue; }
+    if(n.type==='else'){
+      out.push({kind:'decision', cond:'그 외 처리', trueChildren:pairBranches(n.children||[]), falseChildren:[]});
+      continue;
+    }
+    let falseChildren=[];
+    if(nodes[i+1] && nodes[i+1].type==='else'){ falseChildren=pairBranches(nodes[i+1].children||[]); i++; }
+    out.push({
+      kind:'decision',
+      cond: (n.type==='switch'?'SWITCH ':'') + n.cond,
+      trueChildren: pairBranches(n.children||[]),
+      falseChildren
+    });
+  }
+  return out;
+}
+
+function flowSvgWrap(cx,cy,text,maxW,size){
+  const words=String(text).split(' '); const lines=[]; let cur='';
+  const maxChars=Math.max(6, Math.floor(maxW/(size*0.6)));
+  words.forEach(w=>{ if((cur+' '+w).trim().length>maxChars){ lines.push(cur.trim()); cur=w; } else cur=(cur+' '+w).trim(); });
+  if(cur) lines.push(cur);
+  const L=lines.slice(0,3);
+  const lh=size+3;
+  const startY=cy-((L.length-1)*lh)/2+Math.round(size*0.35);
+  return L.map((l,i)=>`<text x="${cx}" y="${startY+i*lh}" font-size="${size}" text-anchor="middle" fill="#182338">${esc(clamp(l,28))}</text>`).join('');
+}
+function flowDiamond(cx,cy,cond){
+  const pts=`${cx},${cy-FLOW_DH/2} ${cx+FLOW_DW/2},${cy} ${cx},${cy+FLOW_DH/2} ${cx-FLOW_DW/2},${cy}`;
+  return `<polygon points="${pts}" fill="#eaf1fd" stroke="#2f6fd6" stroke-width="1.4"/>` + flowSvgWrap(cx,cy,cond,FLOW_DW*0.55,10);
+}
+function flowTerminal(x,y,label){
+  const cx=x, cy=y+FLOW_RH/2;
+  return `<rect x="${x-FLOW_RW/2}" y="${y}" width="${FLOW_RW}" height="${FLOW_RH}" rx="${FLOW_RH/2}" fill="#e6f6ef" stroke="#1f8a70" stroke-width="1.4"/>`
+    + flowSvgWrap(cx,cy,'RETURN '+label,FLOW_RW*0.85,10.5);
+}
+function flowArrowDown(x,y1,y2,label){
+  let s=`<path d="M ${x} ${y1} L ${x} ${y2-6}" fill="none" stroke="#7a8ba3" stroke-width="1.4" marker-end="url(#fah)"/>`;
+  if(label) s+=`<text x="${x+7}" y="${(y1+y2)/2+3}" font-size="10" fill="#2f6fd6" font-weight="700">${esc(label)}</text>`;
+  return s;
+}
+function flowArrowRightDown(x1,y,x2,y2,label){
+  let s=`<path d="M ${x1} ${y} L ${x2} ${y} L ${x2} ${y2-6}" fill="none" stroke="#b26a00" stroke-width="1.4" marker-end="url(#fah)"/>`;
+  if(label) s+=`<text x="${(x1+x2)/2}" y="${y-6}" font-size="10" fill="#b26a00" font-weight="700" text-anchor="middle">${esc(label)}</text>`;
+  return s;
+}
+function flowMergeBack(x1,y1,x2,y2){
+  const midY=y1+FLOW_GAP/2;
+  return `<path d="M ${x1} ${y1} L ${x1} ${midY} L ${x2} ${midY} L ${x2} ${y2-6}" fill="none" stroke="#9aa8bd" stroke-dasharray="4,3" stroke-width="1.3" marker-end="url(#fah)"/>`;
+}
+
+function flowLayoutSeq(items, x, y, counter){
+  let elements=[], maxRight=x+FLOW_DW/2, prevBottom=null, curY=y;
+  for(const item of items){
+    if(counter.n>=FLOW_MAXNODES){
+      elements.push(`<text x="${x}" y="${curY+14}" font-size="10.5" fill="#b26a00">…(하위 분기 생략 — 소스 참조)</text>`);
+      curY+=22; prevBottom=null; break;
+    }
+    if(prevBottom) elements.push(flowArrowDown(x, prevBottom.y, curY));
+    if(item.kind==='return'){
+      counter.n++;
+      elements.push(flowTerminal(x, curY, item.label));
+      prevBottom={x,y:curY+FLOW_RH};
+      curY += FLOW_RH+FLOW_GAP;
+    } else {
+      counter.n++;
+      const dCenterY=curY+FLOW_DH/2;
+      elements.push(flowDiamond(x, dCenterY, item.cond));
+      const trueY=curY+FLOW_DH+FLOW_GAP;
+      elements.push(flowArrowDown(x, curY+FLOW_DH, trueY, '예'));
+      const trueRes = item.trueChildren.length
+        ? flowLayoutSeq(item.trueChildren, x, trueY, counter)
+        : {elements:[], bottomY:trueY, maxRight:x+FLOW_DW/2};
+      elements.push(...trueRes.elements);
+      maxRight=Math.max(maxRight, trueRes.maxRight);
+      const trueTerminal = item.trueChildren.length>0 && item.trueChildren[item.trueChildren.length-1].kind==='return';
+
+      let falseExit={x, y:curY+FLOW_DH}, falseTerminal=false, falseRes=null;
+      if(item.falseChildren.length){
+        const falseX=x+FLOW_SIDE, falseY=dCenterY+FLOW_GAP;
+        elements.push(flowArrowRightDown(x+FLOW_DW/2, dCenterY, falseX, falseY, '아니오'));
+        falseRes = flowLayoutSeq(item.falseChildren, falseX, falseY, counter);
+        elements.push(...falseRes.elements);
+        maxRight=Math.max(maxRight, falseRes.maxRight);
+        falseTerminal = item.falseChildren[item.falseChildren.length-1].kind==='return';
+        falseExit={x:falseX, y:falseRes.bottomY};
+      }
+
+      if(trueTerminal && (!item.falseChildren.length || falseTerminal)){
+        prevBottom=null;
+        curY=Math.max(trueRes.bottomY, falseExit.y)+FLOW_GAP;
+      } else if(trueTerminal){
+        const mergeY=Math.max(trueRes.bottomY, falseExit.y)+FLOW_GAP;
+        elements.push(flowMergeBack(falseExit.x, falseExit.y, x, mergeY));
+        prevBottom={x, y:mergeY};
+        curY=mergeY;
+      } else {
+        prevBottom={x, y:trueRes.bottomY};
+        curY=Math.max(trueRes.bottomY, falseExit.y + (item.falseChildren.length?FLOW_GAP:0));
+      }
+    }
+  }
+  return {elements, bottomY:curY, maxRight};
+}
+
+function flowToSVG(flow, fn){
+  FLOW_SVG_SEQ++;
+  const markerId='fah';
+  const decisions=pairBranches(flow);
+  const startX=FLOW_PAD+FLOW_DW/2;
+  const defs=`<defs><marker id="${markerId}" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#7a8ba3"/></marker></defs>`;
+  if(!decisions.length){
+    return `<svg class="flow" width="100%" viewBox="0 0 300 70" xmlns="http://www.w3.org/2000/svg">${defs}
+      <rect x="20" y="10" width="150" height="26" rx="13" fill="#e6f6ef" stroke="#1f8a70" stroke-width="1.4"/>
+      <text x="95" y="27" font-size="11" text-anchor="middle" fill="#182338">START — 순차 처리</text>
+      <path d="M95 36 L95 50" stroke="#7a8ba3" stroke-width="1.4" marker-end="url(#${markerId})"/>
+      <rect x="20" y="52" width="150" height="14" fill="none"/>
+      <text x="20" y="66" font-size="10.5" fill="#5b6b7f">조건 분기 없이 순차 처리되는 루틴입니다.</text>
+    </svg>`;
+  }
+  const counter={n:0};
+  const startBox=`<rect x="${startX-70}" y="${FLOW_PAD}" width="140" height="24" rx="12" fill="#eef3fa" stroke="#8ea3bc" stroke-width="1.2"/><text x="${startX}" y="${FLOW_PAD+16}" font-size="10.5" text-anchor="middle" fill="#182338">START ${esc(clamp(fn.name+'()',18))}</text>`;
+  const seqStartY=FLOW_PAD+24+FLOW_GAP;
+  const res=flowLayoutSeq(decisions, startX, seqStartY, counter);
+  const startArrow=flowArrowDown(startX, FLOW_PAD+24, seqStartY, '');
+  const H=res.bottomY+FLOW_PAD;
+  const W=res.maxRight+FLOW_PAD;
+  return `<svg class="flow" width="100%" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">${defs}${startBox}${startArrow}${res.elements.join('')}</svg>`;
+}
+function showDetail(name){
+  const f=ANALYSIS.fns.find(x=>x.name===name);
+  if(!f) return;
+  SELECTED_FN=f;
+  const catName = f.category>=0 ? CATEGORIES[f.category].name : '기타';
+  const kComments=f.comments.filter(c=>/[가-힣]/.test(c)).slice(0,5);
+  const definesUsed=Object.keys(ANALYSIS.defines).filter(d=>f.bodyMasked.includes(d)).slice(0,10);
+  let h=`<h3 class="mono" style="margin-bottom:2px">${esc(f.name)}()</h3>`;
+  h+=`<div class="hint" style="margin-bottom:10px">라인 ${f.startLine}~${f.endLine} · ${esc(f.retType||'void')} · <span class="tag">${esc(catName)}</span></div>`;
+  h+=`<div style="margin-bottom:10px"><b>기능 요약</b><br>${esc(f.desc)} ${f.descConfident?'':'<span class="tag low">확인 필요</span>'}</div>`;
+  if(kComments.length) h+=`<div style="margin-bottom:10px"><b>소스 주석 발췌</b><div class="hint">${kComments.map(esc).join(' / ')}</div></div>`;
+  if(definesUsed.length) h+=`<div style="margin-bottom:10px"><b>참조 파라미터</b><div class="hint mono">${definesUsed.map(d=>d+'='+ANALYSIS.defines[d]).join(', ')}</div></div>`;
+  if(f.canSignals.length) h+=`<div style="margin-bottom:10px"><b>CAN/신호 참조</b><div class="hint mono">${f.canSignals.map(c=>c.name).join(', ')}</div></div>`;
+  h+=`<div style="margin-bottom:8px"><b>제어 흐름</b></div>`;
+  h+=flowToSVG(f.flow, f);
+  $('detailPane').innerHTML=h;
+}
+
+/* =====================================================================================
+   13. 사양서 모델 구성 + Phase3 미리보기
+   ===================================================================================== */
+function buildSpecModel(){
+  const a=ANALYSIS;
+  const groups=CATEGORIES.map((c,i)=>({name:c.name, fns:a.fns.filter(f=>f.category===i)})).filter(g=>g.fns.length>0);
+  const sections=[];
+  groups.forEach(g=>{
+    const top=g.fns.slice().sort((x,y)=>y.branches.length-x.branches.length).slice(0,6);
+    top.forEach(f=>sections.push({cat:g.name, fn:f}));
+  });
+  return {groups, sections};
+}
+function getMeta(){
+  return {
+    title: $('mTitle').value.trim() || 'MCU 제어 시스템 기능 사양서',
+    docNo: $('mDocNo').value.trim() || '[확인 필요]',
+    rev: $('mRev').value.trim() || 'Rev.01',
+    org: $('mOrg').value.trim() || '[확인 필요]',
+    owner: $('mOwner').value.trim() || '[확인 필요]',
+    review: $('mReview').value.trim() || '[확인 필요]',
+    approve: $('mApprove').value.trim() || '[확인 필요]',
+    confidential: $('mConfidential').checked,
+  };
+}
+function renderSpecPreview(){
+  const m=ANALYSIS.specModel;
+  const byCat={};
+  m.sections.forEach(s=>{ (byCat[s.cat]=byCat[s.cat]||[]).push(s.fn); });
+  let rows='', no=0;
+  Object.keys(byCat).forEach(cat=>{
+    rows+=`<tr><td colspan="3" style="background:#eef3fa;font-weight:700;color:var(--navy)">▣ ${esc(cat)}</td></tr>`;
+    byCat[cat].forEach(f=>{
+      no++;
+      rows+=`<tr><td class="mono">2.3.${no}</td><td><b>${esc(f.name)}()</b> — ${esc(f.desc)}</td><td class="mono">${f.startLine}~${f.endLine}행</td></tr>`;
+    });
+  });
+  $('specPreview').innerHTML=`<table><thead><tr><th style="width:12%">항목</th><th>기능 정의</th><th style="width:16%">소스 근거</th></tr></thead><tbody>${rows}</tbody></table>
+  <div class="note" style="margin-top:14px">생성 문서 구성: ① 표지 ② Revision History ③ 1.개요(목적/주요기능) ④ 2.시스템 기능 정의(분석 요약 표 + 기능별 상세: 기능정의 → 제어 흐름 → CAN 신호 → 소스 근거) ⑤ 부록(#define 파라미터)</div>`;
+}
+
+/* =====================================================================================
+   14. Phase4 교차 검증
+   ===================================================================================== */
+function renderXCheck(){
+  const m=ANALYSIS.specModel;
+  let rows='', okCnt=0, warnCnt=0;
+  m.sections.forEach((s,idx)=>{
+    const f=s.fn;
+    const issues=[];
+    if(!f.descConfident) issues.push('기능 설명 자동 추정(확신도 낮음)');
+    if(!f.branches.length) issues.push('조건 분기 없음(단순 처리 루틴)');
+    const overlapFlag=ANALYSIS.ppFlags.find(fl=>fl.line>=f.startLine && fl.line<=f.endLine);
+    if(overlapFlag) issues.push(`조건부 컴파일 매크로 "${overlapFlag.macro}" 미해결`);
+    if(ANALYSIS.duplicates.includes(f.name)) issues.push('동일 함수명 중복 정의 감지(최종본 채택)');
+    const ok=issues.length===0;
+    ok? okCnt++ : warnCnt++;
+    rows+=`<tr><td class="mono">2.3.${idx+1}</td><td class="mono">${esc(f.name)}()</td>
+      <td class="${ok?'xok':'xwarn'}">${ok?'✔ 일치':'⚠ 확인 필요'}</td>
+      <td style="font-size:12px">${issues.map(esc).join('<br>')||'-'}</td></tr>`;
+  });
+  $('xcheckResult').innerHTML=`
+    <div class="statsGrid" style="margin-bottom:14px">
+      <div class="statbox"><div class="num" style="color:var(--teal)">${okCnt}</div><div class="lbl">근거 일치</div></div>
+      <div class="statbox"><div class="num" style="color:var(--amber)">${warnCnt}</div><div class="lbl">확인 필요</div></div>
+      <div class="statbox"><div class="num">${m.sections.length}</div><div class="lbl">전체 수록 함수</div></div>
+    </div>
+    <table><thead><tr><th style="width:9%">항목</th><th style="width:22%">함수</th><th style="width:14%">판정</th><th>사유</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+/* =====================================================================================
+   15. CRC32 + ZIP(STORE) writer — 외부 라이브러리 없이 .docx(OOXML) 직접 생성
+   ===================================================================================== */
+const CRC_TABLE=(()=>{ const t=[]; for(let n=0;n<256;n++){ let c=n; for(let k=0;k<8;k++) c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1); t[n]=c>>>0; } return t; })();
+function crc32(bytes){ let c=0xFFFFFFFF; for(let i=0;i<bytes.length;i++) c=CRC_TABLE[(c^bytes[i])&0xFF]^(c>>>8); return (c^0xFFFFFFFF)>>>0; }
+function strToBytes(s){ return new TextEncoder().encode(s); }
+function u16(v){ return new Uint8Array([v&0xFF,(v>>>8)&0xFF]); }
+function u32(v){ return new Uint8Array([v&0xFF,(v>>>8)&0xFF,(v>>>16)&0xFF,(v>>>24)&0xFF]); }
+function concatBytes(arrs){ let len=0; arrs.forEach(a=>len+=a.length); const out=new Uint8Array(len); let o=0; arrs.forEach(a=>{ out.set(a,o); o+=a.length; }); return out; }
+
+function buildZip(files){ // files: [{name, data:Uint8Array}]
+  const DOSTIME=0, DOSDATE=23585; // 2026-01-01 00:00:00 고정
+  const localParts=[], centralParts=[];
+  let offset=0;
+  files.forEach(f=>{
+    const nameBytes=strToBytes(f.name);
+    const crc=crc32(f.data);
+    const size=f.data.length;
+    const localHeader=concatBytes([
+      u32(0x04034b50), u16(20), u16(0), u16(0), u16(DOSTIME), u16(DOSDATE),
+      u32(crc), u32(size), u32(size), u16(nameBytes.length), u16(0), nameBytes
+    ]);
+    localParts.push(localHeader, f.data);
+    const centralHeader=concatBytes([
+      u32(0x02014b50), u16(20), u16(20), u16(0), u16(0), u16(DOSTIME), u16(DOSDATE),
+      u32(crc), u32(size), u32(size), u16(nameBytes.length), u16(0), u16(0), u16(0), u16(0), u32(0), u32(offset), nameBytes
+    ]);
+    centralParts.push(centralHeader);
+    offset += localHeader.length + f.data.length;
+  });
+  const centralStart=offset;
+  const central=concatBytes(centralParts);
+  const eocd=concatBytes([
+    u32(0x06054b50), u16(0), u16(0), u16(files.length), u16(files.length),
+    u32(central.length), u32(centralStart), u16(0)
+  ]);
+  return concatBytes([...localParts, central, eocd]);
+}
+
+/* =====================================================================================
+   16. OOXML(word/*.xml) 문자열 빌더
+   ===================================================================================== */
+function xesc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function run(text,o={}){
+  o=o||{};
+  const props=[];
+  if(o.bold) props.push('<w:b/>');
+  props.push(`<w:sz w:val="${o.size||22}"/>`);
+  props.push(`<w:color w:val="${o.color||'182338'}"/>`);
+  props.push(`<w:rFonts w:ascii="맑은 고딕" w:eastAsia="맑은 고딕" w:hAnsi="맑은 고딕"/>`);
+  const lines=String(text==null?'':text).split('\n');
+  const brs=lines.map((l,idx)=> (idx>0?'<w:br/>':'') + `<w:t xml:space="preserve">${xesc(l)}</w:t>`).join('');
+  return `<w:r><w:rPr>${props.join('')}</w:rPr>${brs}</w:r>`;
+}
+function para(text,o={}){
+  o=o||{};
+  const pPr=[];
+  if(o.align) pPr.push(`<w:jc w:val="${o.align}"/>`);
+  if(o.pageBreakBefore) pPr.push('<w:pageBreakBefore/>');
+  pPr.push(`<w:spacing w:after="${o.after??120}"/>`);
+  if(o.indent) pPr.push(`<w:ind w:left="${o.indent}"/>`);
+  return `<w:p><w:pPr>${pPr.join('')}</w:pPr>${run(text,o)}</w:p>`;
+}
+function emptyPara(pageBreak){ return `<w:p>${pageBreak?'<w:pPr><w:pageBreakBefore/></w:pPr>':''}</w:p>`; }
+function cellXml(text,o={}){
+  o=o||{};
+  const tcPr=[`<w:tcW w:w="${(o.w||100)*50}" w:type="pct"/>`];
+  if(o.head) tcPr.push('<w:shd w:val="clear" w:color="auto" w:fill="DEE7F2"/>');
+  return `<w:tc><w:tcPr>${tcPr.join('')}</w:tcPr>${para(text,{bold:o.head,size:o.size||18,after:40})}</w:tc>`;
+}
+function rowXml(cellsHtml){ return `<w:tr>${cellsHtml}</w:tr>`; }
+function tableXml(rowsHtml){
+  return `<w:tbl><w:tblPr><w:tblW w:w="5000" w:type="pct"/>
+  <w:tblBorders>
+    <w:top w:val="single" w:sz="4" w:color="8EA3BC"/><w:bottom w:val="single" w:sz="4" w:color="8EA3BC"/>
+    <w:left w:val="single" w:sz="4" w:color="8EA3BC"/><w:right w:val="single" w:sz="4" w:color="8EA3BC"/>
+    <w:insideH w:val="single" w:sz="2" w:color="B9C6D8"/><w:insideV w:val="single" w:sz="2" w:color="B9C6D8"/>
+  </w:tblBorders></w:tblPr>${rowsHtml.join('')}</w:tbl>`;
+}
+
+/* 제어흐름 트리 → docx 단락(들여쓰기+색상 기호 표기) */
+function flowToDocxParas(nodes, depth, out){
+  out=out||[];
+  nodes.forEach(n=>{
+    if(out.length>=60) return;
+    const indent=200+depth*260;
+    if(n.type==='return') out.push(para('■ RETURN '+n.label, {size:17,color:'1F8A70',indent}));
+    else if(n.type==='else') out.push(para('◇ ELSE (그 외)', {size:17,color:'B26A00',indent}));
+    else out.push(para((n.type==='switch'?'◆ SWITCH ':'◆ IF ')+'( '+n.cond+' )', {size:17,color:'1B3A66',indent}));
+    if(n.children && n.children.length) flowToDocxParas(n.children, depth+1, out);
+  });
+  return out;
+}
+
+/* =====================================================================================
+   17. .docx 전체 생성
+   ===================================================================================== */
+async function generateDocx(){
+  const a=ANALYSIS, m=a.specModel, meta=getMeta();
+  const today=new Date();
+  const dateStr=`${today.getFullYear()}년 ${String(today.getMonth()+1).padStart(2,'0')}월 ${String(today.getDate()).padStart(2,'0')}일`;
+
+  const body=[];
+
+  /* --- 표지 --- */
+  body.push(tableXml([rowXml(
+    cellXml('관리 번호',{head:1,w:20}) + cellXml(`${meta.docNo} ${meta.rev}`,{w:30}) + cellXml('',{w:30}) + cellXml(meta.confidential?'대 외 비':'',{head:1,w:20})
+  )]));
+  body.push(emptyPara(false).replace('</w:p>','<w:pPr><w:spacing w:after="600"/></w:pPr></w:p>'));
+  body.push(para(meta.title,{align:'center',size:36,bold:true,after:80}));
+  body.push(para('( MCU Control System Specification )',{align:'center',size:22,after:120}));
+  body.push(para('— 소스코드 역설계 기반 자동 생성 Draft —',{align:'center',size:20,color:'B26A00',after:800}));
+  body.push(tableXml([rowXml(cellXml('담당',{head:1})+cellXml('검토',{head:1})+cellXml('승인',{head:1}))]));
+  body.push(tableXml([rowXml(cellXml(meta.owner)+cellXml(meta.review)+cellXml(meta.approve))]));
+  body.push(emptyPara(false).replace('</w:p>','<w:pPr><w:spacing w:after="900"/></w:pPr></w:p>'));
+  body.push(para(dateStr,{align:'center',size:24}));
+  body.push(para(meta.org,{align:'center',size:22}));
+  body.push(emptyPara(true));
+
+  /* --- Revision History --- */
+  body.push(para('■ Revision History',{bold:true,size:28,after:200}));
+  body.push(tableXml([
+    rowXml(cellXml('일시(Rev.)',{head:1,w:22})+cellXml('작성 내용',{head:1,w:44})+cellXml('SW Ver.',{head:1,w:17})+cellXml('작성자',{head:1,w:17})),
+    rowXml(cellXml(`${String(today.getFullYear()).slice(2)}.${String(today.getMonth()+1).padStart(2,'0')}.${String(today.getDate()).padStart(2,'0')} (V.01)`)+cellXml('- 소스코드 역설계 기반 최초 자동 작성 (Draft)')+cellXml('[확인 필요]')+cellXml('[확인 필요]')),
+  ]));
+  body.push(emptyPara(true));
+
+  /* --- 1. 개요 --- */
+  body.push(para('1. 개요',{bold:true,size:32,after:200}));
+  body.push(para('1.1 목적',{bold:true,size:26,after:120}));
+  body.push(para('본 기능 사양서는 기존 양산 엔진식 지게차에 적용된 MCU 제어 시스템의 베어메탈(Bare-metal) C 소스코드를 역설계(Reverse Engineering) 방식으로 분석하여, 제어 로직 및 기능 요구사항을 정의한 문서이다. 외주 의존도를 최소화하고 차세대 제어기(VCU 등) 개발을 위한 핵심 로직 자산화를 목적으로 한다.'));
+  body.push(para(`분석 대상 소스코드는 총 ${a.totalLines.toLocaleString()} 라인이며, 자동 분석으로 추출된 ${a.fns.length}개 함수 중 조건 분기를 포함한 핵심 함수 ${m.sections.length}개의 제어 로직을 본 문서에 수록하였다.`));
+  body.push(para('1.2 주요기능 정의',{bold:true,size:26,after:120}));
+  body.push(para('Table 1 MCU 주요 기능 리스트',{bold:true,size:18,after:60}));
+  body.push(tableXml([rowXml(cellXml('구분',{head:1,w:24})+cellXml('기능 항목',{head:1,w:46})+cellXml('관련 함수 수',{head:1,w:14})+cellXml('비고',{head:1,w:16}))]
+    .concat(m.groups.map(g=>rowXml(cellXml(g.name)+cellXml(g.fns.slice(0,6).map(f=>f.name+'()').join(', ')+(g.fns.length>6?' 외':''))+cellXml(String(g.fns.length))+cellXml('-'))))));
+  body.push(para('※ [확인 필요] 항목은 소스코드만으로 확정할 수 없어 실무 검토가 필요한 사항이다.',{size:18,color:'B26A00'}));
+  body.push(para('1.3 관련 표준 / 규격 및 법규',{bold:true,size:26,after:120}));
+  body.push(para('[확인 필요] 해당 차종 및 수출 지역에 따른 적용 법규 여부를 확인하여 기재한다.'));
+
+  /* --- 2. 시스템 기능 정의 --- */
+  body.push(emptyPara(true));
+  body.push(para('2. 시스템 기능 정의 및 요구 사양',{bold:true,size:32,after:200}));
+  body.push(para('2.1 기능 목적',{bold:true,size:26,after:120}));
+  body.push(para('OS 없는 순차적 슈퍼 루프(Super Loop) 구조의 펌웨어로서, 각 제어 함수는 주기적 태스크 또는 이벤트에 의해 호출되며 센서 입력·통신 수신 데이터를 기반으로 차량 상태를 판별하고 액추에이터 출력 및 표시 데이터를 생성한다.'));
+  body.push(para('2.2 소스코드 분석 개요',{bold:true,size:26,after:120}));
+  body.push(tableXml([rowXml(cellXml('항목',{head:1,w:40})+cellXml('분석 결과',{head:1,w:60}))]
+    .concat([['총 라인 수', a.totalLines.toLocaleString()+' 라인'],['추출 함수 수', a.fns.length+' 개'],['#define 파라미터', Object.keys(a.defines).length+' 개'],['조건부 컴파일 확인 필요', a.ppFlags.length+' 건'],['분석 일시', dateStr]]
+      .map(r=>rowXml(cellXml(r[0])+cellXml(r[1]))))));
+
+  body.push(para('2.3 주요 기능 정의',{bold:true,size:26,after:160}));
+  m.sections.forEach((s,idx)=>{
+    const f=s.fn;
+    body.push(para(`2.3.${idx+1} ${f.name} — ${f.desc}`,{bold:true,size:24,after:120,pageBreakBefore: idx%3===0 && idx>0}));
+    body.push(para('1) 기능 정의',{bold:true,size:20,after:60}));
+    body.push(para(`- 기능 분류: ${s.cat}`));
+    body.push(para(`- 기능 요약: ${f.desc}${f.descConfident?'':' [확인 필요]'}`));
+    const kComments=f.comments.filter(c=>/[가-힣]/.test(c)).slice(0,4);
+    if(kComments.length) body.push(para('- 소스 주석 발췌: '+kComments.join(' / '),{size:18,color:'5B6B7F'}));
+    const definesUsed=Object.keys(a.defines).filter(d=>f.bodyMasked.includes(d)).slice(0,8);
+    if(definesUsed.length) body.push(para('- 참조 파라미터: '+definesUsed.map(d=>`${d} = ${a.defines[d]}`).join(', '),{size:18}));
+
+    if(f.canSignals.length){
+      body.push(para('2) CAN/신호 통신 사양',{bold:true,size:20,after:60}));
+      body.push(tableXml([rowXml(cellXml('신호/메시지명',{head:1,w:40})+cellXml('구분',{head:1,w:30})+cellXml('PGN(추정)',{head:1,w:15})+cellXml('비고',{head:1,w:15}))]
+        .concat(f.canSignals.slice(0,12).map(c=>rowXml(cellXml(c.name)+cellXml(c.kind)+cellXml(c.pgn||'-')+cellXml('[확인 필요] 상세 스펙 대조'))))));
+    }
+
+    body.push(para(`${f.canSignals.length?'3)':'2)'} 제어 흐름`,{bold:true,size:20,after:60}));
+    const flowParas=flowToDocxParas(f.flow,0,[]);
+    if(flowParas.length) body.push(...flowParas);
+    else body.push(para('· 조건 분기 없이 순차 처리되는 루틴이다.',{size:18}));
+    body.push(para(`※ 소스 근거: 함수 ${f.name}(), 라인 ${f.startLine} ~ ${f.endLine}`,{size:17,color:'5B6B7F'}));
+  });
+
+  /* --- 부록 --- */
+  body.push(emptyPara(true));
+  body.push(para('부록. #define 파라미터 목록',{bold:true,size:28,after:160}));
+  const defEntries=Object.entries(a.defines).slice(0,60);
+  body.push(tableXml([rowXml(cellXml('파라미터',{head:1,w:50})+cellXml('값',{head:1,w:50}))]
+    .concat(defEntries.map(([k,v])=>rowXml(cellXml(k)+cellXml(v||'-'))))));
+  if(Object.keys(a.defines).length>60) body.push(para('※ 60개까지만 표기 — 전체 목록은 소스코드 참조',{size:17,color:'B26A00'}));
+
+  if(a.ppFlags.length){
+    body.push(para('부록. 조건부 컴파일(전처리기) 확인 필요 목록',{bold:true,size:24,after:120,pageBreakBefore:true}));
+    body.push(tableXml([rowXml(cellXml('소스 라인',{head:1,w:20})+cellXml('매크로/조건식',{head:1,w:50})+cellXml('자동 처리 방침',{head:1,w:30}))]
+      .concat(a.ppFlags.slice(0,60).map(fl=>rowXml(cellXml(String(fl.line))+cellXml(fl.macro)+cellXml('값 미확인 → 비활성(#else/거짓) 경로 채택'))))));
+  }
+
+  body.push(para('- End -',{align:'center',size:20}));
+
+  const documentXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+<w:body>${body.join('')}
+<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1417" w:right="1417" w:bottom="1417" w:left="1417" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr>
+</w:body></w:document>`;
+
+  const contentTypes=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+<Default Extension="xml" ContentType="application/xml"/>
+<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+<Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>
+</Types>`;
+
+  const relsRoot=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>
+</Relationships>`;
+
+  const docRels=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>`;
+
+  const coreXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/">
+<dc:title>${xesc(meta.title)}</dc:title>
+<dc:creator>MCU-SPEC-Generator</dc:creator>
+<cp:lastModifiedBy>MCU-SPEC-Generator</cp:lastModifiedBy>
+</cp:coreProperties>`;
+
+  const appXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"><Application>MCU-SPEC-Generator</Application></Properties>`;
+
+  const stylesXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="맑은 고딕" w:eastAsia="맑은 고딕" w:hAnsi="맑은 고딕"/><w:sz w:val="21"/></w:rPr></w:rPrDefault></w:docDefaults>
+<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style>
+</w:styles>`;
+
+  const files=[
+    {name:'[Content_Types].xml', data:strToBytes(contentTypes)},
+    {name:'_rels/.rels', data:strToBytes(relsRoot)},
+    {name:'docProps/core.xml', data:strToBytes(coreXml)},
+    {name:'docProps/app.xml', data:strToBytes(appXml)},
+    {name:'word/document.xml', data:strToBytes(documentXml)},
+    {name:'word/styles.xml', data:strToBytes(stylesXml)},
+    {name:'word/_rels/document.xml.rels', data:strToBytes(docRels)},
+  ];
+  const zipBytes=buildZip(files);
+  const blob=new Blob([zipBytes],{type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
+  const url=URL.createObjectURL(blob);
+  const aTag=document.createElement('a');
+  aTag.href=url;
+  aTag.download=`MCU_기능_사양서_Draft_${new Date().toISOString().slice(0,10)}.docx`;
+  document.body.appendChild(aTag);
+  aTag.click();
+  aTag.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),5000);
+}
+
+/* =====================================================================================
+   18. 파일 입력 / 이벤트 배선
+   ===================================================================================== */
+async function handleFiles(list){
+  const texts=[];
+  for(const file of list){
+    const buf=await file.arrayBuffer();
+    texts.push(`// ===== ${file.name} =====\n` + decodeBuffer(buf));
+  }
+  $('codeInput').value = texts.join('\n\n');
+  $('fileinfo').textContent = `${list.length}개 파일 로드 완료 (${Array.from(list).map(f=>f.name).join(', ')})`;
+}
+
+const SAMPLE_C = `// ===== sample_mcu_control.c (합성 데모 — 실제 고객사 로직 아님) =====
+#include "vehicle_types.h"
+
+#define SPEED_LIMIT_STD   20
+#define SPEED_LIMIT_PWR   30
+#define TORQUE_LIMIT_MAX  250
+
+unsigned char Torque_limit;
+unsigned short Engine_Speed_Limit;
+unsigned char SeatBelt_Status;
+unsigned char Gear_Status;
+unsigned char ESL_Locked;
+
+st_HCESPN HCESPN;
+
+// 안전벨트 상태를 판별해 인터락 플래그를 세팅한다
+void CheckSeatBeltStatus(void)
+{
+    if (HCESPN.SeatBelt_Switch == 1)
+    {
+        SeatBelt_Status = 1;
+    }
+    else
+    {
+        SeatBelt_Status = 0;
+        Torque_limit = 0; // 벨트 미착용 시 출력 제한
+    }
+}
+
+// 기어 상태를 판별하고 통신 에러 시 중립으로 강제 전환한다
+void CheckGearStatus(void)
+{
+    if (HCESPN.Comm_Error_542 == 1)
+    {
+        Gear_Status = 0; // Neutral 강제
+    }
+    else
+    {
+        if (HCESPN.Gear_542 == 1) Gear_Status = 1; // Forward
+        else if (HCESPN.Gear_542 == 2) Gear_Status = 2; // Reverse
+        else Gear_Status = 0;
+    }
+}
+
+// 파워/표준 모드에 따른 토크 제한값을 산출한다
+void Power_Standard_Mode(void)
+{
+    if (HCESPN.Mode_Switch == 1) // Power Mode
+    {
+        if (HCESPN.rpm_310 >= 850)
+        {
+            Torque_limit = TORQUE_LIMIT_MAX;
+        }
+        else
+        {
+            Torque_limit = TORQUE_LIMIT_MAX - 50;
+        }
+        Engine_Speed_Limit = SPEED_LIMIT_PWR;
+    }
+    else // Standard Mode
+    {
+        Torque_limit = TORQUE_LIMIT_MAX - 100;
+        Engine_Speed_Limit = SPEED_LIMIT_STD;
+    }
+}
+
+// 장비 시동 제한(ESL) 비밀번호를 확인한다
+unsigned char ESL_Setting(void)
+{
+    if (HCESPN.Password_Input == HCESPN.Password_Stored)
+    {
+        ESL_Locked = 0;
+        return 1;
+    }
+    else
+    {
+        ESL_Locked = 1;
+        return 0;
+    }
+}
+
+// 경사로 밀림 방지(HAC) 제어
+void HillStartAssistControl_Control(void)
+{
+    if (HCESPN.Slope_Angle > 5)
+    {
+        if (Gear_Status != 0)
+        {
+            HCESPN.Brake_Hold_Cmd = 1;
+        }
+    }
+    else
+    {
+        HCESPN.Brake_Hold_Cmd = 0;
+    }
+}
+
+// 엔진오일 교체 주기를 관리한다
+void Check_Maintenance_Info(unsigned char request)
+{
+    switch (request)
+    {
+        case 1:
+            HCESPN.Maint_EngineOil_Hour = 0;
+            break;
+        case 2:
+            HCESPN.Maint_Filter_Hour = 0;
+            break;
+        default:
+            break;
+    }
+}
+`;
+
+function init(){
+  const dz=$('dropzone'), fi=$('fileInput');
+  dz.onclick=()=>fi.click();
+  fi.onchange=e=>{ if(e.target.files.length) handleFiles(e.target.files); };
+  ['dragenter','dragover'].forEach(ev=>dz.addEventListener(ev,e=>{ e.preventDefault(); dz.classList.add('drag'); }));
+  ['dragleave','drop'].forEach(ev=>dz.addEventListener(ev,e=>{ e.preventDefault(); dz.classList.remove('drag'); }));
+  dz.addEventListener('drop', e=>{ if(e.dataTransfer.files.length) handleFiles(e.dataTransfer.files); });
+
+  $('btnSample').onclick=()=>{ $('codeInput').value=SAMPLE_C; $('fileinfo').textContent='샘플 코드 로드 완료 (합성 데모)'; };
+
+  $('btnAnalyze').onclick=()=>{
+    const src=$('codeInput').value;
+    if(!src.trim()){ alert('분석할 C 코드가 없습니다. 파일을 업로드하거나 붙여넣어 주세요.'); return; }
+    ANALYSIS=runAnalysis(src);
+    renderStats(); renderChips(); renderTable();
+    $('detailPane').innerHTML='<div class="ph">왼쪽 목록에서 함수를 선택하면<br>제어 로직 상세와 흐름도가 표시됩니다</div>';
+    setPhase(2);
+  };
+
+  $('btnToPhase3').onclick=()=>{
+    ANALYSIS.specModel=buildSpecModel();
+    renderSpecPreview();
+    setPhase(3);
+  };
+  $('btnToPhase4').onclick=()=>{ renderXCheck(); setPhase(4); };
+  $('btnDocx').onclick=()=>{ generateDocx().catch(err=>alert('Word 파일 생성 중 오류: '+err.message)); };
+}
+init();
+</script>
+</body>
+</html>
