@@ -1,0 +1,877 @@
+#include "FLV_Cluster_APP.h"
+
+#define	HW_TEST_ADDR		0x080A0000
+#define	LOT_ADDR			0x080E0000
+
+//// v0.0.1		(200116)
+// 1. 초도품(화면설정, 메인, LED 완료)
+//// v0.1.0		(200522)
+// 1. Alt 기준 전압 12V -> 10V로 변경 
+//// v0.2.0		(200522)
+// 1. SpeedLimit MMI 연동해서 값 변경할 수 있도록 변경 
+// 2. 속도제한 관련 표시 
+//--------------------RevB---------------------------//
+//// v.0.1.0		(200617)
+// 1. RevB.01 적용
+// 2. Engine Check -> 소모품 교환 등으로 변경 
+// 3. TM Oil Temp, TM Oil Pressure 적용(DIN -> AIN)
+//--------------------------------------
+//// v.0.1.0		(200710)
+// 1. DCSR 버그 수정(후진 안되는 현상 개선) 
+// 2. ZERO START 기능 추가 
+// 3. DPF 관련 메인화면 추가(기능확인 못함)
+// 4. MAST 추가 하였으나 장비 시험 못함(아직 달리지 않음)
+// 5. 클러치 보호기능 추가(기능 확인 못함)
+//--------------------------------------
+//// v.0.1.1		(200821)
+// 1. AUTO LEVELING 구현 
+// 2. RevB.02 추가
+// 3. HAC 기능 추가
+// 4. 속도 관련 0.9km/h 차이나는 것 개선(unsigned short -> float)
+// 5. Cluster 품번 저장 추가
+// 6. 각도관련 CAN TX 추가
+// 7. FS5C2007D00005, FS5C2008D00006 프로토 장비로 인식 
+//--------------------------------------
+//// v.0.1.2		(200924)
+// 1. LPG 모델
+//// v.0.4.0		(201030)
+// 1. LPG 모델정리
+// 2. 이미지 및 색상 변경
+// 3. 장비 설정 메뉴 트리 변경
+// 4. ADC 함수 인터럽트로 이동
+//// v.0.2.0        (210303)
+// 1. TILT_LOCK 동작 변경
+// 2. 타이어 모델 변경
+// 3. 속도 제한 튜닝(45L-9)
+
+//// v.0.3.0        (210303)
+// 1. 9S, 9A 모델 추가
+
+//// v.0.4.0        (210419)
+// 1. LPG 모델 FUEL LEVEL LOW 램프 테스트(10초에서 즉시로 변경)
+// 2. 35DN-9VB 속도제한 튜닝 완성
+
+//// v.0.1.5        (210426)
+// 1. PPAP 승인으로 인한 버전 수정
+// 개발은 히든 버전만 수정하기로 
+
+//// v.0.1.6        (210503)
+// 1. LPG 연료 경고등 로직 수정(ON : 5초 지속, OFF : 10초 지속)
+// 2. 25~33LC-9 수정
+// 개발은 히든 버전만 수정하기로 
+
+//// v.0.1.7        (210527)
+// 1. HAC 기능 수정
+// 2. AUTO SHIFT MODE 기능 수정(SR값 다시 적용)
+// 3. 9S 용 최대 주행 속도 제한 문구 수정
+// 개발은 히든 버전만 수정하기로
+
+//// v.0.1.8        (210528)
+// 1. LPG 모델의 FUEL EMPTY 램프는 PWD/STD 입력으로 수정
+// 개발은 히든 버전만 수정하기로
+
+//// v.0.1.8        (210617)
+// 1. 마스트 각도 로직 수정
+// 2. AUTO SHIFT MODE 상세 설정 추가 
+
+//// v.0.2.0        (210625)
+// 1. LC 모델 차량 속도 입력 로직 변경(HARDWIRE -> CAN)
+// 2. 이미지 버전 업(0.6)
+// 3. 9S 모델 정리
+
+//// v.1.0.0        (210702)
+// 1.각도 센서 튜닝
+// 2. L-9 오토 시프트 모드 튜닝
+// 3. 양산 버전 적용 
+
+//// v.1.0.0        (210714)
+// 1.50L-9 최종 양산 버전 적용 
+
+//// v.0.1.A        (210715)
+// 1. 테스트 버전(AUTO SHIFT MODE 다운 최소를 4km/h에서 1km/h로)
+
+//// v.1.1.0        (210727)
+// 1. RMS 추가
+
+//// v.1.1.1        (211015)
+// 1. STACK SIZE 증가
+
+//// v.1.2.0        (211022)
+// 1. 1.1.1 -> 1.2.0 정식 절변
+
+//// v.1.3.0        (211122)
+// 1. KUBOTA DTC 정리 
+// 2. RTC 개선
+
+//// v.2.0.0        (220516)
+// 1. 가속도 센서 추가 - TEST
+
+//// v.2.1.0        (221215)
+// 1. 기능 안전 제어기 프로토콜 추가 - TEST
+
+
+#define	VERSION_HIGH			0x2
+#define	VERSION_LOW				0x1
+#define	VERSION_SUB_HIGH		0x0
+//#define	VERSION_SUB_LOW		0x0
+//--------------------------------------
+extern VERSION_DATA_61423* TX_VERSION_DATA_61423;
+extern Img_Version_Info		Info_Version_Img;
+extern unsigned char _Cluster_Serial[20];
+extern unsigned char _Cluster_Model[20];
+
+extern unsigned char _ECM_Serial[20];
+extern unsigned char _ECM_PartNumber[20];
+extern unsigned char _ECM_SW_Version[20];
+
+//++, 220221 ysm, FINGERTIP
+extern unsigned char _FLT_Serial[20];
+extern unsigned char _FLT_PartNumber[20];
+extern unsigned char _FLT_SW_Version;
+extern unsigned char _FLT_SW_Sub_Version;
+//--, 220221 ysm, FINGERTIP
+
+//++, 220929 ysm, FSCU
+extern unsigned char _FSCU_Serial[20];
+extern unsigned char _FSCU_PartNumber[20];
+extern unsigned char _FSCU_SW_Version;
+extern unsigned char _FSCU_SW_Sub_Version;
+//--, 220929 ysm, FSCU
+
+//++, 221226 ysm, FSCU
+USHORT string_NoInfo[]={'N','o',' ','I','n','f','o','r','m','a','t','i','o','n',0};	
+//--, 221226 ysm, FSCU
+
+
+void SetVersion()
+{
+	TX_VERSION_DATA_61423->SW_Version_High = VERSION_HIGH;
+	TX_VERSION_DATA_61423->SW_Version_Low= VERSION_LOW;	
+	TX_VERSION_DATA_61423->SW_Version_Sub_High= VERSION_SUB_HIGH;	
+	//TX_VERSION_DATA_61423->SW_Version_Sub_Low= VERSION_SUB_LOW;	
+
+	TX_VERSION_DATA_61423->Img_Version_High=Info_Version_Img.Version_High;
+	TX_VERSION_DATA_61423->Img_Version_Low=Info_Version_Img.Version_Low;
+	TX_VERSION_DATA_61423->Img_Version_Sub_High=Info_Version_Img.Version_Sub;
+
+	//++, 211118 ysm
+	#if 0
+	if(gHardware_Version == RevA_01)
+	{
+		TX_VERSION_DATA_61423->HW_Version_High = 0x0A;
+		TX_VERSION_DATA_61423->HW_Version_Low= 0x01;
+		TX_VERSION_DATA_61423->HW_Version_SUB= 0x01;
+	}
+	else if((gHardware_Version > RevA_01)&&(gHardware_Version < RevB_05))
+	{
+		TX_VERSION_DATA_61423->HW_Version_High = 0x0B;
+		TX_VERSION_DATA_61423->HW_Version_Low= 0x01;
+		TX_VERSION_DATA_61423->HW_Version_SUB= 0x01;
+	}
+	else
+	{
+		TX_VERSION_DATA_61423->HW_Version_High = 0x0B;
+		TX_VERSION_DATA_61423->HW_Version_Low= 0x05;
+		TX_VERSION_DATA_61423->HW_Version_SUB= 0x01;
+
+	}
+	#else	
+	if(gHardware_Version == RevA_01)
+	{
+		TX_VERSION_DATA_61423->HW_Version_High = 0x0A;
+		TX_VERSION_DATA_61423->HW_Version_Low= 0x01;
+		TX_VERSION_DATA_61423->HW_Version_SUB= 0x01;
+	}
+	else if(gHardware_Version == RevB_01)
+	{
+		TX_VERSION_DATA_61423->HW_Version_High = 0x0B;
+		TX_VERSION_DATA_61423->HW_Version_Low= 0x01;
+		TX_VERSION_DATA_61423->HW_Version_SUB= 0x01;
+	}
+	else if(gHardware_Version == RevB_02)
+	{
+		TX_VERSION_DATA_61423->HW_Version_High = 0x0B;
+		TX_VERSION_DATA_61423->HW_Version_Low= 0x02;
+		TX_VERSION_DATA_61423->HW_Version_SUB= 0x01;
+	}	
+	else if(gHardware_Version == RevB_03)
+	{
+		TX_VERSION_DATA_61423->HW_Version_High = 0x0B;
+		TX_VERSION_DATA_61423->HW_Version_Low= 0x03;
+		TX_VERSION_DATA_61423->HW_Version_SUB= 0x01;
+	}
+	else if(gHardware_Version == RevB_03_03)
+	{
+		TX_VERSION_DATA_61423->HW_Version_High = 0x0B;
+		TX_VERSION_DATA_61423->HW_Version_Low= 0x03;
+		TX_VERSION_DATA_61423->HW_Version_SUB= 0x03;
+	}
+	else if(gHardware_Version == RevB_04)
+	{
+		TX_VERSION_DATA_61423->HW_Version_High = 0x0B;
+		TX_VERSION_DATA_61423->HW_Version_Low= 0x04;
+		TX_VERSION_DATA_61423->HW_Version_SUB= 0x01;
+	}
+	else if(gHardware_Version == RevB_05)
+	{
+		TX_VERSION_DATA_61423->HW_Version_High = 0x0B;
+		TX_VERSION_DATA_61423->HW_Version_Low= 0x05;
+		TX_VERSION_DATA_61423->HW_Version_SUB= 0x01;
+	}
+	else if(gHardware_Version == RevB_05_02)
+	{
+		TX_VERSION_DATA_61423->HW_Version_High = 0x0B;
+		TX_VERSION_DATA_61423->HW_Version_Low= 0x05;
+		TX_VERSION_DATA_61423->HW_Version_SUB= 0x02;
+	}
+	else if(gHardware_Version == RevC_01)
+	{
+		TX_VERSION_DATA_61423->HW_Version_High = 0x0C;
+		TX_VERSION_DATA_61423->HW_Version_Low= 0x01;
+		TX_VERSION_DATA_61423->HW_Version_SUB= 0x00;
+	}
+	else
+	{
+		TX_VERSION_DATA_61423->HW_Version_High = 0x0C;
+		TX_VERSION_DATA_61423->HW_Version_Low= 0x01;
+		TX_VERSION_DATA_61423->HW_Version_SUB= 0x0;
+
+	}	
+
+	// ANGLE TEST MODE
+	#if 1
+	gHardware_Version = RevC_01;
+	TX_VERSION_DATA_61423->HW_Version_High = 0x0C;
+	TX_VERSION_DATA_61423->HW_Version_Low= 0x01;
+	TX_VERSION_DATA_61423->HW_Version_SUB= 0x0;
+	#endif
+		
+	#endif
+	//--, 211118 ysm
+
+}
+
+//++, 221226 ysm, FSCU
+void DisplayRMCUSerialNumber()
+{
+	USHORT covbuf[20]={0,};
+	UCHAR  rmcu_serial_info = 0;
+
+	for(int i=0;i<16;i++)
+	{
+		if(HCESPN.H1586[i] != 0xff)
+		{
+			covbuf[i] = HCESPN.H1586[i];
+			rmcu_serial_info = 1;
+		}		
+	}
+	if(rmcu_serial_info == 1)
+	{
+		GUI_DisplayCenterStringAt(&covbuf[0], 6, 140, 200, COLOR_WHITE, 23);
+	}
+	else
+	{
+		GUI_DisplayCenterStringAt(&string_NoInfo[0], 6, 140, 200, COLOR_WHITE, 23);
+	}
+	
+	
+}
+
+void DisplayRMCUSWVersion()
+{
+	UCHAR buf[20];
+	USHORT covbuf[20];
+	//++, 220428 ysm, 9V_DPF
+	UCHAR version_high,version_low;
+	//--, 220428 ysm, 9V_DPF
+
+	version_high =((HCESPN.H1583>>4)&0xf);
+	version_low = (HCESPN.H1583 & 0xf);
+
+	if((version_high != 0xf)&&(version_low != 0xf))
+	{
+
+		memset((&buf), 0x0, sizeof( buf));
+		memset((&covbuf), 0x0, sizeof( covbuf));
+
+		sprintf ( (char*)buf, "%d.%d",version_high,version_low);
+		
+		String_Func(covbuf, buf);
+		GUI_DisplayCenterStringAt(&covbuf[0], 6, 140, 200, COLOR_WHITE, 23);
+	}
+	else
+		GUI_DisplayCenterStringAt(&string_NoInfo[0], 6, 140, 200, COLOR_WHITE, 23);
+}
+
+//++, 220929 ysm, FSCU
+void DisplayFSCUPartNumber()
+{
+	USHORT covbuf[20]={0,};
+	UCHAR  fscu_pn_info = 0;
+
+	for(int i=0;i<20;i++)
+	{
+		if(_FSCU_PartNumber[i] != 0xff)
+		{
+			covbuf[i] = _FSCU_PartNumber[i];
+			fscu_pn_info = 1;
+		}
+	}
+
+	if(fscu_pn_info == 1)
+
+	{
+		GUI_DisplayCenterStringAt(&covbuf[0], 6, 140, 200, COLOR_WHITE, 23);
+	}
+	else
+	{
+		GUI_DisplayCenterStringAt(&string_NoInfo[0], 6, 140, 200, COLOR_WHITE, 23);
+	}
+
+
+}
+//--, 220929 ysm, FSCU
+
+
+void DisplayFLTPartNumber()
+{
+	USHORT covbuf[20]={0,};
+	UCHAR  flt_pn_info = 0;
+
+	for(int i=0;i<20;i++)
+	{
+		if(_FLT_PartNumber[i] != 0xff)
+		{
+			covbuf[i] = _FLT_PartNumber[i];
+			flt_pn_info = 1;
+		}
+	}
+
+	if(flt_pn_info == 1)
+	{
+		GUI_DisplayCenterStringAt(&covbuf[0], 6, 140, 200, COLOR_WHITE, 23);
+	}
+	else
+	{
+		GUI_DisplayCenterStringAt(&string_NoInfo[0], 6, 140, 200, COLOR_WHITE, 23);
+	}
+
+
+}
+
+
+void DisplayECMPartNumber()
+{
+	USHORT covbuf[20]={0,};
+	UCHAR  ecm_pn_info = 0;
+	
+	for(int i=0;i<20;i++)
+	{
+		if(_ECM_PartNumber[i] != 0xff)
+		{
+			covbuf[i] = _ECM_PartNumber[i];
+			ecm_pn_info = 1;
+		}
+	}
+
+	if(ecm_pn_info == 1)
+	{
+		GUI_DisplayCenterStringAt(&covbuf[0], 6, 140, 200, COLOR_WHITE, 23);
+	}
+	else
+	{
+		GUI_DisplayCenterStringAt(&string_NoInfo[0], 6, 140, 200, COLOR_WHITE, 23);
+	}
+
+
+}
+
+
+void DisplayPartNumber()
+{
+	USHORT String_Cluster[20]={'2','Y','F','G','-','1','5','3','1','0',0x00,};
+	if((_Cluster_Model[0] != 0) && (_Cluster_Model[0] != 0xff))
+	{
+		for(int i=0;i<10;i++)
+		{
+			if(_Cluster_Model[i] != 0xff)
+				String_Cluster[i] = _Cluster_Model[i];
+		}
+	}
+
+	GUI_DisplayCenterStringAt(&String_Cluster[0], 6, 140, 200, COLOR_WHITE, 23);
+
+}
+
+//++, 220929 ysm, FSCU
+void DisplayFSCUSerialNumber()
+{
+	USHORT covbuf[20]={0,};
+	UCHAR  fscu_serial_info = 0;
+
+	for(int i=0;i<20;i++)
+	{
+		if(_FSCU_Serial[i] != 0xff)
+		{
+			covbuf[i] = _FSCU_Serial[i];
+			fscu_serial_info = 1;
+		}
+	}
+	if(fscu_serial_info == 1)
+	{
+		GUI_DisplayCenterStringAt(&covbuf[0], 6, 140, 200, COLOR_WHITE, 23);
+	}
+	else
+	{
+		GUI_DisplayCenterStringAt(&string_NoInfo[0], 6, 140, 200, COLOR_WHITE, 23);
+	}
+}
+//--, 220929 ysm, FSCU
+
+
+void DisplayFLTSerialNumber()
+{
+	USHORT covbuf[20]={0,};
+	UCHAR  flt_serial_info = 0;
+
+	for(int i=0;i<20;i++)
+	{
+		if(_FLT_Serial[i] != 0xff)
+		{
+			covbuf[i] = _FLT_Serial[i];
+			flt_serial_info = 1;
+		}
+	}
+
+	if(flt_serial_info == 1)
+	{
+		GUI_DisplayCenterStringAt(&covbuf[0], 6, 140, 200, COLOR_WHITE, 23);
+	}
+	else
+	{
+		GUI_DisplayCenterStringAt(&string_NoInfo[0], 6, 140, 200, COLOR_WHITE, 23);
+	}
+}
+
+void DisplayECMSerialNumber()
+{
+	USHORT covbuf[20]={0,};
+	UCHAR  ecm_serial_info = 0; 
+
+	for(int i=0;i<20;i++)
+	{
+		if(_ECM_Serial[i] != 0xff)
+		{
+			covbuf[i] = _ECM_Serial[i];
+			ecm_serial_info = 1;
+		}
+	}
+
+	if(ecm_serial_info == 1)
+	{
+		GUI_DisplayCenterStringAt(&covbuf[0], 6, 140, 200, COLOR_WHITE, 23);
+	}
+	else
+	{
+		GUI_DisplayCenterStringAt(&string_NoInfo[0], 6, 140, 200, COLOR_WHITE, 23);
+	}
+}
+
+
+void DisplaySerialNumber()
+{
+	USHORT covbuf[20]={0,};
+	UCHAR  cls_serial_info = 0; 
+
+	for(int i=0;i<20;i++)
+	{
+		if(_Cluster_Serial[i] != 0xff)
+		{
+			covbuf[i] = _Cluster_Serial[i];
+			cls_serial_info = 1;
+		}
+	}
+
+	if(cls_serial_info == 1)
+	{
+		GUI_DisplayCenterStringAt(&covbuf[0], 6, 140, 200, COLOR_WHITE, 23);
+	}
+	else
+	{
+		GUI_DisplayCenterStringAt(&string_NoInfo[0], 6, 140, 200, COLOR_WHITE, 23);
+	}
+}
+
+//++, 220929 ysm, FSCU
+void DisplayFSCUSWVersion()
+{
+
+	UCHAR buf[20];
+	USHORT covbuf[20];
+	UCHAR version_high,version_low;
+	//UCHAR version_sub_high,version_sub_low;
+
+	memset((&buf), 0x0, sizeof( buf));
+	memset((&covbuf), 0x0, sizeof( covbuf));
+
+	version_high =((_FSCU_SW_Version>>4)&0xf);
+	version_low = (_FSCU_SW_Version & 0xf);
+	//version_sub_high = ((_FSCU_SW_Sub_Version>>4)&0xf);
+	//version_sub_low = (_FSCU_SW_Sub_Version & 0xf);
+
+	if(_FSCU_SW_Version != 0xff)
+	{
+		#if 0
+		if(_FSCU_SW_Sub_Version == 0xff)
+			sprintf ( (char*)buf, "%d.%d",version_high,version_low);
+		else
+			sprintf ( (char*)buf, "%d.%d.%d.%d",version_high,version_low,version_sub_high,version_sub_low);	
+		#else
+		sprintf ( (char*)buf, "%d.%d",version_high,version_low);
+		#endif
+		String_Func(covbuf, buf);
+		GUI_DisplayCenterStringAt(&covbuf[0], 6, 140, 200, COLOR_WHITE, 23);
+
+	}
+	else
+	{
+		GUI_DisplayCenterStringAt(&string_NoInfo[0], 6, 140, 200, COLOR_WHITE, 23);
+	}
+
+}
+//--, 220929 ysm, FSCU
+
+
+void DisplayFLTSWVersion()
+{
+
+	UCHAR buf[20];
+	USHORT covbuf[20];
+	UCHAR version_high,version_low;
+	UCHAR version_sub_high,version_sub_low;
+
+	memset((&buf), 0x0, sizeof( buf));
+	memset((&covbuf), 0x0, sizeof( covbuf));
+
+	version_high =((_FLT_SW_Version>>4)&0xf);
+	version_low = (_FLT_SW_Version & 0xf);
+	version_sub_high = ((_FLT_SW_Sub_Version>>4)&0xf);
+	version_sub_low = (_FLT_SW_Sub_Version & 0xf);
+
+	if(_FLT_SW_Version != 0xff)
+	{
+		if(_FLT_SW_Sub_Version == 0xff)
+			sprintf ( (char*)buf, "%d.%d",version_high,version_low);
+		else
+			sprintf ( (char*)buf, "%d.%d.%d.%d",version_high,version_low,version_sub_high,version_sub_low);	
+
+		String_Func(covbuf, buf);
+		GUI_DisplayCenterStringAt(&covbuf[0], 6, 140, 200, COLOR_WHITE, 23);
+
+	}
+	else
+	{
+		GUI_DisplayCenterStringAt(&string_NoInfo[0], 6, 140, 200, COLOR_WHITE, 23);
+	}
+
+}
+
+
+void DisplayECMSWVersion()
+{
+	USHORT covbuf[20]={0,};
+	UCHAR  ecm_sw_version_info = 0;
+
+	for(int i=0;i<20;i++)
+	{
+		if(_ECM_SW_Version[i] != 0xff)
+		{
+			covbuf[i] = _ECM_SW_Version[i];
+			ecm_sw_version_info = 1;
+		}
+	}
+
+	if(ecm_sw_version_info == 1)
+	{
+		GUI_DisplayCenterStringAt(&covbuf[0], 6, 140, 200, COLOR_WHITE, 23);
+	}
+	else
+	{
+		GUI_DisplayCenterStringAt(&string_NoInfo[0], 6, 140, 200, COLOR_WHITE, 23);
+	}
+
+}
+//--, 221226 ysm, FSCU
+
+
+void DisplaySWVersion()
+{
+	UCHAR buf[20];
+	USHORT covbuf[20];
+
+	memset((&buf), 0x0, sizeof( buf));
+	memset((&covbuf), 0x0, sizeof( covbuf));
+
+	sprintf ( (char*)buf, "%d.%d",VERSION_HIGH,VERSION_LOW);
+	
+	String_Func(covbuf, buf);
+	GUI_DisplayCenterStringAt(&covbuf[0], 6, 140, 200, COLOR_WHITE, 23);
+
+}
+
+void DisplayHiddenPage()
+{
+	UCHAR buf[25]={0,};
+	USHORT covbuf[25]={0,};
+
+	sprintf ( (char*)buf, "%d.%d.%d / Img %d.%d.%d",VERSION_HIGH,VERSION_LOW,VERSION_SUB_HIGH//,VERSION_SUB_LOW
+		,Info_Version_Img.Version_High,Info_Version_Img.Version_Low,Info_Version_Img.Version_Sub);
+	
+	String_Func(covbuf, buf);
+	GUI_DisplayCenterStringAt(&covbuf[0], 6, 105, 200, COLOR_WHITE, 23);
+
+	memset((&buf), 0x0, sizeof( buf));
+	memset((&covbuf), 0x0, sizeof( covbuf));
+
+	if(gHardware_Version == RevA_01)
+		sprintf ( (char*)buf, "RevA.01") ;
+	else if(gHardware_Version == RevB_01)
+		sprintf ( (char*)buf, "RevB.01") ;
+	else if(gHardware_Version == RevB_02)
+		sprintf ( (char*)buf, "RevB.02") ;
+	else if(gHardware_Version == RevB_03)
+		sprintf ( (char*)buf, "RevB.03") ;
+	else if(gHardware_Version == RevB_03_03)
+		sprintf ( (char*)buf, "RevB.03") ;
+	else if(gHardware_Version == RevB_04)
+		sprintf ( (char*)buf, "RevB.04") ;
+	else if(gHardware_Version == RevB_05)
+		sprintf ( (char*)buf, "RevB.05") ;
+	else if(gHardware_Version == RevB_05_02) //++, 211122 ysm
+		sprintf ( (char*)buf, "RevB.05_02"); //--, 211122 ysm
+	else if(gHardware_Version == RevC_01) //++, 211201 ysm
+		sprintf ( (char*)buf, "RevC.01"); //--, 211201 ysm
+	else
+		sprintf ( (char*)buf, "HW Rev%d", gHardware_Version) ;
+	
+	String_Func(covbuf, buf);
+	GUI_DisplayCenterStringAt(&covbuf[0], 6, 140, 200, COLOR_WHITE, 23);
+
+}
+
+void DisplayMachineInfo()
+{
+	DisplayMenuBackgroundBG();
+
+	OldScreenIndex = ScreenIndex;
+
+	USHORT String_ECM[]={'E','C','M',0};
+	USHORT String_Cluster[]={'C','L','U','S','T','E','R',0};
+	USHORT String_RMCU[]={'R','M','C','U',0};
+	USHORT String_FLT[]={'F','I','N','G','E','R','-','T','I','P',0};
+	USHORT String_FSCU[]={'F','S','C','U',0}; //++,--, 220929 ysm, FSCU
+	
+	unsigned short String_PN[] = {0x0050, 0x0061, 0x0072, 0x0074, 0x0020, 0x004e, 0x0075, 0x006d, 0x0062, 0x0065, 0x0072, 0x00 };
+	unsigned short String_SN[] = {0x0053, 0x0065, 0x0072, 0x0069, 0x0061, 0x006c, 0x0020, 0x004e, 0x006f, 0x002e, 0x00 };
+	unsigned short String_SW[] = {0x0053, 0x002f, 0x0057, 0x0020, 0x0056, 0x0065, 0x0072, 0x0073, 0x0069, 0x006f, 0x006e, 0x00 };
+	unsigned short *String_Info[]={&String_PN[0],&String_SN[0],&String_SW[0]};
+	unsigned char tempList;
+
+	//++, 210928, ECM_Info
+	#if 0
+	if( (OldScreenIndex&0xFFF00000) == SCREEN_STATE_MENU_EQUIPMENT_MACHINEINFO_ECM_TOP)
+	{
+		GUI_DisplayLeftStringAt(&String_ECM[0], 12, 55, 200, COLOR_MENU_ORANGE, 23);
+		tempList = 2;
+	}
+	else if( (OldScreenIndex&0xFFF00000) == SCREEN_STATE_MENU_EQUIPMENT_MACHINEINFO_CLUSTER_TOP)
+	{
+		GUI_DisplayLeftStringAt(&String_Cluster[0], 12, 55, 200, COLOR_MENU_ORANGE, 23);
+		tempList = 3;
+	}
+	else
+	{
+		GUI_DisplayLeftStringAt(&String_RMCU[0], 12, 55, 200, COLOR_MENU_ORANGE, 23);
+		tempList = 2;
+
+	}
+	#else
+	if( (OldScreenIndex&0xFFF00000) == SCREEN_STATE_MENU_EQUIPMENT_MACHINEINFO_ECM_TOP)
+	{
+		GUI_DisplayLeftStringAt(&String_ECM[0], 12, 55, 200, COLOR_MENU_ORANGE, 23);
+		tempList = 3;
+	}
+	else if( (OldScreenIndex&0xFFF00000) == SCREEN_STATE_MENU_EQUIPMENT_MACHINEINFO_CLUSTER_TOP)
+	{
+		GUI_DisplayLeftStringAt(&String_Cluster[0], 12, 55, 200, COLOR_MENU_ORANGE, 23);
+		tempList = 3;
+	}
+	else if( (OldScreenIndex&0xFFF00000) == SCREEN_STATE_MENU_EQUIPMENT_MACHINEINFO_FLT_TOP)
+	{
+		GUI_DisplayLeftStringAt(&String_FLT[0], 12, 55, 200, COLOR_MENU_ORANGE, 23);
+		tempList = 3;
+
+	}
+	//++, 220929 ysm, FSCU
+	else if( (OldScreenIndex&0xFFF00000) == SCREEN_STATE_MENU_EQUIPMENT_MACHINEINFO_FSCU_TOP)
+	{
+		GUI_DisplayLeftStringAt(&String_FSCU[0], 12, 55, 200, COLOR_MENU_ORANGE, 23);
+		tempList = 3;
+
+	}
+	//--, 220929 ysm, FSCU
+	else
+	{
+		GUI_DisplayLeftStringAt(&String_RMCU[0], 12, 55, 200, COLOR_MENU_ORANGE, 23);
+		tempList = 2;
+
+	}
+	#endif
+	//--, 210928, ECM_Info
+
+	
+	LCD_Draw_Color(6, 90, 200, 80, COLOR_MENU_GRAY);
+
+	if(OldScreenIndex != SCREEN_STATE_MENU_EQUIPMENT_MACHINEINFO_CLUSTER_DETAIL_HIDDEN)
+	{
+		if(OldScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_MACHINEINFO_RMCU_SERIAL_NUMBER)
+			GUI_DisplayCenterStringAt(String_Info[1], 6, 105, 200, COLOR_ORANGE, 23);	
+		else if(OldScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_MACHINEINFO_RMCU_SW_VERSION)
+			GUI_DisplayCenterStringAt(String_Info[2], 6, 105, 200, COLOR_ORANGE, 23);
+		else
+			GUI_DisplayCenterStringAt(String_Info[((OldScreenIndex&0x0000F000)>>12)-1], 6, 105, 200, COLOR_ORANGE, 23);
+
+		DisplayListPage((OldScreenIndex&0x0000F000)>>12,tempList);
+	}
+	
+	switch(OldScreenIndex)
+	{
+		case SCREEN_STATE_MENU_EQUIPMENT_MACHINEINFO_ECM_PART_NUMBER:
+			DisplayECMPartNumber();
+			break;
+		case SCREEN_STATE_MENU_EQUIPMENT_MACHINEINFO_ECM_SERIAL_NUMBER:
+			DisplayECMSerialNumber();
+			break;
+		case SCREEN_STATE_MENU_EQUIPMENT_MACHINEINFO_ECM_SW_VERSION:
+			DisplayECMSWVersion();
+			break;
+		case SCREEN_STATE_MENU_EQUIPMENT_MACHINEINFO_CLUSTER_PART_NUMBER:
+			DisplayPartNumber();
+			break;
+		case SCREEN_STATE_MENU_EQUIPMENT_MACHINEINFO_CLUSTER_SERIAL_NUMBER:
+			DisplaySerialNumber();
+			break;
+		case SCREEN_STATE_MENU_EQUIPMENT_MACHINEINFO_CLUSTER_SW_VERSION:
+			DisplaySWVersion();
+			break;
+		case SCREEN_STATE_MENU_EQUIPMENT_MACHINEINFO_CLUSTER_DETAIL_HIDDEN:
+			DisplayHiddenPage();
+			break;
+		case SCREEN_STATE_MENU_EQUIPMENT_MACHINEINFO_RMCU_SERIAL_NUMBER:
+			DisplayRMCUSerialNumber();
+			break;
+		case SCREEN_STATE_MENU_EQUIPMENT_MACHINEINFO_RMCU_SW_VERSION:
+			DisplayRMCUSWVersion();			
+			break;
+		case SCREEN_STATE_MENU_EQUIPMENT_MACHINEINFO_FLT_PART_NUMBER:
+			DisplayFLTPartNumber();
+			break;
+		case SCREEN_STATE_MENU_EQUIPMENT_MACHINEINFO_FLT_SERIAL_NUMBER:
+			DisplayFLTSerialNumber();
+			break;
+		case SCREEN_STATE_MENU_EQUIPMENT_MACHINEINFO_FLT_SW_VERSION:
+			DisplayFLTSWVersion();
+			break;	
+		//++, 220929 ysm, FSCU
+		case SCREEN_STATE_MENU_EQUIPMENT_MACHINEINFO_FSCU_PART_NUMBER:
+			DisplayFSCUPartNumber();
+			break;
+		case SCREEN_STATE_MENU_EQUIPMENT_MACHINEINFO_FSCU_SERIAL_NUMBER:
+			DisplayFSCUSerialNumber();
+			break;
+		case SCREEN_STATE_MENU_EQUIPMENT_MACHINEINFO_FSCU_SW_VERSION:
+			DisplayFSCUSWVersion();
+			break;	
+		//--, 220929 ysm, FSCU			
+			
+			
+	}
+	DrawMenuFull();
+}
+
+USHORT	step0[]={'S','e','a','r','c','h','i','n','g',' ','R','M','S','/','G','P','S',' ','A','n','t','e','n','n','a',0x00};
+USHORT	step1[]={'U','p','d','a','t','i','n','g',' ','R','M','S','/','G','P','S',' ','C','o','m','m','.',0x00};
+USHORT	step2[]={'S','e','n','d','i','n','g',' ','t','e','s','t',' ','m','s','g',0x00};
+USHORT	step3[]={'R','e','c','e','i','v','i','n','g',' ','f','r','o','m',' ','s','e','r','v','e','r','(','C','G',')',0x00};
+USHORT	step4[]={'W','a','i','t','i','n','g',' ','f','o','r',' ','i','n','s','t','r','u','c','t','i','o','n','s',0x00};
+USHORT	step5[]={'D','e','l','i','v','e','r','y',' ','S','t','a','t','u','s',0x00};
+USHORT	stepA[]={'C','o','m','p','l','e','t','e','d',' ','R','M','S',0x00};
+
+USHORT	press0[]={'H','O','M','E','+','L','E','F','T','(','3','s',')',0x00};	
+USHORT	press1[]={'H','O','M','E','+','R','I','G','H','T','(','3','s',')',0x00};
+USHORT	press2[]={'H','O','M','E','+','E','N','T','E','R','(','3','s',')',0x00};
+
+void DisplayRMCUSet()
+{
+	
+	USHORT	step[]={'S','T','E','P',' ',0x00 ,0x00};
+
+
+	if(ScreenIndex != OldScreenIndex)
+	{
+		
+		LCD_Draw_Color(0, 48, LCD_WIDTH, LCD_HEIGHT-48, COLOR_BLACK);
+		DisplayMenuPopup();
+		
+		if(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_0) 			step[5] = '0';
+		else if(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_1)		step[5] = '1';
+		else if(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_2)		step[5] = '2';
+		else if(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_3)		step[5] = '3';
+		else if(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_4)		step[5] = '4';
+		else if(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_5)		step[5] = '5';
+		else if(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_A)		step[5] = 'A';
+			
+		GUI_DisplayCenterStringAt(&step[0], 0, 55, LCD_WIDTH, COLOR_MENU_ORANGE, 23);
+
+		if(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_0)
+		{
+			GUI_DisplayMultiStringAt(&step0[0], 11, 90, 200, 0, COLOR_WHITE, 23);
+
+		}
+		else if(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_1)
+		{
+			GUI_DisplayMultiStringAt(&step1[0], 11, 90, 200, 0, COLOR_WHITE, 23);
+		}
+		else if(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_2)
+		{
+			GUI_DisplayMultiStringAt(&step2[0], 11, 90, 200, 0, COLOR_WHITE, 23);
+			GUI_DisplayCenterStringAt(&press0[0], 0, 150, LCD_WIDTH, COLOR_ORANGE, 23);
+		}
+		else if(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_3)
+		{
+			GUI_DisplayMultiStringAt(&step3[0], 11, 90, 200, 0, COLOR_WHITE, 23);
+			GUI_DisplayCenterStringAt(&press0[0], 0, 150, LCD_WIDTH, COLOR_ORANGE, 23);
+		}
+		else if(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_4)
+		{
+			GUI_DisplayMultiStringAt(&step4[0], 11, 90, 200, 0, COLOR_WHITE, 23);
+			GUI_DisplayCenterStringAt(&press1[0], 0, 150, LCD_WIDTH, COLOR_ORANGE, 23);
+		}
+		else if(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_5)
+		{
+			GUI_DisplayMultiStringAt(&step5[0], 11, 90, 200, 0, COLOR_WHITE, 23);
+			GUI_DisplayCenterStringAt(&press2[0], 0, 150, LCD_WIDTH, COLOR_ORANGE, 23);
+		}
+		else
+		{
+			GUI_DisplayMultiStringAt(&stepA[0], 11, 90, 200, 0, COLOR_WHITE, 23);
+
+		}
+		
+		DrawMenuFull();
+	}
+	
+
+}
+
+

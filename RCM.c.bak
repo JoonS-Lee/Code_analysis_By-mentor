@@ -1,0 +1,3858 @@
+#include "FLV_Cluster_APP.h"
+#include "RCM.h"
+//#include "Define.h"
+//#include "PGA.h"
+//#include "EEPROM.h"
+//#include <string.h>
+
+
+const float Load_Indicator_Max_Weight[11] = {0, 5, 6, 7, 8, 11, 13, 14, 16, 18, 25};
+
+unsigned char First_SDP_Process;
+unsigned char DateChangeCount;
+unsigned char Date_Before_Change[3];
+unsigned char DailyReport_Send_Status;
+unsigned char DateChange_SDP_Process;
+unsigned int RTC_Calibration_Count;
+unsigned char DailyReport_Index;
+unsigned short FuelConsumption;
+unsigned short DailyReport_PowerModeInfo[2][31];
+
+unsigned char RCMData_WarmingCount_Today_Send;
+unsigned char RCMData_ECMFaultCount_Today_Send;
+unsigned char RCMData_TCUFaultCount_Today_Send;	
+
+unsigned char RCMData_WarmingCount_Today;
+unsigned char RCMData_ECMFaultCount_Today;
+unsigned char RCMData_TCUFaultCount_Today;			
+
+unsigned short RCMData_WarmingHCESPN_Today[5];
+unsigned char RCMData_ECMFault_Today[5][3];
+unsigned char RCMData_TCUFault_Today[5][3];	
+
+unsigned short RCMData_WarmingHCESPN[5];
+unsigned char RCMData_ECMFault[5][3];
+unsigned char RCMData_TCUFault[5][3];				
+
+unsigned int AD_Weight_Sum;
+unsigned int AD_Weight_Count;
+unsigned char AD_Weight_Flag;
+unsigned int AD_Weight_Working_Count;
+
+unsigned char EngineRunTimeCounter;
+unsigned char First_ERTL;
+unsigned char First_FL;
+float FuelUsed_FL;
+unsigned short FL_Count;
+unsigned char FuelReadCount;
+unsigned short FuelSum;
+unsigned char Fuel_Seg;
+unsigned char Fuel_Seg_before;
+unsigned char FuelEqualCount;
+unsigned char Fuel_OK_Seg;
+unsigned char first_after_keyon_cal_fuel;
+unsigned char Fuel_OK_Seg_Before;
+unsigned char FuelOsc;
+unsigned short FuelRemain;
+unsigned char Fuel_Remain_Seg;
+unsigned char First_OTL;
+float		ADDistance;
+unsigned short ADActualGear[8];
+unsigned short ADEnginePowerMode[3];
+unsigned short ADFanSpeed[6];
+unsigned short ADActualGearShift_Status;
+unsigned short ADActualGearShift_Count;
+unsigned int Weight_Temp;
+unsigned char Weight_Temp_Flag;
+unsigned int HYDTempDistribution[8];
+unsigned int TMTempDistribution[8];
+unsigned int LoadIndicatorDistribution[10];
+
+unsigned char RCMData_MaintenanceChange;
+unsigned char RCMData_MaintenanceItem;
+unsigned char RCMData_UserPasswordChange;
+unsigned char RCMData_ESLPasswordChange;
+unsigned char RCMData_ESLStatusChange;
+unsigned char RCMData_CallMachineSecurity;
+unsigned char RCMData_ServicePasswordChange;
+
+
+unsigned char LHO_Setting_Send_Status;
+
+unsigned char RCM_Test_Step_Status;
+unsigned char RCM_Test_Code_Data[3];
+
+unsigned char LHO_Setting_Position[8];
+
+struct st_RCM_DailyReport_Date DailyReport_Date;
+st_DATA_RTC RTC_Calibration_Data;
+
+extern st_Key_Status RMS_Key_Status;
+
+extern st_HCESPN HCESPN;
+extern st_SPN SPN;
+extern st_AD_DATA AD_DATA;
+//extern struct st_COUNT_FLAG COUNT_FLAG;
+
+extern st_Maintenance Maintenance_Data[MAINTENANCE_TOTAL];
+extern struct st_DATA_RTC RTC_Data;
+
+extern unsigned char EngineStartFlag;
+
+extern unsigned char Flag_DIN[INDEX_DIGITIAL_INPUT_TOTAL];
+extern unsigned char RCM_Long_Key_Send_Status;
+extern unsigned char RCM_Long_Key_Send_Key;
+
+unsigned char Flag_RMCU_PBI;
+unsigned char RMCU_SERIAL_NUM[16];
+unsigned char RMCU_SW_VERSION;
+
+unsigned char RCM3_Init_Flag;
+unsigned char RMCU_CID_OK;
+unsigned short RCM3_Send_Flag;;
+
+unsigned char RCM3_Ack_Status;
+unsigned char RCM3_Ack_Flag;
+unsigned short RCM3_StartCounter;
+unsigned short RCM3_Counter;
+
+unsigned char RCM3_Timeout2_Occur;
+unsigned short RCM3_Timeout2_Check_Count;
+unsigned short RCM3_TimeoutS_Check_Count;
+
+unsigned short RCM3_Timeout1_Check_Count;
+
+unsigned char H1600_Scheduled_Data;
+unsigned char H1600_Scheduled_Flag;
+unsigned char RCM3_DailyReport_Index_Gap;
+unsigned char BD_Receive_Count3;
+unsigned char RCM3_DailyReport_Count;
+unsigned short H852_Error_Count;
+
+unsigned char DailyReport_Send_Flag;
+
+unsigned char HCESPN_H1621_pre;	
+unsigned short Wireless_Error_cnt;
+unsigned short H1623_No_Change_Count;
+
+unsigned char RCM3_0x41_Send_Flag;
+unsigned char RCM3_0x71_Send_Flag;
+unsigned char RCM3_0x75_0x76_Send_Flag;
+
+
+unsigned char Last_Daily_Reprot_Send_Time[6];
+
+unsigned char RCM_Poweroff_Counter;
+
+unsigned char Daily_Report_Send_Count_PowerOff;
+
+unsigned char Last_RMCU_Change_Data1[5];
+char Last_RMCU_Change_Data2[15 + 1];
+char Last_RMCU_Change_Data3[15 + 1];
+unsigned char Old_RMCU_Change_Data1[5];
+char Old_RMCU_Change_Data2[15 + 1];
+char Old_RMCU_Change_Data3[15 + 1];
+unsigned char RMCU_Change_Event_On;
+unsigned char RCM3_Center_Command;
+unsigned char Flag_Key_On;
+
+unsigned char Machine_Security_Command;
+
+
+extern unsigned char TotalPacketNum_61184;
+extern unsigned char HCEPGN_61184_MSGT_250_Transmit_Flag;
+extern unsigned char HCEPGN_61184_MSGT_250_Transmit_Data[128];
+extern unsigned char HCEPGN_61184_MSGT_250_Transmit_Data_Count;
+
+extern unsigned char RMS3_CTS_Receive_Cnt;
+
+
+unsigned int CoolantTempDistribution2_Total[12];
+
+st_DATA_RTC RTC_TEMP_DATA;
+
+extern unsigned char Total_data_HCE_CID;
+extern unsigned char Total_Packet_HCE_CID;
+
+extern unsigned char Temp_HCE_CID_Data[42];
+
+unsigned char Daily_Report_Send_flag_PowerOff;
+
+unsigned char ActualGearStatus;
+
+extern EEPROM_MODEL_DATA1 InfoModel1;
+extern EEPROM_MODEL_DATA2 InfoModel2;
+extern unsigned char RMCU_EQUIPMENT;
+
+extern unsigned char ALT_Level_Status;
+extern unsigned char AutoShiftMode_Gear;
+
+extern unsigned char Flag_ESL;
+extern EEPROM_MODEL_DATA2 InfoModel2;
+
+//++, 220726 ysm, FAN_FINAL
+unsigned char Last_H304_Data;
+unsigned char Last_H536_Data;
+//--, 220726 ysm, FAN_FINAL
+
+
+const unsigned short FuelFactor[11][9] = 
+{
+	//0   1    2    3    4    5    6    7    8 
+    {37, 54,  71,  88, 105, 122, 139, 156, 171},    // X
+    {37, 54,  71,  88, 105, 122, 139, 156, 171},   	// 50
+    {37, 54,  71,  88, 105, 122, 139, 156, 171},   	// 60
+    {37, 54,  71,  88, 105, 122, 139, 156, 171},   	// 70
+    {37, 54,  71,  88, 105, 122, 139, 156, 171},  	// 80
+    {44, 63,  82, 101, 120, 139, 158, 177, 195},	// 110
+    {44, 63,  82, 101, 120, 139, 158, 177, 195},	// 130
+    {44, 63,  82, 101, 120, 139, 158, 177, 195},	// 140
+    {60, 85, 110, 135, 160, 185, 210, 235, 260},	// 160
+    {80, 109,138, 167, 196, 225, 254, 283, 312},	// 180	
+    {67, 111,155, 199, 243, 287, 331, 375, 416}     // 250
+} ;  
+
+unsigned char Machine_Model = 0;
+
+unsigned short B2L2 (unsigned short value)
+{
+	unsigned short data;
+
+	data = value;
+	return data;
+}
+
+unsigned int B2L4 (unsigned int value)
+{
+	unsigned int data;
+	
+	data = value;
+	return data;
+}
+void B2L2_(unsigned short value, unsigned char *data)
+{
+	data[0] = (value >> 0) & 0xff;
+	data[1] = (value >> 8) & 0xff;
+}
+
+void B2L4_(unsigned int value, unsigned char *data)
+{
+	data[0] = (value >> 0) & 0xff;
+	data[1] = (value >> 8) & 0xff;
+	data[2] = (value >> 16) & 0xff;
+	data[3] = (value >> 24) & 0xff;
+}
+
+
+void SatelliteCommInitial3(void)
+{
+	unsigned char TempData[160];	
+
+	if(RCM3_Init_Flag == 1)
+	{
+
+		/*
+		for(int i=0; i<11; i++)
+		{
+			HCESPN.H1292[i] = 0;
+		}	
+
+		for(int i=0; i<7; i++)
+		{
+			HCESPN.H1262[i] = 0;
+		}	*/
+		
+		memset((unsigned char *)(&HCESPN.H1292), 0, 11);
+		memset((unsigned char *)(&HCESPN.H1262), 0, 7);
+		memset((unsigned char *)(&CoolantTempDistribution2_Total), 0, 4 * 12);
+
+		HCESPN.H1621 = HCESPN_H1621_pre = 3;
+		Wireless_Error_cnt = 6000;
+
+		memset(TempData, 0, 120);
+		read_Remote3PacketData_0x09((struct st_Remote3PacketData_0x09 *)TempData);
+
+		HCESPN.H1603 = 12;
+
+		//++, 220726 ysm, FAN_FINAL
+		Last_H304_Data = 0xff;
+		Last_H536_Data = 0xff;
+		//--, 220726 ysm, FAN_FINAL
+
+		Last_Daily_Reprot_Send_Time[0] = 0;
+		Last_Daily_Reprot_Send_Time[1] = 1;
+		Last_Daily_Reprot_Send_Time[2] = 1;
+		Last_Daily_Reprot_Send_Time[3] = 0;
+		Last_Daily_Reprot_Send_Time[4] = 0;
+		Last_Daily_Reprot_Send_Time[5] = 0;
+
+		Daily_Report_Send_Count_PowerOff = 0;
+
+		HCESPN.H1402 = 0;
+	}
+	else
+	{
+		
+		EepromRead(ADDRESS_RCM_H1262, (unsigned char*)(&TempData[0]), 7);
+		memcpy((unsigned char *)(&HCESPN.H1262[0]), TempData, 7);	
+
+		EepromRead(ADDRESS_RCM_H1292, (unsigned char*)(&TempData[0]), 11);
+		memcpy((unsigned char *)(&HCESPN.H1292[0]), TempData, 11);
+		
+		EepromRead(ADDRESS_RCM_COOLANTTEMPDISTRIBUTION2_Total, (unsigned char*)(&TempData[0]), 32);	
+		memcpy((unsigned char *)(&CoolantTempDistribution2_Total[0]), TempData, 32);
+
+		EepromRead(ADDRESS_RCM_COOLANTTEMPDISTRIBUTION2_Total+32, (unsigned char*)(&TempData[0]), 16);
+		memcpy((unsigned char *)(&CoolantTempDistribution2_Total[8]), TempData, 16);
+		
+		EepromRead(ADDRESS_H1621, (unsigned char*)(&TempData[0]), 1);
+		HCESPN.H1621 = HCESPN_H1621_pre = TempData[0];
+		
+		if (HCESPN.H1621 > 3)
+		{
+			HCESPN.H1621 = HCESPN_H1621_pre = 3;
+		}
+		
+		if(HCESPN.H1621 < 4)
+		{
+			Wireless_Error_cnt = 6000;	  //	20150623	WireLess Data Comm. Error Mobile
+		}
+	
+
+		#if 1
+		EepromRead(ADDRESS_RCM3_DAILYREPORT_DATA + ((unsigned short)DailyReport_Index * 128), TempData, 117); //++	190609	ECO Report 131 + 6 -> 137 Mobile	//--		
+		#else
+		EepromRead(ADDRESS_RCM3_DAILYREPORT_DATA + (unsigned short)(DailyReport_Index)*160, &TempData[0], 32);
+		EepromRead(ADDRESS_RCM3_DAILYREPORT_DATA + 32 + (unsigned short)(DailyReport_Index)*160, &TempData[32], 32);
+		EepromRead(ADDRESS_RCM3_DAILYREPORT_DATA + 64 + (unsigned short)(DailyReport_Index)*160, &TempData[64], 32);
+		EepromRead(ADDRESS_RCM3_DAILYREPORT_DATA + 96 + (unsigned short)(DailyReport_Index)*160, &TempData[96], 21);
+		#endif
+		read_Remote3PacketData_0x09((struct st_Remote3PacketData_0x09 *)TempData);
+		
+				
+		EepromRead(ADDRESS_H1603, (unsigned char*)(&TempData[0]), 1);
+		HCESPN.H1603 = TempData[0];
+
+		EepromRead(ADDRESS_LAST_DAILYREPORT_SEND_TIME, (unsigned char*)(&TempData[0]), 6);
+		Last_Daily_Reprot_Send_Time[0] = TempData[0];
+		Last_Daily_Reprot_Send_Time[1] = TempData[1];
+		Last_Daily_Reprot_Send_Time[2] = TempData[2];
+		Last_Daily_Reprot_Send_Time[3] = TempData[3];
+		Last_Daily_Reprot_Send_Time[4] = TempData[4];
+		Last_Daily_Reprot_Send_Time[5] = TempData[5];
+
+		EepromRead(ADDRESS_DAILYREPORT_SEND_COUNT_POWEROFF, &Daily_Report_Send_Count_PowerOff, 1);
+		
+		EepromRead(ADDRESS_RCM_H1402, (unsigned char*)(&TempData[0]), 1);
+		memcpy((unsigned char *)(&(HCESPN.H1402)), TempData, 1);
+
+		//++, 220726 ysm, FAN_FINAL
+		EepromRead(ADDRESS_RCM3_LAST_H304, (unsigned char*)(&TempData[0]), 1);
+		Last_H304_Data = TempData[0];
+		
+		EepromRead(ADDRESS_RCM3_LAST_H536, (unsigned char*)(&TempData[0]), 1);
+		Last_H536_Data = TempData[0];
+		//--, 220726 ysm, FAN_FINAL 		
+
+	}	
+
+	H1623_No_Change_Count = 0;	
+
+	RCM3_Send_Flag = 0;		
+	RCM3_Ack_Status = 0;
+	RCM3_Ack_Flag = 0;
+	RCM3_StartCounter = 0;
+	RCM3_Counter = 0;	
+
+	RCM3_Timeout2_Occur = 0;
+	RCM3_Timeout2_Check_Count = 0;
+	RCM3_TimeoutS_Check_Count = 0;
+	RCM3_Timeout1_Check_Count = 0;
+	
+	H1600_Scheduled_Data = 0;
+	H1600_Scheduled_Flag = 0;
+	RCM3_DailyReport_Index_Gap = 0;
+	BD_Receive_Count3 = 0;
+	RCM3_DailyReport_Count = 0;
+
+	H852_Error_Count = 0;
+
+	RCM3_0x41_Send_Flag = 0;
+	RCM3_0x71_Send_Flag = 0;
+	RCM3_0x75_0x76_Send_Flag = 0;	
+
+	DailyReport_Send_Flag = 0;
+	RMCU_CID_OK = 0;	
+	Flag_Key_On = 0;
+	RCM_Poweroff_Counter = 0;
+	RCM3_Center_Command = 0;
+
+	Daily_Report_Send_flag_PowerOff = 0;
+
+	Machine_Security_Command = 0xff;
+	
+}
+
+void FuelInitial(void)
+{
+	unsigned char i;
+	
+	for (i = 8; i >= 1; i--)
+	{
+              if (FuelRemain == FuelFactor[Machine_Model][i])
+		{
+			Fuel_Remain_Seg = i;
+			return;
+		}
+	}
+
+	Fuel_Remain_Seg = 0;
+}
+
+
+
+void SatelliteCommInitial(void)
+{
+
+	unsigned char i;	
+	unsigned char TempData[48];
+	unsigned int TempIntData[16];
+	unsigned short TempShortData[8];	
+
+	unsigned char Data1[4];	
+	
+	First_SDP_Process=0;
+	DateChangeCount=0;	
+	DateChange_SDP_Process = 0;
+	RTC_Calibration_Count = 0xffffffff;
+	EngineRunTimeCounter=0;
+	First_ERTL=0;
+	First_FL=0;
+	FuelUsed_FL = 0.;
+	FL_Count=0;
+	FuelReadCount = 0;
+	FuelSum = 0;
+	Fuel_Seg_before=0;
+	FuelEqualCount = 0;
+	Fuel_OK_Seg=0;
+	first_after_keyon_cal_fuel = 0;
+	Fuel_OK_Seg_Before = 0;
+	FuelOsc = 0;
+	FuelInitial();
+
+	First_OTL=0;
+	ADDistance =0;
+	
+	for(i=0; i<8; i++)	
+		ADActualGear[i] = 0;
+	for(i=0; i<3; i++)	
+		ADEnginePowerMode[i] =0;
+	for(i=0; i<6; i++)
+		ADFanSpeed[i] =0; 
+	
+	ADActualGearShift_Status=0;
+	ADActualGearShift_Count =0;
+	Weight_Temp = 0;
+	Weight_Temp_Flag =0;
+	
+
+	RCMData_MaintenanceChange = 0;
+	RCMData_MaintenanceItem = 0;
+	RCMData_UserPasswordChange = 0;
+	RCMData_ESLPasswordChange = 0;
+	RCMData_ESLStatusChange = 0;
+	RCMData_CallMachineSecurity = 0;
+	RCMData_ServicePasswordChange = 0;
+	
+	LHO_Setting_Send_Status=0;
+	RCM_Test_Step_Status = 0;	
+
+	RCM_Test_Code_Data[0] = 0;
+	RCM_Test_Code_Data[1] = 0;
+	RCM_Test_Code_Data[2] = 0;
+
+	Data1[0] = 0x55;
+	Data1[1] = 0xbb;
+	Data1[2] = 0x0c;
+	Data1[3] = 0xc0;
+
+	EepromRead(ADDRESS_RCM3_START, (unsigned char*)(&TempData[0]), 4);
+	
+	if ((memcmp(TempData, Data1, 4)) == 0)
+	{		
+		RCM3_Init_Flag = 0;
+		
+	}
+	else
+	{
+		RCM3_Init_Flag = 1;
+	}	
+
+	if(RCM3_Init_Flag == 1)
+	{
+
+		for(int i = 0; i<32; i++)
+			TempData[i] = 0;
+
+		
+		for(int i = 0 ; i < 15 ; i++) // 400 BYTES
+		{
+			EepromWrite(ADDRESS_RCM_START+i*32,  &TempData[0], 32);
+		}
+		
+		for(int i = 0 ; i < 33 ; i++) // 800 BYTES
+		{
+			EepromWrite(ADDRESS_RCM3_START+i*32,  &TempData[0], 32);
+		}
+
+		
+		TimeDelay_msec(5);
+            
+	}	
+
+	memset(HCESPN.H952, 0x00, sizeof(HCESPN.H952));
+	memset(HCESPN.H953, 0x00, sizeof(HCESPN.H953));
+	//memset(HCESPN.H954, 0x00, sizeof(HCESPN.H954));
+	//memset(HCESPN.H955, 0x00, sizeof(HCESPN.H955));
+	memset(HCESPN.H961, 0x00, sizeof(HCESPN.H961));	
+	memset(HCESPN.H975, 0x00, sizeof(HCESPN.H975));
+	memset(HCESPN.H960, 0x00, sizeof(HCESPN.H960));		
+	memset(HCESPN.H1586, 0x00, sizeof(HCESPN.H1586));
+	
+	HCESPN.Fuel_Level = 0;
+	Fuel_Seg = 0;	
+	
+
+	HCESPN.H310_rpm = 0;
+	SPN.H2880 = 0;
+
+	HCESPN.Step_Status = 0x0a;
+	
+	EepromRead(ADDRESS_H951, (unsigned char*)(&TempData[0]), 1);
+
+	if((TempData[0] > 200)||(TempData[0] < 1))
+	{
+		TempData[0] = 118;
+
+	}
+	HCESPN.H951 = TempData[0];
+
+	
+	EepromRead(ADDRESS_RCM_COMM_ERROR, (unsigned char*)(&TempData[0]), 6);
+	memcpy((unsigned char *)(&TempShortData[0]), TempData, 6);
+
+	HCESPN.H1551 = TempShortData[0];
+	HCESPN.H1552 = TempShortData[1];
+	HCESPN.H1555 = TempShortData[2];
+	
+		
+		
+	EepromRead(ADDRESS_RCM_DAILYREPORT_SEND_STATUS, &DailyReport_Send_Status, 1);
+	EepromRead(ADDRESS_RCM_DAILYREPORT_INDEX, &DailyReport_Index, 1);
+
+	//EepromRead(ADDRESS_RCM_DAILYREPORT_DATE + DailyReport_Index * 3, (unsigned char*)(&TempData[0]), 3);
+	
+	EepromRead(ADDRESS_RCM_DAILYREPORT_DATE + DailyReport_Index * 3, TempData, 3);
+	memcpy((unsigned char *)(&DailyReport_Date), TempData, 3);
+
+	
+
+	EepromRead(ADDRESS_RCM_H1270 + 0 * 32, (unsigned char*)(&TempData[0]), 32);
+	memcpy((unsigned char *)(&TempIntData[0]), TempData, 32);
+
+	EepromRead(ADDRESS_RCM_H1270 + 1 * 32, (unsigned char*)(&TempData[0]), 32);
+	memcpy((unsigned char *)(&TempIntData[8]), TempData, 32);	
+
+	for (i = 0; i < 11; i++)
+		HCESPN.H1270[i] = TempIntData[i];	
+	
+
+	EepromRead(ADDRESS_RCM_H1286 + 0 * 32, (unsigned char*)(&TempData[0]), 32);
+	memcpy((unsigned char *)(&TempIntData[0]), TempData, 32);
+
+	EepromRead(ADDRESS_RCM_H1286 + 1 * 32, (unsigned char*)(&TempData[0]), 32);
+	memcpy((unsigned char *)(&TempIntData[8]), TempData, 32);
+		
+	for (i = 0; i < 16; i++)
+		HCESPN.H1286[i] = TempIntData[i];
+	
+
+	EepromRead(ADDRESS_RCM_H1331, (unsigned char*)(&TempData[0]), 6);
+	memcpy((unsigned char *)(&(HCESPN.H1331[0])), TempData, 6);		
+
+	EepromRead(ADDRESS_RCM_H1341, (unsigned char*)(&TempData[0]), 6);
+	memcpy((unsigned char *)(&(HCESPN.H1341[0])), TempData, 6);
+
+		
+	EepromRead(ADDRESS_RCM_TMOILTEMPDISTRIBUTION, (unsigned char*)(&TempData[0]), 32);
+	memcpy((unsigned char *)(&TMTempDistribution[0]), TempData, 32);
+
+	EepromRead(ADDRESS_RCM_H1332, (unsigned char*)(&TempData[0]), 6);
+	memcpy((unsigned char *)(&(HCESPN.H1332[0])), TempData, 6);		
+
+    
+	EepromRead(ADDRESS_RCM_H1545, (unsigned char*)(&TempData[0]), 1);
+	memcpy((unsigned char *)(&(HCESPN.H1545)), TempData, 1);	
+
+	EepromRead(ADDRESS_RCM_H1546, (unsigned char*)(&TempData[0]), 1);
+	memcpy((unsigned char *)(&(HCESPN.H1546)), TempData, 1);	
+
+	EepromRead(ADDRESS_RCM_H1548, (unsigned char*)(&TempData[0]), 1);
+	memcpy((unsigned char *)(&(HCESPN.H1548)), TempData, 1);	
+
+	EepromRead(ADDRESS_RCM_H1551, (unsigned char*)(&TempShortData[0]), 2);
+	HCESPN.H1551=TempShortData[0];
+
+	EepromRead(ADDRESS_RCM_H1552, (unsigned char*)(&TempShortData[0]), 2);
+	HCESPN.H1552=TempShortData[0];	
+
+	EepromRead(ADDRESS_RCM_H1553, (unsigned char*)(&TempShortData[0]), 2);
+	HCESPN.H1553=TempShortData[0];	
+
+	EepromRead(ADDRESS_RCM_H1555, (unsigned char*)(&TempShortData[0]), 2);
+	HCESPN.H1555=TempShortData[0];	
+
+	EepromRead(ADDRESS_RCM_H1556, (unsigned char*)(&TempShortData[0]), 2);
+	HCESPN.H1556=TempShortData[0];
+
+
+	if (HCESPN.H1331[0] > 0xfa)
+		HCESPN.H1331[0] = 0;
+
+	if (HCESPN.H1332[0] > 0xfa)
+		HCESPN.H1332[0] = 0;
+
+	if (HCESPN.H1341[0] > 0xfa)
+		HCESPN.H1341[0] = 0;
+
+	EepromRead(ADDRESS_WARNING_FAULT_TODAY + 0, (unsigned char*)(&TempData[0]), 6);
+
+	RCMData_WarmingCount_Today_Send = TempData[0];
+	RCMData_ECMFaultCount_Today_Send = TempData[2];
+
+	RCMData_WarmingCount_Today = TempData[3];
+	RCMData_ECMFaultCount_Today = TempData[5];
+    
+	if (RCMData_WarmingCount_Today_Send > 5)
+		RCMData_WarmingCount_Today_Send = 0;
+
+
+	if (RCMData_ECMFaultCount_Today_Send > 5)
+		RCMData_ECMFaultCount_Today_Send = 0;
+		
+	if (RCMData_WarmingCount_Today > 5)
+		RCMData_WarmingCount_Today = 0;
+
+	if (RCMData_ECMFaultCount_Today > 5)
+		RCMData_ECMFaultCount_Today = 0;
+
+
+	EepromRead(ADDRESS_WARNING_FAULT_TODAY + 16, (unsigned char*)(&TempData[0]), 10);
+	memcpy((unsigned char *)(&RCMData_WarmingHCESPN_Today[0]), TempData, 10);
+
+	EepromRead(ADDRESS_WARNING_FAULT_TODAY + 48, &RCMData_ECMFault_Today[0][0], 15);
+
+	EepromRead(ADDRESS_WARNING_FAULT_TODAY2, (unsigned char*)(&TempData[0]), 2);
+	RCMData_TCUFaultCount_Today_Send = TempData[0];
+	RCMData_TCUFaultCount_Today = TempData[1];
+
+	if (RCMData_TCUFaultCount_Today_Send > 5)
+		RCMData_TCUFaultCount_Today_Send = 0;
+	if (RCMData_TCUFaultCount_Today > 5)
+		RCMData_TCUFaultCount_Today = 0;
+
+
+	EepromRead(ADDRESS_WARNING_FAULT_TODAY2 + 3, &RCMData_TCUFault_Today[0][0], 15);
+
+	EepromRead(ADDRESS_RCM_H854, (unsigned char*)(&TempData[0]), 8);
+	memcpy(&(HCESPN.H854[0]), TempData, 8);
+
+	EepromRead(ADDRESS_RCM_H822, (unsigned char*)(&TempData[0]), 3);
+	HCESPN.H822 = TempData[0];
+	HCESPN.H823 = HCESPN.H823_ = TempData[1];
+	HCESPN.H824 = TempData[2];
+
+	EepromRead(ADDRESS_LHO_SETTING_POSITION, LHO_Setting_Position, 8);
+
+	EepromRead(ADDRESS_RCM_FUEL_CONSUMPTION, (unsigned char*)(&TempData[0]), 4);
+	memcpy((unsigned char *)(&TempShortData[0]), TempData, 4);
+
+	FuelRemain = TempShortData[0];
+	FuelConsumption = TempShortData[1];   
+
+	if ((DailyReport_Send_Status != 0) && ((DailyReport_Send_Status % 2) == 0))
+		DailyReport_Send_Status--;
+	
+	Flag_RMCU_PBI=0;
+
+	HCESPN.H1699 = 1;
+	HCESPN.H1700 = 1;
+
+	HCESPN.H1414 = 0xffff;
+}
+
+
+unsigned char SatelliteCommRun_Poweroff(void)
+{
+
+	st_DATA_RTC TempRTC1, TempRTC2;
+	unsigned int TimeGap;
+	unsigned char Sign;
+
+	TempRTC1.Year = Last_Daily_Reprot_Send_Time[0];
+	TempRTC1.Month = Last_Daily_Reprot_Send_Time[1];
+	TempRTC1.Date = Last_Daily_Reprot_Send_Time[2];
+	TempRTC1.Hours = Last_Daily_Reprot_Send_Time[3];
+	TempRTC1.Minutes = Last_Daily_Reprot_Send_Time[4];
+	TempRTC1.Seconds = Last_Daily_Reprot_Send_Time[5];
+
+	TempRTC2.Year = HCESPN.H941[0];
+	TempRTC2.Month = HCESPN.H941[1];
+	TempRTC2.Date = HCESPN.H941[2];
+	TempRTC2.Hours = HCESPN.H941[3];
+	TempRTC2.Minutes = HCESPN.H941[4];
+	TempRTC2.Seconds = HCESPN.H941[5];
+	
+
+	CalculateTimeGap(&TempRTC1, &TempRTC2, 1800, 0, &TimeGap, &Sign);
+
+	if ((HCESPN.H1621 < 4) && (HCESPN.H941[3] >= 16) && (Daily_Report_Send_Count_PowerOff < 2) && (Sign == 1))
+	{
+		Daily_Report_Send_flag_PowerOff = 1;
+
+		if (++RCM_Poweroff_Counter >= 100)
+		{
+			RCM_Poweroff_Counter = 200;
+		}
+
+		if (RCM_Poweroff_Counter == 1)
+		{
+			DailyReport_Send_Flag = 1;
+			RCM3_DailyReport_Index_Gap = 0;
+
+			HCESPN.H1598 = 0x01;
+			HCESPN.H1600 = 0x09;
+			RCM3_Send_Flag = 1;				
+
+			HCESPN.H1401[0] = HCESPN.H941[3];
+			HCESPN.H1401[1] = HCESPN.H941[4];
+			HCESPN.H1401[2] = HCESPN.H941[5];
+
+			Satellite_TransmitData3();
+
+		}
+
+		if (DailyReport_Send_Flag != 0)
+		{
+			if (RCM_Poweroff_Counter == 50)
+			{
+				DailyReport_Send_Flag = 1;
+				RCM3_DailyReport_Index_Gap = 0;
+				
+				HCESPN.H1598 = 0x01;
+				HCESPN.H1600 = 0x09;
+				RCM3_Send_Flag = 1; 	
+
+				HCESPN.H1401[0] = HCESPN.H941[3];
+				HCESPN.H1401[1] = HCESPN.H941[4];
+				HCESPN.H1401[2] = HCESPN.H941[5];
+
+				Satellite_TransmitData3();
+
+			}
+		}
+		else // 키오프시 송신 2회 체크 
+		{
+			if (++Daily_Report_Send_Count_PowerOff >= 2)
+			{
+				Daily_Report_Send_Count_PowerOff = 2;
+			}
+
+			return 1;
+		}
+
+		if (RCM_Poweroff_Counter == 70)
+		{
+			if (++Daily_Report_Send_Count_PowerOff >= 2)
+			{
+				Daily_Report_Send_Count_PowerOff = 2;
+			}
+
+			return 1;
+		}
+		else
+		{
+			return 0;
+		}
+	}
+	else
+	{
+		return 1;
+	}
+
+
+}
+
+
+
+
+void SatelliteCommEnd3(void)
+{
+	unsigned char Data1[4];	
+	unsigned char TempData[160];	//++	190609	ECO Report 131 + 6 -> 137 Mobile	//--
+
+	Data1[0] = 0x55;
+	Data1[1] = 0xbb;
+	Data1[2] = 0x0c;
+	Data1[3] = 0xc0;
+
+	if(RCM3_Init_Flag == 1)
+	{				
+		EepromWrite(ADDRESS_RCM3_START, Data1, 4); 		
+		
+	}
+
+	HCESPN.H1401[0] = HCESPN.H941[3];
+	HCESPN.H1401[1] = HCESPN.H941[4];
+	HCESPN.H1401[2] = HCESPN.H941[5];
+
+	if (RTC_Calibration_Count <= 0xfaffffff)
+	{
+		RTC_TEMP_DATA = Calculate_RTC_Offset(&RTC_Calibration_Data, RTC_Calibration_Count, 0);
+		write_RTC(&RTC_TEMP_DATA);	
+	}	
+
+	memcpy(TempData, (unsigned char *)(&HCESPN.H1262[0]), 7);
+	EepromWrite(ADDRESS_RCM_H1262, TempData, 7); 	
+	
+	memcpy(TempData, (unsigned char *)(&HCESPN.H1292[0]), 11);	
+	EepromWrite(ADDRESS_RCM_H1292, TempData, 11); 
+
+	memcpy(TempData, (unsigned char *)(&CoolantTempDistribution2_Total[0]), 32);
+	EepromWrite(ADDRESS_RCM_COOLANTTEMPDISTRIBUTION2_Total, TempData, 32); 
+
+	memcpy(TempData, (unsigned char *)(&CoolantTempDistribution2_Total[8]), 16);
+	EepromWrite(ADDRESS_RCM_COOLANTTEMPDISTRIBUTION2_Total + 32, TempData, 16); 
+
+	TempData[0] = HCESPN.H1621;	
+	EepromWrite(ADDRESS_H1621, TempData, 1); 
+
+	make_Remote3PacketData_0x09((struct st_Remote3PacketData_0x09 * )TempData);		
+
+	#if 0
+	EepromWrite(ADDRESS_RCM3_DAILYREPORT_DATA + (unsigned short)(DailyReport_Index) * 160, TempData, 117);
+	#else
+	EepromWrite(ADDRESS_RCM3_DAILYREPORT_DATA + (unsigned short)(DailyReport_Index) * 128, &TempData[0], 32);
+	EepromWrite(ADDRESS_RCM3_DAILYREPORT_DATA + 32 + (unsigned short)(DailyReport_Index) * 128, &TempData[32], 32);
+	EepromWrite(ADDRESS_RCM3_DAILYREPORT_DATA + 64 + (unsigned short)(DailyReport_Index) * 128, &TempData[64], 32);
+	EepromWrite(ADDRESS_RCM3_DAILYREPORT_DATA + 96 + (unsigned short)(DailyReport_Index) * 128, &TempData[96], 21);
+	#endif
+
+	TempData[0] = HCESPN.H1603;
+
+	EepromWrite(ADDRESS_H1603, TempData, 1); 
+	EepromWrite(ADDRESS_LAST_DAILYREPORT_SEND_TIME, Last_Daily_Reprot_Send_Time, 6);
+	EepromWrite(ADDRESS_DAILYREPORT_SEND_COUNT_POWEROFF, &Daily_Report_Send_Count_PowerOff, 1);
+
+	memcpy(TempData, (unsigned char *)(&(HCESPN.H1402)), 1);
+	EepromWrite(ADDRESS_RCM_H1402, TempData, 1); 
+	
+	Daily_Report_Send_flag_PowerOff = 0;
+
+	//++, 220726 ysm, FAN_FINAL
+	Last_H304_Data = HCESPN.H304_Coolant_temp;
+	Last_H536_Data = HCESPN.TM_Oil_Temp;;	
+
+	TempData[0] = Last_H304_Data;
+	EepromWrite(ADDRESS_RCM3_LAST_H304, TempData, 1); 
+
+	TempData[0] = Last_H536_Data;
+	EepromWrite(ADDRESS_RCM3_LAST_H536, TempData, 1); 
+	//--, 220726 ysm, FAN_FINAL
+	
+}
+
+
+void SatelliteCommEnd(void)
+{
+	
+	unsigned char i;	
+	unsigned char TempData[48];
+	unsigned int TempIntData[16];
+	unsigned short TempShortData[4];
+
+	TempShortData[0] = HCESPN.H1551;
+	TempShortData[1] = HCESPN.H1552;
+	TempShortData[2] = HCESPN.H1555;
+
+
+	memcpy(TempData, (unsigned char *)(&TempShortData[0]), 6);
+	EepromWrite(ADDRESS_RCM_COMM_ERROR, TempData, 6); 	
+	
+	EepromWrite(ADDRESS_RCM_DAILYREPORT_SEND_STATUS, &DailyReport_Send_Status, 1);	
+	EepromWrite(ADDRESS_RCM_DAILYREPORT_INDEX, &DailyReport_Index, 1);
+
+		
+	memcpy(TempData, (unsigned char *)(&DailyReport_Date), 3);
+	EepromWrite(ADDRESS_RCM_DAILYREPORT_DATE + DailyReport_Index * 3, TempData, 3);
+
+
+	for (i = 0; i < 11; i++)
+		TempIntData[i] = HCESPN.H1270[i];
+
+	
+	memcpy(TempData, (unsigned char *)(&TempIntData[0]), 32);
+	EepromWrite(ADDRESS_RCM_H1270 + 0 * 32, TempData, 32);
+	
+	memcpy(TempData, (unsigned char *)(&TempIntData[8]), 32);
+	EepromWrite(ADDRESS_RCM_H1270 + 1 * 32, TempData, 32);
+	
+	
+	for (i = 0; i < 16; i++)
+		TempIntData[i] = HCESPN.H1286[i];
+
+
+	////////////////////
+	#if 1
+	memcpy(TempData, (unsigned char *)(&TempIntData[0]), 32);
+	EepromWrite(ADDRESS_RCM_H1286, TempData, 32);
+
+	
+	memcpy(TempData, (unsigned char *)(&TempIntData[8]), 32);
+	EepromWrite(ADDRESS_RCM_H1286 + 32, TempData, 32);
+
+
+	
+	#endif
+	/////////////////////
+
+
+
+	memcpy(TempData, (unsigned char *)(&TMTempDistribution[0]), 32);
+	EepromWrite(ADDRESS_RCM_TMOILTEMPDISTRIBUTION, TempData, 32);
+
+
+
+
+	/*
+   	memcpy(TempData, (unsigned char *)(&LoadIndicatorDistribution[0]), 40);
+	EepromWrite(ADDRESS_RCM_LOADINDICATORDISTRIBUTION, TempData, 40);
+	*/
+
+
+
+
+	memcpy(TempData, (unsigned char *)(&HCESPN.H1331[0]), 6);	
+	EepromWrite(ADDRESS_RCM_H1331, TempData, 6);
+
+	memcpy(TempData, (unsigned char *)(&HCESPN.H1332[0]), 6);	
+	EepromWrite(ADDRESS_RCM_H1332, TempData, 6);	
+
+	
+	memcpy(TempData, (unsigned char *)(&HCESPN.H1341[0]), 6);
+	EepromWrite(ADDRESS_RCM_H1341, TempData, 6);
+
+
+	
+	memcpy(TempData, (unsigned char *)(&HCESPN.H1545), 1);
+	EepromWrite(ADDRESS_RCM_H1545, TempData, 1);	
+
+	memcpy(TempData, (unsigned char *)(&HCESPN.H1546), 1);	
+	EepromWrite(ADDRESS_RCM_H1546, TempData, 1);
+
+	memcpy(TempData, (unsigned char *)(&HCESPN.H1548), 1);
+	EepromWrite(ADDRESS_RCM_H1548, TempData, 1);
+
+
+	TempShortData[0] =HCESPN.H1551;
+	EepromWrite(ADDRESS_RCM_H1551, (unsigned char *)(&TempShortData[0]), 2);
+
+	TempShortData[0] =HCESPN.H1552; 
+	EepromWrite(ADDRESS_RCM_H1552, (unsigned char *)(&TempShortData[0]), 2);
+	
+	TempShortData[0] =HCESPN.H1553; 
+	EepromWrite(ADDRESS_RCM_H1553, (unsigned char *)(&TempShortData[0]), 2);	
+
+	TempShortData[0] =HCESPN.H1555; 
+	EepromWrite(ADDRESS_RCM_H1555, (unsigned char *)(&TempShortData[0]), 2);
+
+	TempShortData[0] =HCESPN.H1556; 
+	EepromWrite(ADDRESS_RCM_H1556, (unsigned char *)(&TempShortData[0]), 2);
+
+	TempData[0] = RCMData_WarmingCount_Today_Send;
+	TempData[2] = RCMData_ECMFaultCount_Today_Send;
+
+	TempData[3] = RCMData_WarmingCount_Today;
+	TempData[5] = RCMData_ECMFaultCount_Today;
+
+	
+	EepromWrite(ADDRESS_WARNING_FAULT_TODAY + 0, TempData, 6);
+
+	memcpy(TempData, (unsigned char *)(&RCMData_WarmingHCESPN_Today[0]), 10);
+	EepromWrite(ADDRESS_WARNING_FAULT_TODAY + 16, TempData, 10);
+
+	EepromWrite(ADDRESS_WARNING_FAULT_TODAY + 48, &RCMData_ECMFault_Today[0][0], 15);
+
+	TempData[0] = RCMData_TCUFaultCount_Today_Send;
+	TempData[1] = RCMData_TCUFaultCount_Today;
+	TempData[2]= 0xff;
+
+	EepromWrite(ADDRESS_WARNING_FAULT_TODAY2, &TempData[0], 3);
+	EepromWrite(ADDRESS_WARNING_FAULT_TODAY2 + 3, &RCMData_TCUFault_Today[0][0], 15);
+	
+	memcpy(TempData, &(HCESPN.H854[0]), 8);
+	EepromWrite(ADDRESS_RCM_H854, TempData, 8);
+	
+	TempData[0] = HCESPN.H822;
+	TempData[1] = HCESPN.H823_;
+	TempData[2] = HCESPN.H824;
+		
+	EepromWrite(ADDRESS_RCM_H822, TempData, 3);
+
+	EepromWrite(ADDRESS_LHO_SETTING_POSITION, LHO_Setting_Position, 8);
+
+	TempShortData[0] = FuelRemain;
+	TempShortData[1] = FuelConsumption;
+
+	memcpy(TempData, (unsigned char *)(&TempShortData[0]), 4);
+	EepromWrite(ADDRESS_RCM_FUEL_CONSUMPTION, TempData, 4);
+
+	memcpy(TempData, (unsigned char *)(&HCESPN.H951), 1);		
+	EepromWrite(ADDRESS_H951, TempData, 1);
+
+
+}
+
+
+
+void History_Machine_Lock_Change(void)
+{
+	unsigned char i;
+
+	for (i = 20; i >= 7; i--)
+	{
+		HCESPN.H1460[i] = HCESPN.H1460[i - 7];
+	}
+
+	for (i = 0; i < 5; i++)
+	{
+		HCESPN.H1460[i] = HCESPN.H941[i];
+	}
+
+	HCESPN.H1460[5] = (HCESPN.H823_ << 4) + (HCESPN.H822 << 2) + 0x03;
+	HCESPN.H1460[6] = 0xf0 + HCESPN.H824;
+}
+
+void add_log_message_52(void)
+{
+	unsigned char i;		
+
+	for (i = 59; i >= 6; i--)
+		HCESPN.H1521[i] = HCESPN.H1521[i - 6];
+
+	HCESPN.H1521[0] = 52;
+	HCESPN.H1521[1] = HCESPN.H941[0];
+	HCESPN.H1521[2] = HCESPN.H941[1];
+	HCESPN.H1521[3] = HCESPN.H941[2];
+	HCESPN.H1521[4] = HCESPN.H941[3];
+	HCESPN.H1521[5] = HCESPN.H941[4];
+
+	if (HCESPN.H1520 < 250)
+		HCESPN.H1520++;
+}
+
+//++, 200902 ysm, MOBILE
+unsigned char Check_Password(char *Input_Password)
+{
+	unsigned char WordSize;
+	unsigned char i;
+
+	WordSize = strlen(Input_Password);
+
+	if (WordSize < 5)
+	{
+		return 0;
+	}
+
+	if (WordSize > 10)
+	{
+		return 0;
+	}
+
+	for (i = 0; i < WordSize; i++)
+	{
+		if ((Input_Password[i] != '#') && ((Input_Password[i] < '0') || (Input_Password[i] > '9')))
+		{
+			return 0;
+		}
+	}
+
+	return 1;
+}
+
+
+void SatelliteCommRun3(void)
+{
+	st_DATA_RTC TempRTC1, TempRTC2;
+	unsigned int TimeGap;
+	unsigned char Sign;
+
+	if((COUNT_FLAG.Flag_RMCU_Check == 1)&&(COUNT_FLAG.Flag_RMCU_Set== 1))
+		RMCU_EQUIPMENT = 1;
+	else
+		RMCU_EQUIPMENT = 0;
+	
+	
+	if (++RCM3_StartCounter >= 300)
+	{
+		RCM3_StartCounter = 300;
+
+		if (++RCM3_Counter >= 36000)
+		{
+			RCM3_Counter = 0;
+		}
+
+		//	20150623	Check RMCU TimeoutS 90초 동안 CID 미수신시(H1551++, H1545++(if A.L == on))
+		if ( !RMCU_CID_OK)
+		{
+			//++	200204	Chage HCESPN.H1551(RMCU TimeoutS) Counter Condition
+			if(RCM3_TimeoutS_Check_Count < 1000)
+			{
+				RCM3_TimeoutS_Check_Count++;
+			}
+			//--	200204	Chage HCESPN.H1551(RMCU TimeoutS) Counter Condition
+			if( RCM3_TimeoutS_Check_Count == 900 )//++	200204	Chage HCESPN.H1551(RMCU TimeoutS) Counter Condition	>= -> == //--
+			{
+				RCM3_TimeoutS_Check_Count = 910;	
+
+				if (HCESPN.H1551 < 64255)
+				{
+					HCESPN.H1551++;
+				}
+				
+				if (HCESPN.H822 == 1)
+				{
+					if (HCESPN.H1545 < 250)
+					{
+						HCESPN.H1545++;
+					}
+
+					if (HCESPN.H1545 >= 3)
+					{
+						HCESPN.H1545 = 0;
+						HCESPN.H823_ = 1;
+						HCESPN.H824 = 1;
+						History_Machine_Lock_Change();
+						add_log_message_52();
+					}
+				}
+				
+			}
+		}
+
+		//++	180818	//	20150623	Check RMCU Timeout2 90초 동안 메시지 미수신시(H1553++)
+		if(RMCU_CID_OK == 1)
+		{
+
+			//MCU FAULT DATA 없음
+			#if 1
+			if(COUNT_FLAG.Flag_RMCUCommError == 1 )
+			{
+				if( RCM3_Timeout2_Occur == 0)
+				{
+				  	RCM3_Timeout2_Check_Count = 910;
+					RCM3_Timeout2_Occur = 1;
+
+					if (HCESPN.H1553 < 64255)
+					{
+						HCESPN.H1553++;
+					}
+				}
+			}
+			#endif
+
+			//	20150623	WireLess Data Comm. Error Mobile
+			if(HCESPN.H1621 != HCESPN_H1621_pre)
+			{
+				if(HCESPN.H1621 < 4)
+				{
+					Wireless_Error_cnt = 6000;
+				}
+
+				HCESPN_H1621_pre = HCESPN.H1621;
+			}
+
+			if (H1623_No_Change_Count < Wireless_Error_cnt)
+			{
+				H1623_No_Change_Count++;
+			}
+			else if (H1623_No_Change_Count == Wireless_Error_cnt)
+			{
+				H1623_No_Change_Count = 0xffff;
+
+				if (HCESPN.H1556 < 64255)
+				{
+					HCESPN.H1556++;
+				}
+
+				if (HCESPN.H822 == 1)
+				{
+					if (HCESPN.H1546 < 250)
+					{
+						HCESPN.H1546++;
+					}
+
+					if (HCESPN.H1546 >= 3)
+					{
+						HCESPN.H823_ = 1;
+						HCESPN.H824 = 1;
+						History_Machine_Lock_Change();
+						add_log_message_52();
+					}
+				}
+			}//.	20150623	WireLess Data Comm. Error Mobile
+		}
+
+		if (RCM3_Ack_Flag)	//	Request Message
+		{
+			HCESPN.H1598 = 0x04;
+			RCM3_Send_Flag = 3;			
+			RCM3_Ack_Flag = 0;
+		}
+		else if (RCM3_Ack_Status)	//	20150623	Check RMCU Timeout1(H1552)
+		{
+			if(RMCU_CID_OK == 1)
+			{
+				if (((++RCM3_Timeout1_Check_Count) % 50) == 49)
+				{
+					if (RCM3_Timeout1_Check_Count < 201)
+					{
+						RCM3_Send_Flag = 1;
+					}
+					else
+					{
+						if (HCESPN.H1552 < 64255)
+						{
+							HCESPN.H1552++;
+						}
+
+						RCM3_Ack_Status = 0;
+						RCM3_Timeout1_Check_Count = 0;
+					}
+				}
+			}
+		}
+		else
+		{
+			if (!RCM3_Send_Flag)
+			{
+				if (H1600_Scheduled_Flag)
+				{
+					H1600_Scheduled_Flag = 0;
+					HCESPN.H1600 = H1600_Scheduled_Data;
+					H1600_Scheduled_Data = 0;
+					RCM3_Send_Flag = 1;
+					RCM3_Ack_Status = 1;
+					RCM3_Timeout1_Check_Count = 0;
+				}
+			}
+
+			if (!RCM3_Send_Flag)
+			{
+				if (DailyReport_Send_Flag == 1)
+				{
+
+					HCESPN.H1600 = 0x09;					
+
+					RCM3_Send_Flag = 1;
+					RCM3_Ack_Status = 1;
+					RCM3_Timeout1_Check_Count = 0;
+
+				}
+
+			}
+
+			if (!RCM3_Send_Flag)
+			{
+				if (RCMData_MaintenanceChange != 0)
+				{
+					if (RCMData_MaintenanceChange == 1)
+					{
+						HCESPN.H1600 = 0xda;	//	MAintenance Replacement
+						RCM3_Send_Flag = 1;
+						RCM3_Ack_Status = 1;
+						RCM3_Timeout1_Check_Count = 0;
+					}
+					else if (RCMData_MaintenanceChange == 2)
+					{
+						HCESPN.H1600 = 0xdb;	//	Maintenance Interval Change
+						RCM3_Send_Flag = 1;
+						RCM3_Ack_Status = 1;
+						RCM3_Timeout1_Check_Count = 0;
+					}
+
+					RCMData_MaintenanceChange = 0;
+				}
+			}
+			
+			if (!RCM3_Send_Flag)
+			{
+				if (RCMData_CallMachineSecurity != 0)
+				{
+					HCESPN.H1600 = 0xd5;	//Machine Security
+					RCM3_Send_Flag = 1;
+					RCM3_Ack_Status = 1;
+					RCM3_Timeout1_Check_Count = 0;			
+			
+					Machine_Security_Command = 0;
+			
+					RCMData_CallMachineSecurity = 0;
+				}
+			}
+			
+
+
+			if (!RCM3_Send_Flag)
+			{
+				if (RCMData_UserPasswordChange != 0)
+				{
+					HCESPN.H1600 = 0xd5;	//Machine Security
+					RCM3_Send_Flag = 1;
+					RCM3_Ack_Status = 1;
+					RCM3_Timeout1_Check_Count = 0;			
+
+					Machine_Security_Command = 4;
+
+					RCMData_UserPasswordChange = 0;
+				}
+			}
+
+			if (!RCM3_Send_Flag)
+			{
+				if (RCMData_ESLStatusChange != 0)
+				{
+					HCESPN.H1600 = 0xd5;	//Machine Security
+					RCM3_Send_Flag = 1;
+					RCM3_Ack_Status = 1;
+					RCM3_Timeout1_Check_Count = 0;			
+
+					Machine_Security_Command = 4;
+
+					RCMData_ESLStatusChange = 0;
+				}
+			}			
+
+			if (!RCM3_Send_Flag)
+			{
+				if (RCMData_ServicePasswordChange != 0)
+				{
+					HCESPN.H1600 = 0xd5;	//Machine Security
+					RCM3_Send_Flag = 1;
+					RCM3_Ack_Status = 1;
+					RCM3_Timeout1_Check_Count = 0;			
+			
+					Machine_Security_Command = 3;
+			
+					RCMData_ServicePasswordChange = 0;
+				}
+			}
+
+
+			if ((HCESPN.H852 == 1) || (BD_Receive_Count3 >= 180))	//	20141120	BD_Receive_Count3
+			{
+				if (!RCM3_Send_Flag)
+				{
+					if (RCMData_WarmingCount_Today > RCMData_WarmingCount_Today_Send)
+					{
+						HCESPN.H1600 = 0x41;
+						RCM3_Send_Flag = 1;
+						RCM3_Ack_Status = 1;
+						RCM3_Timeout1_Check_Count = 0;
+
+						RCM3_0x41_Send_Flag = 1;
+					}
+				}
+
+				if (!RCM3_Send_Flag)
+				{
+					if (RCMData_ECMFaultCount_Today > RCMData_ECMFaultCount_Today_Send)
+					{
+						HCESPN.H1600 = 0x71;
+						RCM3_Send_Flag = 1;
+						RCM3_Ack_Status = 1;
+						RCM3_Timeout1_Check_Count = 0;
+
+						RCM3_0x71_Send_Flag = 1;
+					}
+				}
+		
+				#if 0
+				if (!RCM3_Send_Flag)
+				{
+					if (RCMData_TCUFaultCount_Today > RCMData_TCUFaultCount_Today_Send)
+					{
+						
+						HCESPN.H1600 = 0x75;
+						
+						RCM3_Send_Flag = 1;
+						RCM3_Ack_Status = 1;
+						RCM3_Timeout1_Check_Count = 0;
+
+						RCM3_0x75_0x76_Send_Flag = 1;	
+					}
+				}
+				#endif
+			}
+
+			if (!RCM3_Send_Flag)
+			{
+				if (LHO_Setting_Send_Status == 1)
+				{
+					HCESPN.H1600 = 0xd7;
+					RCM3_Send_Flag = 1;
+					RCM3_Ack_Status = 1;
+					RCM3_Timeout1_Check_Count = 0;
+
+					LHO_Setting_Send_Status = 0;
+				}
+			}
+
+			if (!RCM3_Send_Flag)
+			{
+				if (HCESPN.H1621 < 4)
+				{
+					if (DailyReport_Send_Status == 1)
+					{
+						HCESPN.H1600 = 0x09;
+						RCM3_Send_Flag = 1;
+						RCM3_Ack_Status = 1;
+						RCM3_Timeout1_Check_Count = 0;
+						RCM3_DailyReport_Index_Gap = 1;
+						DailyReport_Send_Status = 2;
+						DailyReport_Send_Flag = 1;
+					}
+					else if (DailyReport_Send_Status == 3)
+					{
+						HCESPN.H1600 = 0xe5;
+						RCM3_Send_Flag = 1;
+						RCM3_Ack_Status = 1;
+						RCM3_Timeout1_Check_Count = 0;
+						DailyReport_Send_Status = 4;
+					}
+					else if (DailyReport_Send_Status == 5)
+					{
+						HCESPN.H1600 = 0xe7;
+						RCM3_Send_Flag = 1;
+						RCM3_Ack_Status = 1;
+						RCM3_Timeout1_Check_Count = 0;
+						DailyReport_Send_Status = 6;
+					}
+					else if (DailyReport_Send_Status == 7)
+					{
+						HCESPN.H1600 = 0xe8;
+						RCM3_Send_Flag = 1;
+						RCM3_Ack_Status = 1;
+						RCM3_Timeout1_Check_Count = 0;
+						DailyReport_Send_Status = 8;
+					}
+					
+				}
+			}
+
+			if(HCESPN.H1621 < 4)
+			{
+				if (!RCM3_Send_Flag)
+				{
+					if (((HCESPN.H941[3] == 10) || (HCESPN.H941[3] == 14) || (HCESPN.H941[3] == 18)) &&  //	20150824	RMS v5.0 적용. Daily Report 전송시간 18시 추가.
+						(HCESPN.H941[4] == 0) && (HCESPN.H941[5] == 0))
+					{
+						if ((RCM3_Counter % 10) == 0)
+						{
+							HCESPN.H1600 = 0x09;
+							RCM3_Send_Flag = 1;
+                                                        
+							RCM3_Ack_Status = 1;
+							RCM3_Timeout1_Check_Count = 0;
+							RCM3_DailyReport_Index_Gap = 0;
+						}
+					}
+				}
+
+				if (!RCM3_Send_Flag)	//	Active Warning / DTC Message
+				{
+					if (RCM3_Counter == 650)
+					{
+						if ((HCESPN.H1518 != 0) || (HCESPN.H1501 != 0) || (HCESPN.H1502 != 0) || (HCESPN.H1503 != 0) )
+						{
+							HCESPN.H1600 = 0x29;
+
+							RCM3_Send_Flag = 1;
+							RCM3_Ack_Status = 1;
+							RCM3_Timeout1_Check_Count = 0;
+						}
+					}
+				}		
+			}
+
+			if (HCESPN.H1621 < 4)
+			{
+				if (!RCM3_Send_Flag)
+				{
+					if ((RCM3_Counter % 6000) == 5900)
+					{
+						if (++RCM3_DailyReport_Count >= HCESPN.H1603)
+						{
+							RCM3_DailyReport_Count = 0;
+
+							TempRTC1.Year = Last_Daily_Reprot_Send_Time[0];
+							TempRTC1.Month = Last_Daily_Reprot_Send_Time[1];
+							TempRTC1.Date = Last_Daily_Reprot_Send_Time[2];
+							TempRTC1.Hours = Last_Daily_Reprot_Send_Time[3];
+							TempRTC1.Minutes = Last_Daily_Reprot_Send_Time[4];
+							TempRTC1.Seconds = Last_Daily_Reprot_Send_Time[5];
+
+							TempRTC2.Year = HCESPN.H941[0];
+							TempRTC2.Month = HCESPN.H941[1];
+							TempRTC2.Date = HCESPN.H941[2];
+							TempRTC2.Hours = HCESPN.H941[3];
+							TempRTC2.Minutes = HCESPN.H941[4];
+							TempRTC2.Seconds = HCESPN.H941[5];
+
+							CalculateTimeGap(&TempRTC1, &TempRTC2, 1800, 0, &TimeGap, &Sign);
+
+							if ((HCESPN.H1603 <= 3) || (Sign == 1))
+							{
+								//HCESPN.H1598 = 0x01;
+								//HCESPN.H1600 = 0x08;
+								DailyReport_Send_Flag = 1;
+								RCM3_Ack_Status = 1;
+								RCM3_Timeout1_Check_Count = 0;
+								RCM3_DailyReport_Index_Gap = 0;
+							}
+						}
+					}
+				}
+			}
+
+			if (!RCM3_Send_Flag)
+			{
+				if ((RCM3_Counter % 600) == 5)
+				{
+					
+					if(HCESPN.H1621 < 4)
+					{
+						HCESPN.H1600 = 0x09;
+					}
+
+					RCM3_Send_Flag = 2;
+				}
+			}
+		}
+
+		Satellite_TransmitData3();
+
+		if (RCM3_0x41_Send_Flag)
+		{
+			RCMData_WarmingCount_Today_Send++;
+			RCM3_0x41_Send_Flag = 0;
+		}
+
+		if (RCM3_0x71_Send_Flag)
+		{
+			RCMData_ECMFaultCount_Today_Send++;
+			RCM3_0x71_Send_Flag = 0;
+		}
+
+		if (RCM3_0x75_0x76_Send_Flag)//++	191130	Change CVT Model TCU DTC RMS	//--	// 20120118
+		{
+			RCMData_TCUFaultCount_Today_Send++;
+			RCM3_0x75_0x76_Send_Flag = 0;//++	191130	Change CVT Model TCU DTC RMS	//--
+		}
+		
+	}
+}
+
+unsigned short make_RCM_Temp_Distribution_Total(struct st_RCM_Temp_Distribution *dst)
+{
+
+	unsigned char i;
+
+	for (i = 0; i < 6; i++)
+	{
+		dst->H941[i] = HCESPN.H941[i];
+	}
+
+	dst->H941[0] |= 0x80;
+
+	for (i = 0; i < 7; i++)
+	{
+		dst->H1261[i] = 0xff;//HCESPN.H1261[i]; //Hydraulic Oil Temperature Distribution %
+	}
+
+	for (i = 0; i < 11; i++)
+	{
+		dst->H1292[i] = HCESPN.H1292[i]; 
+	}
+
+	for (i = 0; i < 6; i++)
+	{
+		dst->H1331[i] = 0xff;//HCESPN.H1331[i]; //Hydraulic Oil Temperature (Date/Time)
+	}
+
+	dst->H1331[1] |= 0x80;
+
+	for (i = 0; i < 6; i++)
+	{
+		dst->H1341[i] = HCESPN.H1341[i];
+	}
+
+	dst->H1341[1] |= 0x80;
+
+	for (i = 0; i < 7; i++)
+	{
+		dst->H1262[i] = HCESPN.H1262[i];
+	}
+
+	for (i = 0; i < 6; i++)
+	{
+		//++, 210513 ysm, RMS
+		#if 0
+		if(i == 0)
+		{
+			if(HCESPN.H1332[i] == 0)
+				HCESPN.H1332[i] = 0xff;
+		}
+		#endif		
+		//--, 210513 ysm, RMS
+
+		dst->H1332[i] = HCESPN.H1332[i];
+		
+	}
+
+	dst->H1332[1] |= 0x80;
+
+	return 49;
+}
+
+unsigned short make_Remote3PacketData_0x09(struct st_Remote3PacketData_0x09 *dst)
+{
+	unsigned char i;
+
+	dst->H1603 = HCESPN.H1603;
+
+	for (i = 0; i < 5; i++)
+	{
+		dst->H941[i] = HCESPN.H941[i];
+	}
+
+	B2L4_(HCESPN.H1601, dst->H1601);
+
+	for (i = 0; i < 3; i++)
+	{
+		dst->H1400[i] = HCESPN.H1400[i];
+	}
+
+	for (i = 0; i < 3; i++)
+	{
+		dst->H1401[i] = HCESPN.H1401[i];
+	}
+
+	dst->H301 = HCESPN.H301;
+	B2L2_(HCESPN.H302, dst->H302);	
+
+	HCESPN.H1405 = HCESPN.H1403 = 0xFFFF; // 추후 구현
+	
+	B2L2_(HCESPN.H1405, dst->H1405);
+	B2L2_(HCESPN.H1403, dst->H1403);
+
+	dst->H1410[0] = (HCESPN.H1410_2 >> 0) & 0xff;
+	dst->H1410[1] = (HCESPN.H1410_2 >> 8) & 0xff;
+	dst->H1410[2] = (HCESPN.H1410_2 >> 16) & 0xff;
+
+	dst->H1411[0] = (HCESPN.H1411_2 >> 0) & 0xff;
+	dst->H1411[1] = (HCESPN.H1411_2 >> 8) & 0xff;
+	dst->H1411[2] = (HCESPN.H1411_2 >> 16) & 0xff;
+
+	dst->H1412[0] = (HCESPN.H1412_2 >> 0) & 0xff;
+	dst->H1412[1] = (HCESPN.H1412_2 >> 8) & 0xff;
+	dst->H1412[2] = (HCESPN.H1412_2 >> 16) & 0xff;
+
+	dst->H1413[0] = (HCESPN.H1413_2 >> 0) & 0xff;
+	dst->H1413[1] = (HCESPN.H1413_2 >> 8) & 0xff;
+	dst->H1413[2] = (HCESPN.H1413_2 >> 16) & 0xff;
+
+	for (i = 0; i < 6; i++)
+	{
+		dst->H1404[i] = HCESPN.H1404[i];
+	}
+
+	for (i = 0; i < 8; i++)
+	{
+		dst->H854[i] = HCESPN.H854[i];
+	}
+
+	dst->H951 = HCESPN.H951;
+	dst->H820 = HCESPN.H820;  //WIP
+	dst->H822 = HCESPN.H822;  //WIP 	
+	dst->H823 = HCESPN.H823_; //WIP
+	dst->H824 = HCESPN.H824; //WIP
+	dst->dm0 = 0x0F;
+	B2L2_(HCESPN.H1551, dst->H1551);
+	B2L2_(HCESPN.H1552, dst->H1552);
+	B2L2_(HCESPN.H1553, dst->H1553);
+	B2L2_(HCESPN.H1555, dst->H1555);
+	B2L2_(HCESPN.H1556, dst->H1556);
+	dst->H1545 = HCESPN.H1545;
+	dst->H1546 = HCESPN.H1546;
+	dst->H1548 = HCESPN.H1548;
+	dst->H1518 = HCESPN.H1518; //WIP
+	dst->H1501 = HCESPN.H1501; //WIP
+	dst->H1502 = HCESPN.H1502; //WIP
+	dst->H1503 = HCESPN.H1503; //WIP
+	dst->H101 = HCESPN.H101 = 0xFF;
+	dst->H304 = HCESPN.H304_Coolant_temp;
+	dst->H536 = HCESPN.TM_Oil_Temp;
+
+	B2L2_(HCESPN.H1417, dst->H1417);
+
+	for (i = 0; i < 14; i++)
+	{
+		dst->H1418[i] = HCESPN.H1418[i];
+	}
+
+	for (i = 0; i < 3; i++)
+	{
+		B2L2_(HCESPN.H1419[i], dst->H1419[i]);
+	}
+
+	for (i = 0; i < 6; i++)
+	{
+		HCESPN.H1422[i] = 0xffff; //Not Used
+		B2L2_(HCESPN.H1422[i], dst->H1422[i]);
+	}
+
+	B2L4_(HCESPN.H1915, dst->H1915);
+	dst->REV1 = 0xFF;
+	dst->REV2 = 0xFF;
+	dst->H1402 = HCESPN.H1402;
+
+	HCESPN.H1414 = 0xffff;
+	B2L2_(HCESPN.H1414, dst->H1414);
+	
+	dst->H575 = HCESPN.H575 = InfoModel2.SpeedLimitStatus;
+	dst->dm1 = 0x3f;
+	dst->H572 = HCESPN.H572 = InfoModel2.SpeedLimitValue;
+
+	return 117;	
+	
+}
+
+void read_Remote3PacketData_0x09(struct st_Remote3PacketData_0x09 *src)
+{
+	unsigned char i;
+
+	HCESPN.H1603 = src->H1603;
+
+	for (i = 0; i < 3; i++)
+	{
+		HCESPN.H1400[i] = src->H1400[i];
+	}
+
+	for (i = 0; i < 3; i++)
+	{
+		HCESPN.H1401[i] = src->H1401[i];
+	}
+
+	HCESPN.H1405 = (unsigned short)(src->H1405[1] * 256) + (unsigned short)(src->H1405[0]);
+	HCESPN.H1403 = (unsigned short)(src->H1403[1] * 256) + (unsigned short)(src->H1403[0]);
+
+	HCESPN.H1410_2 = ((unsigned int)(src->H1410[0]) << 0)
+					 + ((unsigned int)(src->H1410[1]) << 8)
+					 + ((unsigned int)(src->H1410[2]) << 16);
+
+	HCESPN.H1411_2 = ((unsigned int)(src->H1411[0]) << 0)
+					 + ((unsigned int)(src->H1411[1]) << 8)
+					 + ((unsigned int)(src->H1411[2]) << 16);
+
+	HCESPN.H1412_2 = ((unsigned int)(src->H1412[0]) << 0)
+					 + ((unsigned int)(src->H1412[1]) << 8)
+					 + ((unsigned int)(src->H1412[2]) << 16);
+
+	HCESPN.H1413_2 = ((unsigned int)(src->H1413[0]) << 0)
+					 + ((unsigned int)(src->H1413[1]) << 8)
+					 + ((unsigned int)(src->H1413[2]) << 16);
+
+	for (i = 0; i < 6; i++)
+	{
+		HCESPN.H1404[i] = src->H1404[i];
+	}
+
+	HCESPN.H1417 = (unsigned short)(src->H1417[1] * 256) + (unsigned short)(src->H1417[0]);
+
+	for (i = 0; i < 14; i++)
+	{
+		HCESPN.H1418[i] = src->H1418[i];
+	}
+
+	for (i = 0; i < 3; i++)
+	{
+		HCESPN.H1419[i] = (unsigned short)(src->H1419[i][1] * 256) + (unsigned short)(src->H1419[i][0]);
+	}
+
+
+	for (i = 0; i < 6; i++)
+	{
+		HCESPN.H1422[i] = (unsigned short)(src->H1422[i][1] * 256) + (unsigned short)(src->H1422[i][0]);
+	}
+
+	HCESPN.H1915 = (unsigned int)(src->H1915[3] * 0xffffff)
+				   + (unsigned int)(src->H1915[2] * 0xffff)
+				   + (unsigned int)(src->H1915[1] * 0xff)
+				   + (unsigned int)(src->H1915[0]);
+	
+
+}
+
+
+void Satellite_TransmitData3(void)
+{
+	unsigned char SendData[512];
+	unsigned short Index;
+	unsigned int TempIntData;
+	unsigned char i;
+	unsigned char TempStrSize;
+	unsigned char maintenance_index,maintenance_list_total;
+		
+	Index = 0;
+
+	if( COUNT_FLAG.Comm_Error_RMCU > 10000)
+	{
+		RCM3_Send_Flag = 0;	//	190208 test
+	}
+		
+	if (RCM3_Send_Flag == 1)
+	{
+		switch (HCESPN.H1600)
+		{
+			case 0x09 : // ENGINE FORKLIFT DAILY REPORT
+
+				if (RCM3_DailyReport_Index_Gap == 0)
+				{
+					SendData[Index++] = HCESPN.H1598 = 1;
+					SendData[Index++] = HCESPN.H1600;
+
+					Index += make_Remote3PacketData_0x09((struct st_Remote3PacketData_0x09 *)&SendData[Index]);
+
+				}			
+				else
+				{
+					SendData[Index++] = HCESPN.H1598 = 1;
+					SendData[Index++] = HCESPN.H1600;
+					//++	190609	ECO Report 131 + 6 -> 137 Mobile			
+					EepromRead(ADDRESS_RCM3_DAILYREPORT_DATA + ((DailyReport_Index + 6 - RCM3_DailyReport_Index_Gap) % 6) * 128, &SendData[Index], 117);
+					Index += 117;
+				}			
+				SendData[Index - 116] |= 0x80;
+					
+
+				if (DailyReport_Send_Flag == 1)
+				{
+					DailyReport_Send_Flag = 0;
+
+					Last_Daily_Reprot_Send_Time[0] = HCESPN.H941[0];
+					Last_Daily_Reprot_Send_Time[1] = HCESPN.H941[1];
+					Last_Daily_Reprot_Send_Time[2] = HCESPN.H941[2];
+					Last_Daily_Reprot_Send_Time[3] = HCESPN.H941[3];
+					Last_Daily_Reprot_Send_Time[4] = HCESPN.H941[4];
+					Last_Daily_Reprot_Send_Time[5] = HCESPN.H941[5];
+				}
+
+				HCEPGN_61184_MSGT_250_Transmit_Data_Count = Index + 1;
+				HCEPGN_61184_MSGT_250_Transmit_Data[0] = 250;
+				memcpy((HCEPGN_61184_MSGT_250_Transmit_Data + 1), SendData, Index);
+				HCEPGN_61184_MSGT_250_Transmit_Flag = 1;
+
+				break;
+
+			case 0x41 :	//	Warning
+				SendData[Index++] = HCESPN.H1598 = 1;
+				SendData[Index++] = HCESPN.H1600;
+
+				memcpy((SendData + Index), (unsigned char *)(HCESPN.H941), 6);
+				Index += 6;
+
+				SendData[Index - 6] |= 0x80;
+
+				TempIntData = B2L4(HCESPN.H1601);
+				memcpy((SendData + Index), (unsigned char *)(&TempIntData), 4);
+				Index += 4;
+
+				memcpy((SendData + Index), (unsigned char *)(HCESPN.H854), 8);
+				Index += 8;
+
+				*(SendData + Index++) = (unsigned char)(RCMData_WarmingHCESPN_Today[RCMData_WarmingCount_Today_Send] % 256);
+				*(SendData + Index++) = (unsigned char)(RCMData_WarmingHCESPN_Today[RCMData_WarmingCount_Today_Send] / 256);
+
+				HCEPGN_61184_MSGT_250_Transmit_Data_Count = Index + 1;
+				HCEPGN_61184_MSGT_250_Transmit_Data[0] = 250;
+				memcpy((HCEPGN_61184_MSGT_250_Transmit_Data + 1), SendData, Index);
+				HCEPGN_61184_MSGT_250_Transmit_Flag = 1;
+
+				break;
+
+			case 0x71 :	//	ECM DTC
+				SendData[Index++] = HCESPN.H1598 = 1;
+				SendData[Index++] = HCESPN.H1600;
+
+				memcpy((SendData + Index), (unsigned char *)(HCESPN.H941), 6);
+				Index += 6;
+
+				// 120201
+				SendData[Index - 6] |= 0x80;
+
+				TempIntData = B2L4(HCESPN.H1601);
+				memcpy((SendData + Index), (unsigned char *)(&TempIntData), 4);
+				Index += 4;
+
+				memcpy((SendData + Index), (unsigned char *)(HCESPN.H854), 8);
+				Index += 8;
+
+				*(SendData + Index++) = RCMData_ECMFault_Today[RCMData_ECMFaultCount_Today_Send][0];
+				*(SendData + Index++) = RCMData_ECMFault_Today[RCMData_ECMFaultCount_Today_Send][1];
+				*(SendData + Index++) = RCMData_ECMFault_Today[RCMData_ECMFaultCount_Today_Send][2];
+
+				HCEPGN_61184_MSGT_250_Transmit_Data_Count = Index + 1;
+				HCEPGN_61184_MSGT_250_Transmit_Data[0] = 250;
+				memcpy((HCEPGN_61184_MSGT_250_Transmit_Data + 1), SendData, Index);
+				HCEPGN_61184_MSGT_250_Transmit_Flag = 1;
+				break;
+
+			#if 0
+			case 0x75 :	//	TCU DTC
+				SendData[Index++] = HCESPN.H1598 = 1;
+				SendData[Index++] = HCESPN.H1600;
+
+				memcpy((SendData + Index), (unsigned char *)(HCESPN.H941), 6);
+				Index += 6;
+
+				// 120201
+				SendData[Index - 6] |= 0x80;
+
+				TempIntData = B2L4(HCESPN.H1601);
+				memcpy((SendData + Index), (unsigned char *)(&TempIntData), 4);
+				Index += 4;
+
+				memcpy((SendData + Index), (unsigned char *)(HCESPN.H854), 8);
+				Index += 8;
+
+				*(SendData + Index++) = RCMData_TCUFault_Today[RCMData_TCUFaultCount_Today_Send][0];
+
+				HCEPGN_61184_MSGT_250_Transmit_Data_Count = Index + 1;
+				HCEPGN_61184_MSGT_250_Transmit_Data[0] = 250;
+				memcpy((HCEPGN_61184_MSGT_250_Transmit_Data + 1), SendData, Index);
+				HCEPGN_61184_MSGT_250_Transmit_Flag = 1;
+				break;
+			#endif	
+
+			case 0x29 :	//	FORKLIFT Active Warning/DTC Message
+				SendData[Index++] = HCESPN.H1598 = 1;
+				SendData[Index++] = HCESPN.H1600;
+
+				memcpy((SendData + Index), (unsigned char *)(HCESPN.H941), 6);
+				Index += 6;
+
+				// 120201
+				SendData[Index - 6] |= 0x80;
+
+				TempIntData = B2L4(HCESPN.H1601);
+				memcpy((SendData + Index), (unsigned char *)(&TempIntData), 4);
+				Index += 4;
+
+				*(SendData + Index++) = HCESPN.H1518;
+				*(SendData + Index++) = HCESPN.H1501;
+				*(SendData + Index++) = HCESPN.H1502;
+				*(SendData + Index++) = HCESPN.H1503;
+			
+				if(HCESPN.H1518 != 0)
+				{
+					for (i = 0; i < ((HCESPN.H1518 < 5) ? HCESPN.H1518 : 5); i++)
+					{
+						*(SendData + Index++) = (unsigned char)(RCMData_WarmingHCESPN[i] % 256);
+						*(SendData + Index++) = (unsigned char)(RCMData_WarmingHCESPN[i] / 256);
+					}
+				}
+
+				if(HCESPN.H1502 != 0)
+				{
+					for (i = 0; i < ((HCESPN.H1502 < 5) ? HCESPN.H1502 : 5); i++)
+					{
+						*(SendData + Index++) = RCMData_ECMFault[i][0];
+						*(SendData + Index++) = RCMData_ECMFault[i][1];
+						*(SendData + Index++) = RCMData_ECMFault[i][2];
+					}
+				}
+
+
+				if(HCESPN.H1503 != 0)
+				{
+					for (i = 0; i < ((HCESPN.H1503 < 5) ? HCESPN.H1503 : 5); i++)
+					{
+						*(SendData + Index++) = RCMData_TCUFault[i][0];
+					}
+				}
+
+
+				HCEPGN_61184_MSGT_250_Transmit_Data_Count = Index + 1;
+				HCEPGN_61184_MSGT_250_Transmit_Data[0] = 250;
+				memcpy((HCEPGN_61184_MSGT_250_Transmit_Data + 1), SendData, Index);
+
+				if(RCM3_Center_Command == 1)
+				{
+					HCEPGN_61184_MSGT_250_Transmit_Flag = 1;
+					RCM3_Center_Command = 0;
+				}
+			
+				break;
+
+			case 0xd5 :  //Machine Security
+				SendData[Index++] = HCESPN.H1598 = 1;
+				SendData[Index++] = HCESPN.H1600;
+
+				memcpy((SendData + Index), (unsigned char *)(HCESPN.H941), 6);
+				Index += 6;
+
+				SendData[Index - 6] |= 0x80;			
+
+				SendData[Index++] = Machine_Security_Command;
+				SendData[Index++] = 0xfc + HCESPN.H820;		//ESL MODE
+				SendData[Index++] = 0xff;
+
+				SendData[Index++] = (unsigned char)(HCESPN.H1551 % 256);
+				SendData[Index++] = (unsigned char)(HCESPN.H1551 / 256);
+
+				SendData[Index++] = (unsigned char)(HCESPN.H1552 % 256);
+				SendData[Index++] = (unsigned char)(HCESPN.H1552 / 256);
+
+				SendData[Index++] = (unsigned char)(HCESPN.H1553 % 256);
+				SendData[Index++] = (unsigned char)(HCESPN.H1553 / 256);
+
+				SendData[Index++] = (unsigned char)(HCESPN.H1555 % 256);
+				SendData[Index++] = (unsigned char)(HCESPN.H1555 / 256);
+
+				SendData[Index++] = (unsigned char)(HCESPN.H1556 % 256);
+				SendData[Index++] = (unsigned char)(HCESPN.H1556 / 256);
+
+				SendData[Index++] = 0xff;
+				SendData[Index++] = 0xff;
+				SendData[Index++] = 0xff;
+				
+				SendData[Index++] = 0x2a; //H953
+				
+				for(i=0; i<11; i++)
+				{
+					SendData[Index++] = HCESPN.H954[i];
+
+					if(HCESPN.H954[i] == 0x2a)
+						break;
+				}
+				
+				SendData[Index++] = 0x2a; //H952
+
+				for(i=0; i<11; i++)
+				{
+					SendData[Index++] = HCESPN.H955[i];
+
+					if(HCESPN.H955[i] == 0x2a)
+						break;
+				}
+				
+
+				SendData[Index++] = 0xff;
+				SendData[Index++] = 0xff;
+
+				SendData[Index++] = 0xff; //H959
+				SendData[Index++] = 0xff;
+				SendData[Index++] = 0xff;
+				SendData[Index++] = 0xff;
+				SendData[Index++] = 0xff;
+				SendData[Index++] = 0xff;
+				SendData[Index++] = 0xff;
+
+				SendData[Index++] = 0x2a; //H965
+
+				HCEPGN_61184_MSGT_250_Transmit_Data_Count = Index + 1;
+				HCEPGN_61184_MSGT_250_Transmit_Data[0] = 250;
+				memcpy((HCEPGN_61184_MSGT_250_Transmit_Data + 1), SendData, Index);
+				HCEPGN_61184_MSGT_250_Transmit_Flag = 1;
+
+				break;
+				
+			case 0xd7 :	//	Local Time Setting
+				SendData[Index++] = HCESPN.H1598 = 1;
+				SendData[Index++] = HCESPN.H1600;
+
+				*(SendData + Index++) = HCESPN.H951;
+
+				HCEPGN_61184_MSGT_250_Transmit_Data_Count = Index + 1;
+				HCEPGN_61184_MSGT_250_Transmit_Data[0] = 250;
+				memcpy((HCEPGN_61184_MSGT_250_Transmit_Data + 1), SendData, Index);
+				HCEPGN_61184_MSGT_250_Transmit_Flag = 1;
+
+				break;
+
+			case 0xd0 : // ENGINE FORKLIFT Maintenance(D9->D0)
+				SendData[Index++] = HCESPN.H1598 = 1;
+				SendData[Index++] = HCESPN.H1600;
+				
+				SendData[Index++] = 0x04; // Machine Type(0x04 - Forklift)
+
+				SendData[Index++] = HCESPN.H941[0];
+				SendData[Index++] = HCESPN.H941[1];
+				SendData[Index++] = HCESPN.H941[2];
+				SendData[Index++] = HCESPN.H941[3];
+				SendData[Index++] = HCESPN.H941[4];				
+				
+				TempIntData = B2L4(HCESPN.H1601);
+				memcpy((SendData + Index), (unsigned char *)(&TempIntData), 4);
+				Index += 4;
+
+				maintenance_list_total = 0;
+				for(i = 0; i < MAINTENANCE_TOTAL; i++)
+				{
+					if(Maintenance_Data[i].Maintenance_Interval != 0xff)
+						maintenance_list_total++;
+				}
+				
+				SendData[Index++] = maintenance_list_total;
+
+				for(i = 0; i < MAINTENANCE_TOTAL; i++)
+				{
+					if(Maintenance_Data[i].Maintenance_Interval != 0xff)
+					{				
+						maintenance_index = Set_H1098(i);
+						*(SendData + Index++) = maintenance_index + ((Maintenance_Data[i].Maintenance_Alarm)<<6);
+						//*(SendData + Index++) = 0xfc + Maintenance_Data[i].Maintenance_Alarm;
+						*(SendData + Index++) = Maintenance_Data[i].Maintenance_Interval;
+						*(SendData + Index++) = Maintenance_Data[i].Maintenance_Replacement_Count;
+						*(SendData + Index++) = (unsigned char)(Maintenance_Data[i].Maintenance_Hourmeter % 256);
+						*(SendData + Index++) = (unsigned char)(Maintenance_Data[i].Maintenance_Hourmeter / 256);
+					}
+				}		
+				
+				HCEPGN_61184_MSGT_250_Transmit_Data_Count = Index + 1;
+				HCEPGN_61184_MSGT_250_Transmit_Data[0] = 250;
+				memcpy((HCEPGN_61184_MSGT_250_Transmit_Data + 1), SendData, Index);
+				HCEPGN_61184_MSGT_250_Transmit_Flag = 1;
+
+				break;
+
+			case 0xda :
+			case 0xdb :
+				SendData[Index++] = HCESPN.H1598 = 1;
+				SendData[Index++] = HCESPN.H1600;
+
+				TempIntData = B2L4(HCESPN.H1601);
+				memcpy((SendData + Index), (unsigned char *)(&TempIntData), 4);
+				Index += 4;
+
+				maintenance_index = Unset_H1098(RCMData_MaintenanceItem);
+
+				*(SendData + Index++) = RCMData_MaintenanceItem;
+
+				*(SendData + Index++) = 0xfc + Maintenance_Data[maintenance_index].Maintenance_Alarm;
+				*(SendData + Index++) = Maintenance_Data[maintenance_index].Maintenance_Interval;
+				*(SendData + Index++) = Maintenance_Data[maintenance_index].Maintenance_Replacement_Count;
+				*(SendData + Index++) = (unsigned char)(Maintenance_Data[maintenance_index].Maintenance_Hourmeter % 256);
+				*(SendData + Index++) = (unsigned char)(Maintenance_Data[maintenance_index].Maintenance_Hourmeter / 256);
+
+				memcpy((SendData + Index), (unsigned char *)(HCESPN.H941), 5);
+				Index += 5;
+
+				SendData[Index - 5] |= 0x80;        // 20120120 date error
+
+				HCEPGN_61184_MSGT_250_Transmit_Data_Count = Index + 1;
+				HCEPGN_61184_MSGT_250_Transmit_Data[0] = 250;
+				memcpy((HCEPGN_61184_MSGT_250_Transmit_Data + 1), SendData, Index);
+				HCEPGN_61184_MSGT_250_Transmit_Flag = 1;
+
+				break;
+
+			//Shift Mode & Actual Gear Distribution 구현 하지 말라는 데 구현함!!
+			case 0xe5 :
+				SendData[Index++] = HCESPN.H1598 = 1;
+				SendData[Index++] = HCESPN.H1600;
+
+				memcpy((SendData + Index), (unsigned char *)(HCESPN.H941), 6);
+				Index += 6;
+
+				// 120201
+				SendData[Index - 6] |= 0x80;
+
+				if((HCESPN.H1621 < 4) && (DailyReport_Send_Status == 4))
+				{
+					for (i = 0; i < 11; i++)
+					{
+						TempIntData = B2L4(HCESPN.H1270[i]);
+						memcpy((SendData + Index), (unsigned char *)(&TempIntData), 4);
+						Index += 4;
+					}
+				}
+				else
+				{
+					for (i = 0; i < 11; i++)
+					{
+						TempIntData = B2L4(HCESPN.H1270[i]);
+						memcpy((SendData + Index), (unsigned char *)(&TempIntData), 4);
+						Index += 4;
+					}
+				}
+
+				HCEPGN_61184_MSGT_250_Transmit_Data_Count = Index + 1;
+				HCEPGN_61184_MSGT_250_Transmit_Data[0] = 250;
+				memcpy((HCEPGN_61184_MSGT_250_Transmit_Data + 1), SendData, Index);
+				HCEPGN_61184_MSGT_250_Transmit_Flag = 1;
+				break;
+
+			case 0xe7 :
+				SendData[Index++] = HCESPN.H1598 = 1;
+				SendData[Index++] = HCESPN.H1600;
+
+				memcpy((SendData + Index), (unsigned char *)(HCESPN.H941), 6);
+				Index += 6;
+
+				SendData[Index - 6] |= 0x80;
+
+				if((HCESPN.H1621 < 4) && (DailyReport_Send_Status == 6))
+				{
+					for (i = 0; i < 16; i++)
+					{
+						if(HCESPN.Actual_Engine_Percent_Torque_513 < 0xffff)						
+							TempIntData = B2L4(HCESPN.H1286[i]);
+						else
+							TempIntData = 0xffffffff;
+						
+						memcpy((SendData + Index), (unsigned char *)(&TempIntData), 4);
+						Index += 4;
+					}
+				}
+				else
+				{
+					for (i = 0; i < 16; i++)
+					{
+						TempIntData = B2L4(HCESPN.H1286[i]);
+						memcpy((SendData + Index), (unsigned char *)(&TempIntData), 4);
+						Index += 4;
+					}
+				}
+
+				HCEPGN_61184_MSGT_250_Transmit_Data_Count = Index + 1;
+				HCEPGN_61184_MSGT_250_Transmit_Data[0] = 250;
+				memcpy((HCEPGN_61184_MSGT_250_Transmit_Data + 1), SendData, Index);
+				HCEPGN_61184_MSGT_250_Transmit_Flag = 1;
+
+				break;
+
+			case 0xe8 :
+				SendData[Index++] = HCESPN.H1598 = 1;
+				SendData[Index++] = 0xed;//HCESPN.H1600;
+
+				if((HCESPN.H1621 < 4) && (DailyReport_Send_Status == 8))
+				{
+					
+					Index += make_RCM_Temp_Distribution_Total((struct st_RCM_Temp_Distribution *)&SendData[Index]);
+				}
+				else
+				{
+					Index += make_RCM_Temp_Distribution_Total((struct st_RCM_Temp_Distribution *)&SendData[Index]);
+				}
+
+				HCEPGN_61184_MSGT_250_Transmit_Data_Count = Index + 1;
+				HCEPGN_61184_MSGT_250_Transmit_Data[0] = 250;
+				memcpy((HCEPGN_61184_MSGT_250_Transmit_Data + 1), SendData, Index);
+				HCEPGN_61184_MSGT_250_Transmit_Flag = 1;
+				break;
+
+			case 0x10 :
+				SendData[Index++] = HCESPN.H1598 = 1;
+				SendData[Index++] = HCESPN.H1600;
+
+				memcpy((SendData + Index), (unsigned char *)(HCESPN.H941), 5);
+				Index += 5;
+
+				SendData[Index - 5] |= 0x80;
+
+				*(SendData + Index++) = HCESPN.H971;
+				*(SendData + Index++) = HCESPN.H972;
+				*(SendData + Index++) = HCESPN.H973;
+				*(SendData + Index++) = HCESPN.H974;
+
+				TempStrSize = strlen(HCESPN.H975);
+
+				if(TempStrSize<=3)
+					TempStrSize = 0;
+
+				for(i = 0; i < TempStrSize-3; i++)
+				{
+					*(SendData + Index++) = HCESPN.H975[i+3];
+				}
+
+				*(SendData + Index++) = '*';
+
+				TempStrSize = strlen(HCESPN.H960);
+
+				for(i = 0; i < TempStrSize; i++)
+				{
+					*(SendData + Index++) = HCESPN.H960[i];
+				}
+
+				*(SendData + Index++) = '*';
+
+				*(SendData + Index++) = HCESPN.H977; //++,--, 210113 ysm, SATELITE
+
+				HCEPGN_61184_MSGT_250_Transmit_Data_Count = Index + 1;
+				HCEPGN_61184_MSGT_250_Transmit_Data[0] = 250;
+				memcpy((HCEPGN_61184_MSGT_250_Transmit_Data + 1), SendData, Index);
+				HCEPGN_61184_MSGT_250_Transmit_Flag = 1;
+
+				break;
+
+			default :
+				
+				break;
+		}
+	}
+	else if (RCM3_Send_Flag == 2)
+	{
+		SendData[Index++] = HCESPN.H1598 = 0;
+		SendData[Index++] = HCESPN.H1600;
+
+		if(HCESPN.H1621 < 4)
+		{
+			Index += make_Remote3PacketData_0x09((struct st_Remote3PacketData_0x09 *)&SendData[Index]);
+			SendData[Index - 116] |= 0x80;			
+
+		}
+
+		HCEPGN_61184_MSGT_250_Transmit_Data_Count = Index + 1;
+		HCEPGN_61184_MSGT_250_Transmit_Data[0] = 250;
+		memcpy((HCEPGN_61184_MSGT_250_Transmit_Data + 1), SendData, Index);
+		HCEPGN_61184_MSGT_250_Transmit_Flag = 1;
+	}
+	else if (RCM3_Send_Flag == 3)
+	{
+		SendData[Index++] = HCESPN.H1598 = 4;
+
+		HCEPGN_61184_MSGT_250_Transmit_Data_Count = Index + 1;
+		HCEPGN_61184_MSGT_250_Transmit_Data[0] = 250;
+		memcpy((HCEPGN_61184_MSGT_250_Transmit_Data + 1), SendData, Index);
+		HCEPGN_61184_MSGT_250_Transmit_Flag = 1;
+
+		if (H1600_Scheduled_Data)
+		{
+			H1600_Scheduled_Flag = 1;
+		}
+	}
+
+	RCM3_Send_Flag = 0;
+}
+
+void SatelliteDataProcessing(void)
+{	
+	unsigned char DateChangeFlag;	
+	
+	if (First_SDP_Process < 20)
+		First_SDP_Process++;
+
+	//++, 220726 ysm, FAN_FINAL
+	if ((HCESPN.H941[3] == 23) && (HCESPN.H941[4] == 59))
+	{
+		Last_H304_Data = HCESPN.H304_Coolant_temp;
+		Last_H536_Data = HCESPN.TM_Oil_Temp;
+	}
+	//--, 220726 ysm, FAN_FINAL
+	
+
+	DateChangeFlag = CheckDateChange();	
+	
+	if (DateChangeFlag == 2)
+	{
+		if (First_SDP_Process == 20)
+		{
+
+			HCESPN.H1401[0] = 23;
+			HCESPN.H1401[1] = 59;
+			HCESPN.H1401[2] = 59;
+
+		}	
+		
+		DailyReportDataSave();
+		DailyReportDataInitial();
+
+		DailyReport_Date.H940[0] = HCESPN.H940[0];
+		DailyReport_Date.H940[1] = HCESPN.H940[1];
+		DailyReport_Date.H940[2] = HCESPN.H940[2];
+
+		DailyReport_Send_Status = 1;
+		
+		DateChange_SDP_Process = 1;
+	}
+	else
+	{
+		DailyReportDataProcessing(DateChange_SDP_Process);
+		DateChange_SDP_Process = 0;
+	}
+	if (RTC_Calibration_Count < 0xfaffffff)
+		RTC_Calibration_Count++;
+}
+
+void DailyReportDataProcessing(unsigned char DateChange_Process)
+{
+		
+	EngineRunTimeLog();
+	EngineRunTimesLog(DateChange_Process);
+	//FuelLog(DateChange_Process);	//WIP
+	
+	OperatingTimeLog(DateChange_Process);
+	DistributionLog();
+}
+
+
+
+void DistributionLog(void)
+{		
+
+	unsigned char i;
+	
+	if (( (HCESPN.rpm_310  < 8192 ) && (HCESPN.rpm_310 >= 500) )||(ALT_Level_Status == 1))
+	{
+
+
+		if (HCESPN.Actual_Engine_Percent_Torque_513 < 0xffff)
+		{
+			if (HCESPN.Actual_Engine_Percent_Torque_513 < (30))
+				HCESPN.H1286[0]++;
+			else if (HCESPN.Actual_Engine_Percent_Torque_513 < (40))
+				HCESPN.H1286[1]++;
+			else if (HCESPN.Actual_Engine_Percent_Torque_513 < (45))
+				HCESPN.H1286[2]++;
+			else if (HCESPN.Actual_Engine_Percent_Torque_513 < (50))
+				HCESPN.H1286[3]++;
+			else if (HCESPN.Actual_Engine_Percent_Torque_513 < (53))
+				HCESPN.H1286[4]++;
+			else if (HCESPN.Actual_Engine_Percent_Torque_513 < (56))
+				HCESPN.H1286[5]++;
+			else if (HCESPN.Actual_Engine_Percent_Torque_513 < (59))
+				HCESPN.H1286[6]++;
+			else if (HCESPN.Actual_Engine_Percent_Torque_513 < (62))
+				HCESPN.H1286[7]++;
+			else if (HCESPN.Actual_Engine_Percent_Torque_513 < (65))
+				HCESPN.H1286[8]++;
+			else if (HCESPN.Actual_Engine_Percent_Torque_513< (68))
+				HCESPN.H1286[9]++;
+			else if (HCESPN.Actual_Engine_Percent_Torque_513 < (71))
+				HCESPN.H1286[10]++;
+			else if (HCESPN.Actual_Engine_Percent_Torque_513< (74))
+				HCESPN.H1286[11]++;
+			else if (HCESPN.Actual_Engine_Percent_Torque_513 < (77))
+				HCESPN.H1286[12]++;
+			else if (HCESPN.Actual_Engine_Percent_Torque_513< (80))
+				HCESPN.H1286[13]++;
+			else if (HCESPN.Actual_Engine_Percent_Torque_513 < (90))
+				HCESPN.H1286[14]++;
+			else
+				HCESPN.H1286[15]++;
+		}
+
+
+		//++, 200907 ysm, MOBILE
+		#if 0
+		if ( (HCESPN.H101 >= HCESPN.H1331[0]) && ( HCESPN.H101 <= 0xfa))
+		{
+			HCESPN.H1331[0] = HCESPN.H101;
+			HCESPN.H1331[1] = HCESPN.H941[0];
+			HCESPN.H1331[2] = HCESPN.H941[1];
+			HCESPN.H1331[3] = HCESPN.H941[2];
+			HCESPN.H1331[4] = HCESPN.H941[3];
+			HCESPN.H1331[5] = HCESPN.H941[4];
+		}
+		#endif
+		//--, 200907 ysm, MOBILE
+
+
+		if (HCESPN.H304_Coolant_temp <= 0xfa)
+		{
+
+			//++, 200907 ysm, MOBILE
+			CoolantTempDistribution2_Total[11]++;	//	Total Engine Coolant Temperature Distribution 2 Total
+
+			if (HCESPN.H304_Coolant_temp < (40 + 30))
+			{
+				CoolantTempDistribution2_Total[0]++;
+			}
+			else if (HCESPN.H304_Coolant_temp < (40 + 60))
+			{
+				CoolantTempDistribution2_Total[1]++;
+			}
+			else if (HCESPN.H304_Coolant_temp < (40 + 70))
+			{
+				CoolantTempDistribution2_Total[2]++;
+			}
+			else if (HCESPN.H304_Coolant_temp < (40 + 80))
+			{
+				CoolantTempDistribution2_Total[3]++;
+			}
+			else if (HCESPN.H304_Coolant_temp < (40 + 84))
+			{
+				CoolantTempDistribution2_Total[4]++;
+			}
+			else if (HCESPN.H304_Coolant_temp < (40 + 87))
+			{
+				CoolantTempDistribution2_Total[5]++;
+			}
+			else if (HCESPN.H304_Coolant_temp < (40 + 90))
+			{
+				CoolantTempDistribution2_Total[6]++;
+			}
+			else if (HCESPN.H304_Coolant_temp < (40 + 93))
+			{
+				CoolantTempDistribution2_Total[7]++;
+			}
+			else if (HCESPN.H304_Coolant_temp < (40 + 96))
+			{
+				CoolantTempDistribution2_Total[8]++;
+			}
+			else if (HCESPN.H304_Coolant_temp < (40 + 100))
+			{
+				CoolantTempDistribution2_Total[9]++;
+			}
+			else
+			{
+				CoolantTempDistribution2_Total[10]++;
+			}
+			//--, 200907 ysm, MOBILE
+		}		
+		
+		if (HCESPN.H304_Coolant_temp <= 0xfa)
+		{
+			if (HCESPN.H304_Coolant_temp >= HCESPN.H1341[0])
+			{
+				HCESPN.H1341[0] = HCESPN.H304_Coolant_temp;
+				HCESPN.H1341[1] = HCESPN.H941[0];
+				HCESPN.H1341[2] = HCESPN.H941[1];
+				HCESPN.H1341[3] = HCESPN.H941[2];
+				HCESPN.H1341[4] = HCESPN.H941[3];
+				HCESPN.H1341[5] = HCESPN.H941[4];
+			}
+		}
+		else
+		{
+				HCESPN.H1341[0] = 0xff;
+				HCESPN.H1341[1] = HCESPN.H941[0];
+				HCESPN.H1341[2] = HCESPN.H941[1];
+				HCESPN.H1341[3] = HCESPN.H941[2];
+				HCESPN.H1341[4] = HCESPN.H941[3];
+				HCESPN.H1341[5] = HCESPN.H941[4];
+		}
+
+		if (HCESPN.TM_Oil_Temp <= 0xfa)
+		{
+			TMTempDistribution[7]++;
+
+			if (HCESPN.TM_Oil_Temp < (50 + 30))
+				TMTempDistribution[0]++;
+			else if (HCESPN.TM_Oil_Temp < (50 + 60))
+				TMTempDistribution[1]++;
+			else if (HCESPN.TM_Oil_Temp< (50 + 70))
+				TMTempDistribution[2]++;
+			else if (HCESPN.TM_Oil_Temp< (50 + 80))
+				TMTempDistribution[3]++;
+			else if (HCESPN.TM_Oil_Temp < (50 + 90))
+				TMTempDistribution[4]++;
+			else if (HCESPN.TM_Oil_Temp < (50 + 100))
+				TMTempDistribution[5]++;
+			else
+				TMTempDistribution[6]++;
+		}			
+
+		if (HCESPN.TM_Oil_Temp <= 0xfa)
+		{
+			if (HCESPN.TM_Oil_Temp >= HCESPN.H1332[0])
+			{
+				HCESPN.H1332[0] = HCESPN.TM_Oil_Temp;
+				HCESPN.H1332[1] = HCESPN.H941[0];
+				HCESPN.H1332[2] = HCESPN.H941[1];
+				HCESPN.H1332[3] = HCESPN.H941[2];
+				HCESPN.H1332[4] = HCESPN.H941[3];
+				HCESPN.H1332[5] = HCESPN.H941[4];
+			}
+		}
+		else
+		{
+				HCESPN.H1332[0] = 0xff;
+				HCESPN.H1332[1] = 0xff;
+				HCESPN.H1332[2] = 0xff;
+				HCESPN.H1332[3] = 0xff;
+				HCESPN.H1332[4] = 0xff;
+				HCESPN.H1332[5] = 0xff;
+		}
+
+
+		#if 0
+		
+		if(HCESPN.H543 == 0)
+			HCESPN.H1270[0]++;
+		else if (HCESPN.H543 == 1 )
+			HCESPN.H1270[1]++;
+		else if (HCESPN.H543 == 2 )
+			HCESPN.H1270[2]++;
+              else if (HCESPN.H543 == 3 )
+                     HCESPN.H1270[3]++;		
+
+		if((HCESPN.H542 & 0x3f) == 0x11)
+			HCESPN.H1270[4]++;
+		else if((HCESPN.H542 & 0x3f) == 0x12)
+			HCESPN.H1270[5]++;
+		else if((HCESPN.H542 & 0x3f) == 0x13)
+			HCESPN.H1270[6]++;
+		else if((HCESPN.H542 & 0x3f) == 0x14)
+			HCESPN.H1270[7]++;           
+		else if((HCESPN.H542 & 0x3f) == 0x21)
+			HCESPN.H1270[8]++;
+		else if((HCESPN.H542 & 0x3f) == 0x22)
+			HCESPN.H1270[9]++;
+		else if((HCESPN.H542 & 0x3f) == 0x23)
+			HCESPN.H1270[10]++;
+			  
+		#else
+
+		for(i=0; i<11; i++)
+		{
+			HCESPN.H1270[i] = 0;
+		}			  
+
+		if((HCESPN.Gear_542 == GEAR_FORWARD)&&(AutoShiftMode_Gear == 1))
+			HCESPN.H1270[4]++;
+		else if((HCESPN.Gear_542 == GEAR_FORWARD)&&(AutoShiftMode_Gear == 2))
+			HCESPN.H1270[5]++;
+		else if((HCESPN.Gear_542 == GEAR_REVERSE)&&(AutoShiftMode_Gear == 1))
+			HCESPN.H1270[8]++;
+		else if((HCESPN.Gear_542 == GEAR_REVERSE)&&(AutoShiftMode_Gear == 2))
+		{
+			if((InfoModel1.ModelInfo >= MODEL_35D_9S)&&(InfoModel1.ModelInfo <= MODEL_50D_9S))
+				HCESPN.H1270[9]++;					
+		}
+		
+		#endif
+		
+	}
+
+#if 0
+	HCESPN.H1261[0] = (unsigned char)((float)(HYDTempDistribution[0]) * 100 / (float)(HYDTempDistribution[7]));
+	HCESPN.H1261[1] = (unsigned char)((float)(HYDTempDistribution[1]) * 100 / (float)(HYDTempDistribution[7]));
+	HCESPN.H1261[2] = (unsigned char)((float)(HYDTempDistribution[2]) * 100 / (float)(HYDTempDistribution[7]));
+	HCESPN.H1261[3] = (unsigned char)((float)(HYDTempDistribution[3]) * 100 / (float)(HYDTempDistribution[7]));
+	HCESPN.H1261[4] = (unsigned char)((float)(HYDTempDistribution[4]) * 100 / (float)(HYDTempDistribution[7]));
+	HCESPN.H1261[5] = (unsigned char)((float)(HYDTempDistribution[5]) * 100 / (float)(HYDTempDistribution[7]));
+	HCESPN.H1261[6] = (unsigned char)((float)(HYDTempDistribution[6]) * 100 / (float)(HYDTempDistribution[7]));
+#endif
+
+
+
+	//++, 200907 ysm, MOBILE
+	if (CoolantTempDistribution2_Total[11] != 0)	//	20150501	RMS Distribution Aday, Aweek, Total transmit	Total Engine Coolant Temperature Distribution 2 Total
+	{
+		HCESPN.H1292[0] = (unsigned char)(((float)(CoolantTempDistribution2_Total[0]) * 100 / (float)(CoolantTempDistribution2_Total[11])) + 0.5);
+		HCESPN.H1292[1] = (unsigned char)(((float)(CoolantTempDistribution2_Total[1]) * 100 / (float)(CoolantTempDistribution2_Total[11])) + 0.5);
+		HCESPN.H1292[2] = (unsigned char)(((float)(CoolantTempDistribution2_Total[2]) * 100 / (float)(CoolantTempDistribution2_Total[11])) + 0.5);
+		HCESPN.H1292[3] = (unsigned char)(((float)(CoolantTempDistribution2_Total[3]) * 100 / (float)(CoolantTempDistribution2_Total[11])) + 0.5);
+		HCESPN.H1292[4] = (unsigned char)(((float)(CoolantTempDistribution2_Total[4]) * 100 / (float)(CoolantTempDistribution2_Total[11])) + 0.5);
+		HCESPN.H1292[5] = (unsigned char)(((float)(CoolantTempDistribution2_Total[5]) * 100 / (float)(CoolantTempDistribution2_Total[11])) + 0.5);
+		HCESPN.H1292[6] = (unsigned char)(((float)(CoolantTempDistribution2_Total[6]) * 100 / (float)(CoolantTempDistribution2_Total[11])) + 0.5);
+		HCESPN.H1292[7] = (unsigned char)(((float)(CoolantTempDistribution2_Total[7]) * 100 / (float)(CoolantTempDistribution2_Total[11])) + 0.5);
+		HCESPN.H1292[8] = (unsigned char)(((float)(CoolantTempDistribution2_Total[8]) * 100 / (float)(CoolantTempDistribution2_Total[11])) + 0.5);
+		HCESPN.H1292[9] = (unsigned char)(((float)(CoolantTempDistribution2_Total[9]) * 100 / (float)(CoolantTempDistribution2_Total[11])) + 0.5);
+		HCESPN.H1292[10] = (unsigned char)(((float)(CoolantTempDistribution2_Total[10]) * 100 / (float)(CoolantTempDistribution2_Total[11])) + 0.5);
+	}
+	//--, 200907 ysm, MOBILE
+	
+
+	HCESPN.H1262[0] = (unsigned char)((float)(TMTempDistribution[0]) * 100 / (float)(TMTempDistribution[7]));
+	HCESPN.H1262[1] = (unsigned char)((float)(TMTempDistribution[1]) * 100 / (float)(TMTempDistribution[7]));
+	HCESPN.H1262[2] = (unsigned char)((float)(TMTempDistribution[2]) * 100 / (float)(TMTempDistribution[7]));
+	HCESPN.H1262[3] = (unsigned char)((float)(TMTempDistribution[3]) * 100 / (float)(TMTempDistribution[7]));
+	HCESPN.H1262[4] = (unsigned char)((float)(TMTempDistribution[4]) * 100 / (float)(TMTempDistribution[7]));
+	HCESPN.H1262[5] = (unsigned char)((float)(TMTempDistribution[5]) * 100 / (float)(TMTempDistribution[7]));
+	HCESPN.H1262[6] = (unsigned char)((float)(TMTempDistribution[6]) * 100 / (float)(TMTempDistribution[7]));
+
+
+	
+	
+}
+
+void OperatingTimeLog(unsigned char DateChange_Process)
+{	
+	unsigned char i;	
+
+	unsigned char Working_On;		
+	unsigned char Traveling_On;	
+    
+
+	if ((First_OTL == 0) || (DateChange_Process == 1))
+	{
+		First_OTL = 1;
+
+		ADDistance = (unsigned short)(HCESPN.H1417);
+
+		ADActualGear[0] = (unsigned short)(HCESPN.H1418[0]) + (unsigned short)(HCESPN.H1418[1])*256 ;
+		ADActualGear[1] = (unsigned short)(HCESPN.H1418[2]) + (unsigned short)(HCESPN.H1418[3])*256 ;
+		ADActualGear[2] = (unsigned short)(HCESPN.H1418[4]) ;
+		ADActualGear[3] = (unsigned short)(HCESPN.H1418[5]) + (unsigned short)(HCESPN.H1418[6])*256 ;
+		ADActualGear[4] = (unsigned short)(HCESPN.H1418[7]) + (unsigned short)(HCESPN.H1418[8])*256 ;
+		ADActualGear[5] = (unsigned short)(HCESPN.H1418[9]);
+		ADActualGear[6] = (unsigned short)(HCESPN.H1418[10]) + (unsigned short)(HCESPN.H1418[11])*256 ;
+		ADActualGear[7] = (unsigned short)(HCESPN.H1418[12]) + (unsigned short)(HCESPN.H1418[13])*256 ;
+
+		for(i=0; i< 3; i++)		ADEnginePowerMode[i] = HCESPN.H1419[i];
+
+        AD_Weight_Sum = 0;  
+		AD_Weight_Count = 0;
+		AD_Weight_Flag = 0;
+	}
+	
+	if ( ((HCESPN.rpm_310  < 8192 ) && (HCESPN.rpm_310 >= 500))||(ALT_Level_Status == 1) )
+	{
+
+
+		if((HCESPN.Weight_Current >= 10.0)&&(AD_DATA.C_LOAD_SENSOR > AD_DATA.C_Tare_Volt)&&(AD_DATA.C_Load_Indicator < 0xfaff))
+		{
+			
+			if(HCESPN.H1411_2 < 0xfaffff)
+
+			{
+				HCESPN.H1411_2++;
+			}			
+
+			Working_On = 1;
+			
+		}		
+		else
+		{
+			Working_On = 0;
+		}
+
+		
+		// Traveling Hour :  Vehicle  Speed 가 1km/h 이상이면 "Counting"
+		if(  (HCESPN.H532  >=  256) && (HCESPN.H532 <= 0xfaff)	)
+		{
+
+			if(HCESPN.H1412_2 < 0xfaffff)
+
+			{
+				HCESPN.H1412_2++;
+			}
+
+			Traveling_On = 1;
+
+		}
+		else
+		{
+			Traveling_On = 0; //++,--, 200903 ysm, MOBILE
+		}
+
+		if ((Working_On == 0) && (Traveling_On == 0))       
+		{
+			if (HCESPN.H1413_2 < 0xfaffff)
+			{
+				HCESPN.H1413_2++;
+			}
+		}
+		
+		if( (ADDistance < 64255.0)  && (HCESPN.H532 <= 0xfaff)	)
+			ADDistance += (((float)(HCESPN.H532)/(256.0/8)) /3600.0);
+			
+		HCESPN.H1417 = (unsigned short)ADDistance;
+		
+		if( (ADActualGearShift_Status != ActualGearStatus)  && (ActualGearStatus != 0) ) 
+		{				
+			                         
+        		if( ADActualGear[7] < 64255)  ADActualGear[7]++;
+                    
+
+			if( (ADActualGearShift_Status >= 1) && (ADActualGearShift_Status < 7))
+			{
+				if( (ActualGearStatus >= 7) && (ActualGearStatus <= 12) )
+				{
+					if(ADActualGear[6] < 64255)  ADActualGear[6]++;			
+				}
+			}
+
+			if( (ADActualGearShift_Status >= 7) && (ADActualGearShift_Status <= 12) )
+			{
+				if( (ActualGearStatus >= 1) && (ActualGearStatus < 7) )
+				{
+					if(ADActualGear[6] < 64255)  ADActualGear[6]++;			
+				}
+			}
+	
+			
+			switch(ActualGearStatus)		
+			{
+				case 1: 	if(ADActualGear[0] < 64255) 	ADActualGear[0]++;	break;
+				case 2: 	if(ADActualGear[1] < 64255) 	ADActualGear[1]++;	break;
+				case 3: 	if(ADActualGear[2] < 250) 		ADActualGear[2]++;	break;
+				case 7: 	if(ADActualGear[3] < 64255) 	ADActualGear[3]++;	break;
+				case 8: 	if(ADActualGear[4] < 64255) 	ADActualGear[4]++;	break;
+				case 9: 	if(ADActualGear[5] < 250) 	ADActualGear[5]++;	break;
+			}
+		}	
+
+		HCESPN.H1418[0] = ADActualGear[0]%256 ;
+ 		HCESPN.H1418[1] =ADActualGear[0]/256 ;
+ 		HCESPN.H1418[2] =ADActualGear[1]%256 ;
+ 		HCESPN.H1418[3] =ADActualGear[1]/256  ;
+ 		HCESPN.H1418[4] =ADActualGear[2] ;
+ 		HCESPN.H1418[5] =ADActualGear[3]%256 ;
+ 		HCESPN.H1418[6] =ADActualGear[3]/256  ;
+ 		HCESPN.H1418[7] =ADActualGear[4]%256 ;
+ 		HCESPN.H1418[8] =ADActualGear[4]/256  ;
+ 		HCESPN.H1418[9] =ADActualGear[5] ;
+ 		HCESPN.H1418[10] =ADActualGear[6]%256 ;
+ 		HCESPN.H1418[11] =ADActualGear[6]/256  ;
+ 		HCESPN.H1418[12] =ADActualGear[7]%256 ;
+ 		HCESPN.H1418[13] =ADActualGear[7]/256  ;
+		
+		ADActualGearShift_Status = ActualGearStatus;
+
+
+		#if 0
+		if(Flag_DIN[INDEX_PWD_STD_MODE_SEL]==1) //POWER MODE
+		{
+			if(ADEnginePowerMode[0] < 64255)
+				ADEnginePowerMode[0]++;
+
+		}
+		else
+		{
+			if(ADEnginePowerMode[1] < 64255)
+				ADEnginePowerMode[1]++;
+		}
+		#else
+		if(ADEnginePowerMode[1] < 64255)
+			ADEnginePowerMode[1]++;
+
+		#endif
+
+		ADEnginePowerMode[2] = 0xffff;
+
+		for(i=0; i<3; i++)
+		{
+			HCESPN.H1419[i] =ADEnginePowerMode[i];
+		}
+                              
+		if ( (AD_Weight_Sum < 0xfaffffff)  )
+		{
+			if( (HCESPN.Weight_Current >= 10.0) && (HCESPN.Weight_Current < 0xfaff) )
+			{
+				AD_Weight_Sum +=(HCESPN.Weight_Current/10);
+				AD_Weight_Count++;	
+				AD_Weight_Flag = 1;
+			}
+			else if( (HCESPN.Weight_Current < 10.0) && (AD_Weight_Flag == 1)) // 300->10(0.1ton)
+			{
+				HCESPN.H1915 += AD_Weight_Sum/AD_Weight_Count;
+
+				Weight_Temp = AD_Weight_Sum/AD_Weight_Count;
+
+				Weight_Temp_Flag = 1;
+
+				AD_Weight_Flag = 0;
+				AD_Weight_Working_Count++;
+
+				AD_Weight_Sum = 0;
+				AD_Weight_Count = 0;
+
+			}                                      
+                    
+     	  }
+
+		  HCESPN.H1414 = 0xffff;
+      }
+
+}
+
+void FuelLog(unsigned char DateChange_Process)
+{
+	if ((First_FL == 0) || (DateChange_Process == 1))
+	{
+		First_FL = 1;
+		//FuelUsed_FL = (float)(DailyReport_Basic.H1405) * 3600.;
+	}
+
+	if (SPN.H183_Engine_Fuel_Rate < 0xfaff)
+		FuelUsed_FL += (float)(SPN.H183_Engine_Fuel_Rate);
+	
+	//DailyReport_Basic.H1405 = (unsigned short)(FuelUsed_FL / 3600.);
+	
+	//HCESPN.H1405 = DailyReport_Basic.H1405;
+
+	if (++FL_Count >= 60)	    
+	{
+		FL_Count = 0;
+		
+		FuelReadCount++;
+
+		//++, 201231 ysm, MOBILE
+		#if 0
+		FuelSum += HCESPN.Fuel_Level;
+		#else
+		FuelSum += Fuel_Seg;
+		#endif
+		//--, 201231 ysm, MOBILE
+
+		if (Fuel_Seg == Fuel_Seg_before)
+		{
+			if (++FuelEqualCount >= 15)			
+			{
+				FuelEqualCount = 0;
+				FuelReadCount = 0;
+				FuelSum = 0;
+				Fuel_OK_Seg = Fuel_Seg;
+				CalculateFuelConsumption();
+			}
+		}
+		else
+		{
+			FuelEqualCount = 0;
+		}
+
+		if (FuelReadCount >= 40)	
+		{
+			FuelEqualCount = 0;
+			FuelReadCount = 0;
+			Fuel_OK_Seg = FuelSum / 40;			
+			
+			if ((FuelSum % 40) > 30)				
+				Fuel_OK_Seg++;	
+			
+			FuelSum = 0;
+
+			CalculateFuelConsumption();
+		}
+
+		Fuel_Seg_before = Fuel_Seg;
+	}
+}
+
+void CalculateFuelConsumption(void)
+{
+	if (!first_after_keyon_cal_fuel)
+	{
+		first_after_keyon_cal_fuel = 1;
+		Fuel_OK_Seg_Before = (Fuel_OK_Seg < Fuel_Remain_Seg) ? Fuel_Remain_Seg : Fuel_OK_Seg;
+	}
+
+	FuelRemain = FuelFactor[Machine_Model][Fuel_OK_Seg_Before];
+
+	if (Fuel_OK_Seg < Fuel_OK_Seg_Before)
+	{
+		if ((Fuel_OK_Seg_Before - Fuel_OK_Seg) > 1)
+		{
+			Fuel_OK_Seg = Fuel_OK_Seg_Before - 1;
+		}
+
+		if (FuelOsc != 2)
+		{
+			FuelConsumption += (FuelRemain - FuelFactor[Machine_Model][Fuel_OK_Seg]);
+		}
+		
+		FuelOsc = 1;	
+	}
+	else if (Fuel_OK_Seg > Fuel_OK_Seg_Before)
+	{
+		if ((FuelOsc == 1) && ((Fuel_OK_Seg - Fuel_OK_Seg_Before) == 1))
+			FuelOsc = 2;
+	}
+	else
+	{
+		FuelOsc = 0;
+		
+		if ((Fuel_OK_Seg == 0) && (EngineStartFlag == 1))
+		{
+			FuelConsumption += FuelFactor[Machine_Model][Fuel_OK_Seg] / 10;
+		}
+	}
+
+	Fuel_OK_Seg_Before = Fuel_OK_Seg;
+	FuelRemain = FuelFactor[Machine_Model][Fuel_OK_Seg_Before];
+
+	HCESPN.H1403 = FuelConsumption * 20; //++,--, 200903 ysm, MOBILE
+}
+
+void EngineRunTimeLog(void)
+{
+	if ( ((HCESPN.rpm_310  < 8192 ) && (HCESPN.rpm_310 >= 500) )|| (ALT_Level_Status == 1))
+	{
+		//++, 201214 ysm, MOBILE
+		if(HCESPN.H1410_2 < 0xfaffff)
+		{
+			HCESPN.H1410_2++;
+		}
+		//--, 201214 ysm, MOBILE
+		
+		if (HCESPN.H941[5] == 0)
+		{
+			EngineRunTimeCounter++;
+			
+			if (First_ERTL == 0)
+			{
+				First_ERTL = 1;
+				EngineRumTimeBitSet(HCESPN.H941[3] * 2 + ((HCESPN.H941[4] >= 30) ? 1 : 0));
+			}
+
+			if (EngineRunTimeCounter >= 11)
+				EngineRumTimeBitSet(HCESPN.H941[3] * 2 + ((HCESPN.H941[4] >= 30) ? 1 : 0));
+			
+			if ((HCESPN.H941[4] == 29) || (HCESPN.H941[4] == 59))
+			{
+				EngineRunTimeCounter = 0;
+			}
+		}
+	}
+
+	
+}
+
+
+void EngineRunTimesLog(unsigned char First_ON)
+{
+	if(First_ON == 1)
+	{
+		HCESPN.H1402 = 0;
+	}
+
+	if ( (((HCESPN.rpm_310  < 8192 ) && (HCESPN.rpm_310 >= 500))||(ALT_Level_Status == 1))&& (Flag_Key_On == 0))
+	{
+		HCESPN.H1402++;
+		Flag_Key_On = 1;
+	}
+}
+
+
+
+void EngineRumTimeBitSet(unsigned char Position)
+{
+	HCESPN.H1404[Position / 8] |= (1 << (Position % 8));
+}
+
+
+void DailyReportDataInitial(void)
+{
+	unsigned char i;
+	
+
+	for (i = 0; i < 31; i++)
+		DailyReport_PowerModeInfo[0][i] = 0;
+
+	for (i = 0; i < 31; i++)
+		DailyReport_PowerModeInfo[1][i] = 0;
+	
+	
+	DailyReport_Index = (DailyReport_Index + 1) % 6;
+	DailyReport_Send_Status = 0;
+
+
+	HCESPN.H1400[0] = HCESPN.H941[3];
+	HCESPN.H1400[1] = HCESPN.H941[4];
+	HCESPN.H1400[2] = HCESPN.H941[5];
+
+	HCESPN.H1401[0] = 0xff; 
+	HCESPN.H1401[1] = 0xff;
+	HCESPN.H1401[2] = 0xff;
+
+	RCMData_WarmingCount_Today_Send = 0;
+	RCMData_ECMFaultCount_Today_Send = 0;
+	RCMData_TCUFaultCount_Today_Send = 0;
+
+	RCMData_WarmingCount_Today = 0;
+	RCMData_ECMFaultCount_Today = 0;
+	RCMData_TCUFaultCount_Today = 0;
+
+	memset(RCMData_WarmingHCESPN_Today, 0, 10);  //mem 15->10
+	memset(RCMData_ECMFault_Today, 0, 15);
+	memset(RCMData_TCUFault_Today, 0, 15);
+	
+	HCESPN.H854[3] |= (1 << 7);
+
+	FuelConsumption = 0;
+    AD_Weight_Sum =0;
+	AD_Weight_Count =0;  
+	AD_Weight_Flag = 0;
+	AD_Weight_Working_Count = 0;
+
+	//++, 200914 ysm, MOBILE
+	Daily_Report_Send_Count_PowerOff = 0;
+
+	HCESPN.H1405 = 0; // 20110511
+	HCESPN.H1403 = 0; // 20110511
+
+	HCESPN.H1410_2 = 0; // 20110511
+	HCESPN.H1411_2 = 0; // 20110511
+	HCESPN.H1412_2 = 0; // 20110511
+	HCESPN.H1413_2 = 0;	 // 20110511
+
+	HCESPN.H1414 = 0;
+
+	for (i = 0; i < 6; i++)
+	{
+		HCESPN.H1404[i] = 0;
+	}
+	
+	HCESPN.H1417 = 0;
+
+	for (i = 0; i < 14; i++)
+	{
+		HCESPN.H1418[i] = 0;
+	}
+
+	for (i = 0; i < 3; i++)		// 20110511
+	{
+		HCESPN.H1419[i] = 0;
+	}
+
+	for (i = 0; i < 6; i++)		// 20110511
+	{
+		HCESPN.H1422[i] = 0xffff; // NOT USED
+	}
+
+	HCESPN.H1915 = 0;		// 20110511
+	//--, 200914 ysm, MOBILE
+}
+
+void DailyReportDataSave(void)
+{
+	unsigned char TempData[140]; //++,--, 220720 ysm
+	
+	EepromWrite(ADDRESS_RCM_DAILYREPORT_DATE + DailyReport_Index * 3, (unsigned char *)(&DailyReport_Date), 3);	
+	
+	TempData[0] = (unsigned char)(FuelConsumption % 256);
+	TempData[1] = (unsigned char)(FuelConsumption / 256);
+
+	EepromWrite(ADDRESS_RCM_DAILYREPORT_FUEL + DailyReport_Index * 2, TempData, 2);	
+
+	//++, 220720 ysm
+	make_Remote3PacketData_0x09((struct st_Remote3PacketData_0x09 *)TempData);
+	TempData[1] = DailyReport_Date.H940[0];
+	TempData[2] = DailyReport_Date.H940[1];
+	TempData[3] = DailyReport_Date.H940[2];
+	TempData[4] = 23;
+	TempData[5] = 59;
+
+	//++, 220726 ysm, FAN_FINAL
+	TempData[70] = Last_H304_Data;
+	TempData[71] = Last_H536_Data;
+	//--, 220726 ysm, FAN_FINAL
+	
+	EepromWrite(ADDRESS_RCM3_DAILYREPORT_DATA + (unsigned short)(DailyReport_Index) * 128, &TempData[0], 32);
+	EepromWrite(ADDRESS_RCM3_DAILYREPORT_DATA + 32 + (unsigned short)(DailyReport_Index) * 128, &TempData[32], 32);
+	EepromWrite(ADDRESS_RCM3_DAILYREPORT_DATA + 64 + (unsigned short)(DailyReport_Index) * 128, &TempData[64], 32);
+	EepromWrite(ADDRESS_RCM3_DAILYREPORT_DATA + 96 + (unsigned short)(DailyReport_Index) * 128, &TempData[96], 21);
+	//--, 220720 ysm
+
+
+	
+}
+
+unsigned char CheckDateChange(void)
+{	
+	unsigned char DateChangeFlag;	
+	
+	if (HCESPN.H940[0] >= 8)
+	{
+		if ((DailyReport_Date.H940[0] != HCESPN.H940[0]) || (DailyReport_Date.H940[1] != HCESPN.H940[1])  || (DailyReport_Date.H940[2] != HCESPN.H940[2]))
+		{
+			DateChangeFlag = 1;
+		}
+		else
+			DateChangeFlag = 0;
+	}
+	else
+		DateChangeFlag = 0;
+
+	if (DateChangeFlag == 1)
+	{
+		if (DateChangeCount == 0)
+		{
+			Date_Before_Change[0] = HCESPN.H940[0];
+			Date_Before_Change[1] = HCESPN.H940[1];
+			Date_Before_Change[2] = HCESPN.H940[2];
+
+			DateChangeCount = 1;
+		}
+		else if (DateChangeCount < 3)
+		{
+			if ((Date_Before_Change[0] == HCESPN.H940[0]) && (Date_Before_Change[1] == HCESPN.H940[1]) && (Date_Before_Change[2] == HCESPN.H940[2]))
+			{
+				DateChangeCount++;
+			}
+			else
+			{
+				DateChangeCount = 0;
+			}
+		}
+	}
+	else
+		DateChangeCount = 0;
+	
+	
+    if (DateChangeCount >= 3) //++,--, 201218 ysm, MOBILE
+	{
+		DateChangeCount = 0;
+		return 2;
+	}
+	else if (DateChangeFlag == 1)
+		return 1;
+	else
+		return 0;
+}
+
+
+void History_User_Password_Change(void)
+{
+	unsigned char size;
+	unsigned char i;
+
+	size = strlen(HCESPN.H955);
+
+	for (i = 47; i >= (6 + size); i--)
+	{
+		HCESPN.H1451[i] = HCESPN.H1451[i - (6 + size)];
+	}
+
+	for (i = 0; i < 5; i++)
+	{
+		HCESPN.H1451[i] = HCESPN.H941[i];
+	}
+
+	memcpy(&(HCESPN.H1451[5]), &(HCESPN.H955[0]), size);
+
+	HCESPN.H1451[5 + size] = '*';
+}
+
+//추후 구현 
+#if 0
+unsigned short check_Data_RCM_Lock_Password(unsigned char size, unsigned char *src)
+{
+	char TempString[3][10 + 1];
+	char TempChar;
+	unsigned char i;
+	unsigned char CharCount;
+	
+	i = 0;
+
+	CharCount = 0;
+	while (1)
+	{
+		TempChar = (char)(*(&(src[1]) + (i++)));
+		
+		if (TempChar == '*')
+		{
+			TempString[0][CharCount] = '\0';
+			break;
+		}
+		else if (CharCount < 10)
+		{
+			TempString[0][CharCount++] = TempChar;
+		}
+		else
+		{
+			return 1;
+		}			
+	}
+
+	CharCount = 0;
+	while (1)
+	{
+		TempChar = (char)(*(&(src[1]) + (i++)));
+		
+		if (TempChar == '*')
+		{
+			TempString[1][CharCount] = '\0';
+			break;
+		}
+		else if (CharCount < 10)
+		{
+			TempString[1][CharCount++] = TempChar;
+		}
+		else
+		{
+			return 1;
+		}			
+	}
+
+	CharCount = 0;
+	while (1)
+	{
+		TempChar = (char)(*(&(src[1]) + (i++)));
+		
+		if (TempChar == '*')
+		{
+			TempString[2][CharCount] = '\0';
+			break;
+		}
+		else if (CharCount < 10)
+		{
+			TempString[2][CharCount++] = TempChar;
+		}
+		else
+		{
+			return 1;
+		}			
+	}
+
+	switch (src[0])
+	{
+		case 0 :
+			Lock_Packet_Reason = 0;
+			break;
+		
+		case 2 :
+			HCESPN.H822 = 0;
+			Lock_Packet_Reason = 0;
+
+			HCESPN.H1545 = 0;
+			HCESPN.H1546 = 0;
+			HCESPN.H824 = 0;
+			History_Machine_Lock_Change();
+			break;
+
+		case 3 :
+			HCESPN.H822 = 1;
+			Lock_Packet_Reason = 0;
+			HCESPN.H824 = 0;
+			History_Machine_Lock_Change();
+			break;
+
+		case 8 :
+			HCESPN.H823_ = 0;
+			Lock_Packet_Reason = 0;
+			HCESPN.H824 = 0;			
+			History_Machine_Lock_Change();
+			break;
+
+		case 9 :
+			HCESPN.H823_ = 1;
+			Lock_Packet_Reason = 0;
+
+			HCESPN.H824 = 0;
+			History_Machine_Lock_Change();
+			add_log_message_52();
+			break;
+
+		case 10 :
+			HCESPN.H823_ = 2;
+			Lock_Packet_Reason = 0;
+
+			HCESPN.H824 = 0;
+			History_Machine_Lock_Change();
+			add_log_message_52();
+			break;
+
+		case 41 :
+
+			if(strlen(TempString[0] )>= 5)
+			{
+				strcpy(HCESPN.H953, TempString[0]);
+				Lock_Packet_Reason = 2;
+			}
+			else			// 굴삭기 와 다름 ...By Yim J.H
+				return 2;
+			break;
+
+		case 42 :
+
+			if(strlen(TempString[1]) >= 5)
+			{
+				strcpy(HCESPN.H954, TempString[1]);
+				Lock_Packet_Reason = 3;
+			}
+			else			// 굴삭기 와 다름 ...By Yim J.H
+				return 2;
+			break;			
+
+		case 43 :
+
+			if(strlen(TempString[2]) >= 5)
+			{
+			
+				HCESPN.H822 = 2;
+				strcpy(HCESPN.H952, TempString[2]);
+				Lock_Packet_Reason = 0;
+				History_Machine_Lock_Change();
+			}	
+			else			// 굴삭기 와 다름 ...By Yim J.H
+				return 2;
+			break;
+
+		case 61 :
+			HCESPN.H820 = 0;			
+			ESL.Mode = 0;	
+			Lock_Packet_Reason = 4;
+			break;
+
+		case 62 :
+			strcpy(HCESPN.H955, "00000");
+			Lock_Packet_Reason = 4;
+			History_User_Password_Change();
+			break;
+
+		default :
+			Lock_Packet_Reason = 0;			
+			break;
+	}		
+
+	return 0;
+}
+#endif
+
+
+//++, 200902 ysm, MOBILE
+void Event_RMCU_Change(void)		// 20110125
+{
+
+	if ((Last_RMCU_Change_Data1[0] != HCESPN.H1580)
+		|| (Last_RMCU_Change_Data1[1] != HCESPN.H1581)
+		|| (Last_RMCU_Change_Data1[2] != HCESPN.H1582)
+		|| (Last_RMCU_Change_Data1[3] != HCESPN.H1583)
+		|| (Last_RMCU_Change_Data1[4] != HCESPN.H1583_sub)	//	20151026	RMCU Sub version 추가.
+		|| (strcmp(Last_RMCU_Change_Data2, HCESPN.H1586) != 0)
+		|| (strcmp(Last_RMCU_Change_Data3, HCESPN.H1585) != 0))
+	{
+		Old_RMCU_Change_Data1[0] = Last_RMCU_Change_Data1[0];
+		Old_RMCU_Change_Data1[1] = Last_RMCU_Change_Data1[1];
+		Old_RMCU_Change_Data1[2] = Last_RMCU_Change_Data1[2];
+		Old_RMCU_Change_Data1[3] = Last_RMCU_Change_Data1[3];
+		Old_RMCU_Change_Data1[4] = Last_RMCU_Change_Data1[4]; 	//	20151026	RMCU Sub version 추가.
+
+		strcpy(Old_RMCU_Change_Data2, Last_RMCU_Change_Data2);
+		strcpy(Old_RMCU_Change_Data3, Last_RMCU_Change_Data3);
+
+		Last_RMCU_Change_Data1[0] = HCESPN.H1580;
+		Last_RMCU_Change_Data1[1] = HCESPN.H1581;
+		Last_RMCU_Change_Data1[2] = HCESPN.H1582;
+		Last_RMCU_Change_Data1[3] = HCESPN.H1583;
+		Last_RMCU_Change_Data1[4] = HCESPN.H1583_sub;	//	20151026	RMCU Sub version 추가.
+
+		strcpy(Last_RMCU_Change_Data2, HCESPN.H1586);
+		strcpy(Last_RMCU_Change_Data3, HCESPN.H1585);
+
+		RMCU_Change_Event_On = 1;
+	}
+}
+
+void check_Comm_Remote_Frame3_CAN_Ack(void)
+{
+	RCM3_Ack_Status = 0;
+	RCM3_Timeout1_Check_Count = 0;
+
+	if ((DailyReport_Send_Status != 0) && ((DailyReport_Send_Status % 2) == 0))
+	{
+		DailyReport_Send_Status++;
+	}
+}
+
+
+
+void check_Remote3PacketData_0x83(unsigned char size, struct st_Remote3PacketData_0x83 *src)
+{
+	unsigned char i;
+	//unsigned char LHO_Result;
+	st_DATA_RTC Temp_RTC;
+
+	HCESPN.H1621 = src->H1621;
+
+	for (i = 0; i < 6; i++)
+	{
+		HCESPN.H853[i] = src->H853[i];
+	}
+
+	HCESPN.H864 = src->H864;
+
+	for (i = 0; i < 8; i++)
+	{
+		HCESPN.H854[i] = src->H854[i];
+	}
+
+	HCESPN.H862 = (unsigned short)(src->H862[1] * 256) + (unsigned short)(src->H862[0]);
+	HCESPN.H863 = src->H863;
+	HCESPN.H1570 = src->H1570;
+	HCESPN.H855 = src->H855;
+	HCESPN.H1590 = src->H1590;
+	HCESPN.H1592 = src->H1592;
+	HCESPN.H1594 = src->H1594;
+	HCESPN.H1593 = src->H1593;
+	HCESPN.H852 = src->H852;
+	HCESPN.H1595 = src->H1595;
+	HCESPN.H1568 = src->H1568;
+	HCESPN.H1569 = src->H1569;
+
+	for (i = 0; i < 6; i++)
+	{
+		HCESPN.H859[i] = src->H859[i];
+	}
+
+	HCESPN.H1622 = src->H1622;
+	HCESPN.H865  = HCESPN.H1622;        //JHY
+	HCESPN.H1623 = src->H1623;
+	HCESPN.H1624 = src->H1624;
+	HCESPN.H1625 = src->H1625;
+
+	if(src->H1625)
+	{
+		HCESPN.H1596 = 0;    //JHY
+	}
+	else
+	{
+		HCESPN.H1596 = 1;    //JHY
+	}
+
+	HCESPN.H1626 = src->H1626;
+	HCESPN.H1591 = src->H1626;                //JHY
+
+	HCESPN.H1627 = src->H1627;
+	HCESPN.H1628 = src->H1628;
+
+
+	if (HCESPN.H852 == 0)
+	{
+		if (++H852_Error_Count == 10)
+		{
+			if (HCESPN.H1555 < 64255)
+			{
+				HCESPN.H1555++;
+			}
+		}
+		else if (H852_Error_Count >= 10)
+		{
+			H852_Error_Count = 11;
+		}
+	}
+	else
+	{
+		H852_Error_Count = 0;
+	}
+
+	#if 0
+	if (HCESPN.H852 == 1)
+	{
+		if (RCM_Test_Step_Status >= 0x34)
+		{
+			if (LHOAutoSetting(LHO_Setting_Position, HCESPN.H854, &LHO_Result))
+			{
+				memcpy(LHO_Setting_Position, HCESPN.H854, 8);
+
+				HCESPN.H951 = LHO_Result;
+
+				if (HCESPN.H864 != LHO_Result)
+				{
+					LHO_Setting_Send_Status = 1;
+				}
+			}
+		}
+	}
+	#endif
+
+	if (HCESPN.H852 == 1)
+	{
+
+	  	if ( (HCESPN.H853[0] != 0) && (HCESPN.H853[0] != 0xff) &&           
+			 (HCESPN.H853[1] != 0) && (HCESPN.H853[1] <= 12) &&
+			 (HCESPN.H853[2] != 0) && (HCESPN.H853[2] <= 31) &&
+			 (HCESPN.H853[3] <= 23) &&
+			 (HCESPN.H853[4] <= 59) &&
+			 (HCESPN.H853[5] <= 59) )
+		{
+	
+			RTC_Calibration_Count = 0;
+			
+			Temp_RTC.Year = HCESPN.H853[0];
+			Temp_RTC.Month = HCESPN.H853[1];
+			Temp_RTC.Date = HCESPN.H853[2];
+			Temp_RTC.Hours = HCESPN.H853[3];
+			Temp_RTC.Minutes = HCESPN.H853[4];
+			Temp_RTC.Seconds = HCESPN.H853[5];
+
+			RTC_Calibration_Data = Calculate_RTC_LHO_Applied(&Temp_RTC, HCESPN.H864, 1);
+		}
+	}
+}
+
+void check_RMCU_Time(unsigned char select)
+{
+	//unsigned char LHO_Result;
+	st_DATA_RTC Temp_RTC;
+
+	//	20150623	Check GPS Error H852 10분간 0 수신시 (H1555++)
+	if((select == 0) && (RMCU_CID_OK == 1))
+	{
+		if (HCESPN.H852 == 0)
+		{
+			if (++H852_Error_Count == 600)
+			{
+				if (HCESPN.H1555 < 64255)
+				{
+					HCESPN.H1555++;
+				}
+			}
+			else if (H852_Error_Count >= 600)
+			{
+				H852_Error_Count = 601;
+			}
+		}
+		else
+		{
+			H852_Error_Count = 0;
+		}
+
+
+		if (H1623_No_Change_Count != 0xffff)
+		{
+			if (HCESPN.H1623 == 1 )
+			{
+				H1623_No_Change_Count = 0;
+			}
+		}
+	}
+	else if(select == 1)
+	{
+		if( (HCESPN.H854[0] <= 99) && (HCESPN.H854[4] <= 99) &&
+			(HCESPN.H854[1] <= 59) && (HCESPN.H854[5] <= 59) &&
+			((HCESPN.H854[2] & 0x7f) <= 59) &&
+			((HCESPN.H854[6] & 0x7f) <= 59) &&
+			(HCESPN.H854[3] <= 90) && (HCESPN.H854[7] <= 180) )
+		{		
+			#if 0
+			if (HCESPN.H852 == 1)
+			{
+				if (RCM_Test_Step_Status >= 0x34)
+				{
+					if (LHOAutoSetting(LHO_Setting_Position, HCESPN.H854, &LHO_Result))
+					{
+						memcpy(LHO_Setting_Position, HCESPN.H854, 8);
+
+						HCESPN.H951 = LHO_Result;
+
+						if (HCESPN.H864 != LHO_Result)
+						{
+							LHO_Setting_Send_Status = 1;
+						}
+					}
+				}
+			}
+			#endif
+		}
+	}
+	else if(select == 2)	//	20150410
+	{
+		if( (HCESPN.H853[0] != 0) && (HCESPN.H853[0] != 0xff) &&
+			(HCESPN.H853[1] != 0) && (HCESPN.H853[1] <= 12) &&
+			(HCESPN.H853[2] != 0) && (HCESPN.H853[2] <= 31) &&
+			(HCESPN.H853[3] <= 23) &&
+			(HCESPN.H853[4] <= 59) &&
+			(HCESPN.H853[5] <= 59) )
+		{
+
+			if (HCESPN.H852 == 1)
+			{
+				RTC_Calibration_Count = 0;
+				
+				Temp_RTC.Year = HCESPN.H853[0];
+				Temp_RTC.Month = HCESPN.H853[1];
+				Temp_RTC.Date = HCESPN.H853[2];
+				Temp_RTC.Hours = HCESPN.H853[3];
+				Temp_RTC.Minutes = HCESPN.H853[4];
+				Temp_RTC.Seconds = HCESPN.H853[5];
+
+				RTC_Calibration_Data = Calculate_RTC_LHO_Applied(&Temp_RTC, HCESPN.H864, 1);
+			}
+		}
+	}
+}
+
+unsigned char check_Comm_Remote_Frame3(unsigned char size, unsigned char *src)
+{
+	unsigned char i,index;
+
+	switch (src[0])
+	{
+		case 0x00 :
+			if (src[1] == 0x83)
+			{
+				check_Remote3PacketData_0x83(src[6] - 2, (struct st_Remote3PacketData_0x83 *)&src[2]);
+
+				HCESPN.H1545 = 0;
+
+				if (BD_Receive_Count3 < 3)
+				{
+					BD_Receive_Count3++;
+				}
+			}
+
+			break;
+
+		case 0x02 :
+			RCM3_Ack_Status = 0;
+			RCM3_Timeout1_Check_Count = 0;
+
+			if ((DailyReport_Send_Status != 0) && ((DailyReport_Send_Status % 2) == 0))
+			{
+				DailyReport_Send_Status++;
+			}
+
+			break;
+
+		case 0x03 :
+			switch (src[1])
+			{
+				case 0xcc :
+					//H1600_Scheduled_Data = 0x08;
+					DailyReport_Send_Flag = 1;
+					RCM3_DailyReport_Index_Gap = 0;
+					break;
+
+				case 0x0f :
+					//H1600_Scheduled_Data = 0x08;
+					DailyReport_Send_Flag = 1;
+					RCM3_DailyReport_Index_Gap = 0;
+					HCESPN.H1603 = src[2];
+					RCM3_DailyReport_Count = 0;
+					break;
+
+				case 0xb1 :
+				case 0xb2 :
+				case 0xb3 :
+				case 0xb4 :
+				case 0xb5 :
+					//H1600_Scheduled_Data = 0x08;
+					DailyReport_Send_Flag = 1;
+					RCM3_DailyReport_Index_Gap = src[1] - 0xb0;
+					break;
+
+				case 0xcf :	//	Active Warning/DTC Message
+
+					H1600_Scheduled_Data = 0x29;
+			
+					RCM3_Center_Command = 1;	//	20150226 RCM3_Center_Command
+					break;	
+
+					
+				case 0xd5 :
+					//H1600_Scheduled_Data = 0xd5; //Machine Security
+
+					if((src[2] == 0)||(src[2] == 42)||(src[2] == 61)||(src[2] == 62))
+						Machine_Security_Command = src[2];
+					else
+						Machine_Security_Command = 0xff;
+
+					index = 0;
+						
+					if(Machine_Security_Command == 0)
+					{
+						RCMData_CallMachineSecurity = 1;
+
+					}
+					else if(Machine_Security_Command == 42)
+					{
+						for(i=0; i<11; i++)
+						{
+							HCESPN.H954_[i] = 0xff;
+						}					
+
+						for(i=0; i<10; i++)
+						{	
+							if(src[4+i] == 0x2A)
+							{
+								break;
+							}							
+							else
+							{
+								if((src[4+i] < 0x30)||(src[4+i] > 0x39))
+								{
+									index = 0;
+									break;
+								}
+								else
+								{
+									HCESPN.H954_[i] = src[4+i];
+									index++;
+
+								}		
+							}
+						}		
+						if((index >= 5)&&(index <= 10))
+						{
+							Change_MasterPassword();
+							RCMData_ServicePasswordChange = 1;
+						}
+					}
+					else if(Machine_Security_Command == 61)
+					{
+						Flag_ESL = 0;
+						InfoModel2.ESL_Status = INACTIVE;
+						InfoModel2.ESL_Set_Status = INACTIVE;
+						ESL_Setting();
+					}
+					else if(Machine_Security_Command == 62)
+					{
+
+						Reset_UserPassword();
+					}
+					
+					break;
+					
+				case 0xd7 :	//	Local Time Setting
+					HCESPN.H951 = src[2];
+					H1600_Scheduled_Data = 0xd7;
+					break;
+
+				case 0xd9 :
+					H1600_Scheduled_Data = 0xd0; //D4->D0
+					break;
+				
+				default :
+
+					H1600_Scheduled_Data = src[1];
+
+					break;
+			}
+
+			RCM3_Ack_Flag = 1;
+
+			break;
+
+		case 0x05 :
+			
+			RCM_Test_Step_Status  = src[1];
+			RCM_Test_Code_Data[0] = src[2];
+			RCM_Test_Code_Data[1] = src[3];
+			RCM_Test_Code_Data[2] = src[4];
+
+			switch(RCM_Test_Step_Status)
+			{
+				case '0':
+				case '1':
+				case '2':
+				case '3':
+				case '4':
+				case '5':	COUNT_FLAG.Flag_RMCU_Set = 1; break; // 통신 개통 필요(STEP 0~5)
+				case 'A':	COUNT_FLAG.Flag_RMCU_Set = 2; break; // 통신 개통 완료(STEP A)
+				default: 	COUNT_FLAG.Flag_RMCU_Set = 0; break;
+
+			}			
+			break;
+	
+		default :
+			break;
+	}
+
+	return 0;
+}

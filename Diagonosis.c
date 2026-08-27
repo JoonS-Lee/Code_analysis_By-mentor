@@ -1,0 +1,1234 @@
+#include "FLV_Cluster_APP.h"
+
+const unsigned short Open_Check_Time_Limit = 500;
+const unsigned short Short_Check_Time_Limit = 500;
+
+const unsigned short Speed_Check_Time_Limit = 1000;		// 090707 fan
+
+
+const unsigned char RCM_Test_Code[9][3] = 
+{	
+	{0xd0, 0x07, 5},	//{2000, 5, 3}, 
+	{0xd1, 0x07, 5},	//{2001, 5, 3},
+	{0xd0, 0x07, 1},	//{2000, 1, 3}, 
+	{0xd1, 0x07, 1},	//{2001, 1, 3},
+	{0xd2, 0x07, 1},	//{2002, 1, 3},
+	{0xd3, 0x07, 19},	//{2003, 19, 3}, 
+	{0xd3, 0x07, 2},	//{2003, 2, 3},
+	{0xd4, 0x07, 0},	//{2004, 0, 3},
+	{0xd5, 0x07, 0},	//{2005, 0, 3}
+};
+
+unsigned char FaultCodeCount_ECM;	// ÃÑ ¿¡·¯ °³¼ö 
+unsigned char FaultCodeCount_ECM_Current;
+unsigned char FaultCodeCount_ECM_Logged;
+
+unsigned int HourmeterAtFaultInitial;
+st_Fault FaultData_ECM[FaultBufferSize_ECM];
+
+st_Fault FaultData_ECM_Current[FaultBufferSize_ECM];
+st_Fault FaultData_ECM_Logged[FaultBufferSize_ECM];
+
+
+//++, 220217 ysm, FINGERTIP
+st_Fault FaultData_FLT[FaultBufferSize_ECM];
+unsigned char FaultData_Delete_Count_FLT;
+//--, 220217 ysm, FINGERTIP
+
+
+unsigned short Diagnosis_Count;
+
+unsigned char FaultData_Delete_Count_ECM[FaultBufferSize_ECM];
+
+
+unsigned int HourmeterAtECMFaultInitial;		//	20163010 Clear DTC		
+
+unsigned char HDI_Oil_Pressure_Lamp_Warning_Count;
+unsigned char HDI_WIF_Warning_Count_Fmi14;
+unsigned char HDI_WIF_Warning_Count_Fmi23;
+
+
+
+extern unsigned char RCMData_WarmingCount_Today;
+extern unsigned short RCMData_WarmingHCESPN[5];
+extern unsigned short RCMData_WarmingHCESPN_Today[5];
+extern unsigned char RCMData_ECMFaultCount_Today;
+extern unsigned char RCMData_ECMFault_Today[5][3];
+
+extern EEPROM_MODEL_DATA1	InfoModel1;
+extern unsigned char InitFLT_error;
+
+//++, 220929 ysm, FSCU
+
+st_Fault FaultData_FSCU[FaultBufferSize_ECM];
+unsigned char FaultData_Delete_Count_FSCU;
+
+void AddFSCUFault(unsigned char *FaultData_Code, unsigned char Flag_Multi_Packet)
+{
+	unsigned short temp_spn;
+	unsigned char temp_fmi;
+	
+	temp_spn = (FaultData_Code[1]<<8) |FaultData_Code[0];
+	temp_fmi = FaultData_Code[2]&0x1f;
+
+	if(Flag_Multi_Packet==0)
+	{
+		HCESPN.H3333[0] = HCESPN.H3333[1] = HCESPN.H3333[2] = HCESPN.H3333[3] = HCESPN.H3333[4]  = 0;
+
+	}
+
+	if(temp_spn==168)
+	{
+		if(temp_fmi == 3)		
+			HCESPN.H3333[0] |=  1;	
+		else if(temp_fmi == 4)
+			HCESPN.H3333[0] |=  2;
+	
+	}
+	else if(temp_spn==592)
+	{
+		if(temp_fmi == 3)		
+			HCESPN.H3333[0] |=  4;	
+		else if(temp_fmi == 4)
+			HCESPN.H3333[0] |=  8;
+	
+	}
+	else if(temp_spn==509)
+	{
+		if(temp_fmi == 3)		
+			HCESPN.H3333[0] |=  16;	
+		else if(temp_fmi == 4)
+			HCESPN.H3333[0] |=  32;
+		else if(temp_fmi == 11)
+			HCESPN.H3333[0] |=  64;
+	
+	}
+	else if(temp_spn==541)
+	{
+		if(temp_fmi == 2)		
+			HCESPN.H3333[0] |=  128;	
+	
+	}
+	else if(temp_spn==738)
+	{
+		if(temp_fmi == 3)		
+			HCESPN.H3333[1] |=  1;	
+		else if(temp_fmi == 4)
+			HCESPN.H3333[1] |=  2;
+	
+	}
+	else if(temp_spn==777)
+	{
+		if(temp_fmi == 3)		
+			HCESPN.H3333[1] |=  4;	
+		else if(temp_fmi == 4)
+			HCESPN.H3333[1] |=  8;
+	
+	}
+	else if(temp_spn==841)
+	{
+		if(temp_fmi == 19)		
+			HCESPN.H3333[1] |=  16;	
+	
+	}
+	else if(temp_spn==842)
+	{
+		if(temp_fmi == 19)		
+			HCESPN.H3333[1] |=  32;	
+	
+	}	
+	//++, 230125 ysm, FSCU
+	else if(temp_spn==511)
+	{
+		if(temp_fmi == 3)		
+			HCESPN.H3333[1] |=  64;	
+	
+	}	
+	else if(temp_spn==511)
+	{
+		if(temp_fmi == 4)		
+			HCESPN.H3333[1] |=  128;
+	
+	}	
+	//--, 230125 ysm, FSCU
+
+	//++, 230125 ysm, FSCU
+	if( (HCESPN.H3333[0] != 0) || (HCESPN.H3333[1] != 0))
+	{
+		FaultData_Delete_Count_FSCU = 0;		
+		
+		if((HCESPN.H3333[0] & 0x40) == 0x40)
+		{
+			COUNT_FLAG.Flag_FSCU_Error = 1; // RED STOP LAMP 
+		}
+		else
+		{
+		
+			if(COUNT_FLAG.Flag_FSCU_Error == 1)
+				COUNT_FLAG.Flag_FSCU_Error = 1; // RED STOP LAMP 
+			else
+				COUNT_FLAG.Flag_FSCU_Error = 2; // AMBER LAMP
+		}
+	}
+	//--, 230125 ysm, FSCU
+
+	HCESPN.H3333_[0] |= HCESPN.H3333[0];
+	HCESPN.H3333_[1] |= HCESPN.H3333[1];
+	HCESPN.H3333_[2] |= HCESPN.H3333[2];
+	HCESPN.H3333_[3] |= HCESPN.H3333[3];
+	HCESPN.H3333_[4] |= HCESPN.H3333[4];
+
+}
+
+void ReadFSCUFault(unsigned char nIndex)
+{
+	unsigned char 	err_count;
+	unsigned char 	err_code[2];
+	unsigned short 	spn;
+	unsigned char 	fmi;
+        unsigned char   i;
+
+	if(nIndex == REQ_ERR_ENGINE_ACTIVE)
+	{
+		err_code[0] = HCESPN.H3333[0];
+		err_code[1] = HCESPN.H3333[1];
+	}
+	else
+	{
+		err_code[0] = HCESPN.H3333_[0];
+		err_code[1] = HCESPN.H3333_[1];
+	}
+
+	
+	err_count = 0;	
+	if(err_code[0] != 0)
+	{
+		for(i=0; i<8; i++)
+		{
+			if( (err_code[0]>>i) & 0x1 == 0x1)
+			{
+				switch(i)
+				{
+					case 0: spn=168;  fmi = 3; break;
+					case 1: spn=168;  fmi = 4; break;
+					case 2: spn=592;  fmi = 3; break;
+					case 3: spn=592;  fmi = 4; break;
+					case 4: spn=509;  fmi = 3; break;
+					case 5: spn=509;  fmi = 4; break;
+					case 6: spn=509;  fmi = 11; break;
+					case 7: spn=541;  fmi = 2; break;				
+					
+				}			
+
+				FaultData_FSCU[err_count].TroubleCode[0] = (unsigned char)(spn & 0xff);
+				FaultData_FSCU[err_count].TroubleCode[1] = (unsigned char)((spn & 0xff00)>>8);
+				FaultData_FSCU[err_count].TroubleCode[2] = fmi;	
+
+				err_count++;
+
+			}
+		}
+	}
+
+	if(err_code[1] != 0)
+	{
+		for(i=0; i<8; i++)  //++,--, 230125 ysm, FSCU
+		{
+			if( (err_code[1]>>i) & 0x1 == 0x1)
+			{
+				switch(i)
+				{
+					case 0: spn=738; fmi = 3; break;
+					case 1: spn=738; fmi = 4; break;
+					case 2: spn=777; fmi = 3; break;
+					case 3: spn=777; fmi = 4; break;
+					case 4: spn=841; fmi = 19; break;
+					case 5: spn=842; fmi = 19; break;		
+					case 6: spn=511; fmi = 3; break; //++,--, 230125 ysm, FSCU
+					case 7: spn=511; fmi = 4; break; //++,--, 230125 ysm, FSCU	
+					
+				}			
+	
+				FaultData_FSCU[err_count].TroubleCode[0] = (unsigned char)(spn & 0xff);
+				FaultData_FSCU[err_count].TroubleCode[1] = (unsigned char)((spn & 0xff00)>>8);
+				FaultData_FSCU[err_count].TroubleCode[2] = fmi;		
+
+				err_count++;
+	
+			}
+		}
+	}
+
+	if(nIndex == REQ_ERR_ENGINE_ACTIVE)
+	{
+		HCESPN.H1528 = err_count;
+	}
+	else
+	{
+		HCESPN.H1529= err_count;
+	}	
+
+}
+
+
+//--, 220929 ysm, FSCU
+
+
+
+//++, 220217 ysm, FINGERTIP
+
+void ReadFLTFault(unsigned char nIndex)
+{
+	unsigned char 	err_count;
+	unsigned char 	err_code[4];
+	unsigned short 	spn;
+	unsigned char 	fmi;
+        unsigned char   i;
+
+	if(nIndex == REQ_ERR_ENGINE_ACTIVE)
+	{
+		err_code[0] = HCESPN.H3510[0];
+		err_code[1] = HCESPN.H3510[1];
+		err_code[2] = HCESPN.H3510[2];
+		err_code[3] = HCESPN.H3510[3];
+	}
+	else
+	{
+		err_code[0] = HCESPN.H3510_[0];
+		err_code[1] = HCESPN.H3510_[1];
+		err_code[2] = HCESPN.H3510_[2];
+		err_code[3] = HCESPN.H3510_[3];
+	}
+
+	
+	err_count = 0;	
+	if(err_code[0] != 0)
+	{
+		for(i=0; i<8; i++)
+		{
+			if( (err_code[0]>>i) & 0x1 == 0x1)
+			{
+				switch(i)
+				{
+					case 0: spn=3509; fmi = 4; break;
+					case 1: spn=3510; fmi = 4; break;
+					case 2: spn=3511; fmi = 4; break;
+					case 3: spn=3512; fmi = 4; break;
+					case 4: spn=3509; fmi = 3; break;
+					case 5: spn=3510; fmi = 3; break;
+					case 6: spn=3511; fmi = 3; break;
+					case 7: spn=3512; fmi = 3; break;				
+					
+				}			
+
+				FaultData_FLT[err_count].TroubleCode[0] = (unsigned char)(spn & 0xff);
+				FaultData_FLT[err_count].TroubleCode[1] = (unsigned char)((spn & 0xff00)>>8);
+				FaultData_FLT[err_count].TroubleCode[2] = fmi;	
+
+				err_count++;
+
+			}
+		}
+	}
+
+	if(err_code[1] != 0)
+	{
+		for(i=0; i<8; i++)
+		{
+			if( (err_code[1]>>i) & 0x1 == 0x1)
+			{
+				switch(i)
+				{
+					case 0: spn=701; fmi = 5; break;
+					case 1: spn=702; fmi = 5; break;
+					case 2: spn=703; fmi = 5; break;
+					case 3: spn=704; fmi = 5; break;
+					case 4: spn=705; fmi = 5; break;
+					case 5: spn=706; fmi = 5; break;
+					case 6: spn=707; fmi = 5; break;
+					case 7: spn=708; fmi = 5; break;				
+					
+				}			
+	
+				FaultData_FLT[err_count].TroubleCode[0] = (unsigned char)(spn & 0xff);
+				FaultData_FLT[err_count].TroubleCode[1] = (unsigned char)((spn & 0xff00)>>8);
+				FaultData_FLT[err_count].TroubleCode[2] = fmi;		
+
+				err_count++;
+	
+			}
+		}
+	}
+
+	if(err_code[2] != 0)
+	{
+		for(i=0; i<8; i++)
+		{
+			if( (err_code[2]>>i) & 0x1 == 0x1)
+			{
+				switch(i)
+				{
+					case 0: spn=701; fmi = 6; break;
+					case 1: spn=702; fmi = 6; break;
+					case 2: spn=703; fmi = 6; break;
+					case 3: spn=704; fmi = 6; break;
+					case 4: spn=705; fmi = 6; break;
+					case 5: spn=706; fmi = 6; break;
+					case 6: spn=707; fmi = 6; break;
+					case 7: spn=708; fmi = 6; break;				
+					
+				}				
+
+				FaultData_FLT[err_count].TroubleCode[0] = (unsigned char)(spn & 0xff);
+				FaultData_FLT[err_count].TroubleCode[1] = (unsigned char)((spn & 0xff00)>>8);
+				FaultData_FLT[err_count].TroubleCode[2] = fmi;			
+
+				err_count++;
+				
+				if(err_count >= FaultBufferSize_ECM)
+					err_count = FaultBufferSize_ECM;
+
+			}
+		}
+	}
+
+	if(err_code[3] != 0)
+	{
+		for(i=0; i<5; i++)
+		{
+			if( (err_code[3]>>i) & 0x1 == 0x1)
+			{
+				switch(i)
+				{
+					case 0: spn=639; fmi = 9; break;
+					case 1: spn=709; fmi = 5; break;
+					case 2: spn=710; fmi = 5; break;
+					case 3: spn=709; fmi = 6; break;
+					case 4: spn=710; fmi = 6; break;		
+					
+				}
+	
+				FaultData_FLT[err_count].TroubleCode[0] = (unsigned char)(spn & 0xff);
+				FaultData_FLT[err_count].TroubleCode[1] = (unsigned char)((spn & 0xff00)>>8);
+				FaultData_FLT[err_count].TroubleCode[2] = fmi;			
+
+				err_count++;
+
+				if(err_count >= FaultBufferSize_ECM)
+					err_count = FaultBufferSize_ECM;
+	
+			}
+		}
+	}
+
+	if(nIndex == REQ_ERR_ENGINE_ACTIVE)
+	{
+		HCESPN.H1526 = err_count;
+	}
+	else
+	{
+		HCESPN.H1527= err_count;
+	}	
+
+}
+
+
+void AddFLTFault(unsigned char *FaultData_Code, unsigned char Flag_Multi_Packet)
+{
+	unsigned short temp_spn;
+	unsigned char temp_fmi;
+	
+	temp_spn = (FaultData_Code[1]<<8) |FaultData_Code[0];
+	temp_fmi = FaultData_Code[2]&0x1f;
+
+	if(Flag_Multi_Packet==0)
+	{
+		HCESPN.H3510[0] = HCESPN.H3510[1] = HCESPN.H3510[2] = HCESPN.H3510[3] = HCESPN.H3510[4]  = 0;
+		
+	}
+        
+    //HCESPN.H1526 = 0; HCESPN.H1527 = 0;
+
+	if((temp_spn>=3509) && (temp_spn<=3512))
+	{
+	
+		if(temp_fmi==4) 
+		{
+			HCESPN.H3510[0] |=  1<<(temp_spn-3509);
+		}
+		else if(temp_fmi==3) 
+		{
+			HCESPN.H3510[0] |=  1<<(temp_spn-3509+4);
+		}
+	}
+	else if((temp_spn>=701) && (temp_spn<=708))
+	{
+		if(temp_fmi==5) 
+		{
+			HCESPN.H3510[1] |=  1<<(temp_spn-701);
+		}
+		else if(temp_fmi==6) 
+		{
+			HCESPN.H3510[2] |=  1<<(temp_spn-701);
+		}
+	}
+	else if((temp_spn==639) && (temp_fmi==9))
+	{
+		HCESPN.H3510[3] |=1;
+	}
+	else if((temp_spn==709) && (temp_fmi==5))
+	{
+		HCESPN.H3510[3] |=2;
+	}
+	else if((temp_spn==710) && (temp_fmi==5))
+	{
+		HCESPN.H3510[3] |=4;
+	}
+	else if((temp_spn==709) && (temp_fmi==6))
+	{
+		HCESPN.H3510[3] |=8;
+	}
+	else if((temp_spn==710) && (temp_fmi==6))
+	{
+		HCESPN.H3510[3] |=16;
+	}
+
+
+	if( (HCESPN.H3510[0] != 0) || (HCESPN.H3510[1] != 0) || (HCESPN.H3510[2] != 0) || (HCESPN.H3510[3] != 0))
+	{
+		FaultData_Delete_Count_FLT = 0;		
+
+
+		if( ((HCESPN.H3510[3] & 0x01) == 0x01)|| ((HCESPN.H3510[3] & 0x18) >= 0x08) || (HCESPN.H3510[2] >= 0x01) )
+		{
+			COUNT_FLAG.Flag_FLT_Error = 1; // RED STOP LAMP
+		}
+		else if((HCESPN.H3510[0] >= 0x01)||(HCESPN.H3510[1] >= 0x01))
+		{
+			//++, 221226 ysm, FSCU
+			if(COUNT_FLAG.Flag_FLT_Error == 1)
+				COUNT_FLAG.Flag_FLT_Error = 1; // RED STOP LAMP 
+			else
+				COUNT_FLAG.Flag_FLT_Error = 2; // AMBER LAMP
+			//--, 221226 ysm, FSCU
+		}
+		else
+		{
+			//++, 221226 ysm, FSCU
+			if(COUNT_FLAG.Flag_FLT_Error == 1)
+				COUNT_FLAG.Flag_FLT_Error = 1; // RED STOP LAMP 
+			else
+				COUNT_FLAG.Flag_FLT_Error = 2; // AMBER LAMP
+			//--, 221226 ysm, FSCU
+		}
+		
+	}
+
+	HCESPN.H3510_[0] |= HCESPN.H3510[0];
+	HCESPN.H3510_[1] |= HCESPN.H3510[1];
+	HCESPN.H3510_[2] |= HCESPN.H3510[2];
+	HCESPN.H3510_[3] |= HCESPN.H3510[3];
+	HCESPN.H3510_[4] |= HCESPN.H3510[4];
+
+	#if 0
+	for (i = 0; i < 40; i++)
+	{
+		if ((HCESPN.H3510[i / 8] & (1 << (i % 8))) == (1 << (i % 8)))
+			HCESPN.H1526++;
+
+		if ((HCESPN.H3510_[i / 8] & (1 << (i % 8))) == (1 << (i % 8)))
+			HCESPN.H1527++;
+
+	}	
+	#endif
+
+}
+//--, 220217 ysm, FINGERTIP
+
+
+
+void AddECMFault(unsigned char *FaultData_Code)
+{
+	unsigned char i, j, k, l;	
+
+    unsigned int TempInt;
+        
+
+	if((InfoModel1.ModelInfo >= MODEL_25D_9HDI)&&(InfoModel1.ModelInfo <= MODEL_50DN_9HDI))
+	{
+		if((FaultData_Code[0]==0x64) && (FaultData_Code[1]==0x00) && (FaultData_Code[2]==0x01)) // SPN 100 FMI 1
+		{
+			HDI_Oil_Pressure_Lamp_Warning_Count++;
+
+			if(HDI_Oil_Pressure_Lamp_Warning_Count > 10)
+				HDI_Oil_Pressure_Lamp_Warning_Count = 10;	
+			
+		}
+
+		if((FaultData_Code[0]==0x61) && (FaultData_Code[1]==0x00) && (FaultData_Code[2]==0x0E)) // SPN 97 FMI 14
+		{		
+			HDI_WIF_Warning_Count_Fmi14++;
+
+			if(HDI_WIF_Warning_Count_Fmi14 > 10)
+				HDI_WIF_Warning_Count_Fmi14 = 10; 
+		}
+
+		if((FaultData_Code[0]==0x61) && (FaultData_Code[1]==0x00) && (FaultData_Code[2]==0x17)) // SPN 97 FMI 23
+		{		
+			HDI_WIF_Warning_Count_Fmi23++;
+
+			if(HDI_WIF_Warning_Count_Fmi23 > 10)
+				HDI_WIF_Warning_Count_Fmi23 = 10; 
+		}
+	
+
+	
+	
+		
+	}	
+	
+	for (i = 0; i < FaultCodeCount_ECM; i++)
+	{
+		if ((FaultData_ECM[i].TroubleCode[0] == FaultData_Code[0]) &&
+			(FaultData_ECM[i].TroubleCode[1] == FaultData_Code[1]) &&
+			(FaultData_ECM[i].TroubleCode[2] == FaultData_Code[2]))
+		{
+			if ((FaultData_ECM[i].TroubleCode[3] & 0x80) == 0x00)
+			{
+				FaultData_ECM[i].TroubleCode[3] = FaultData_Code[3] & 0x7f;
+
+				FaultData_ECM[i].TroubleCode[3] |= 0x80;
+
+			//	FaultData_ECM[i].MaintenanceTime_Latest = 0;
+
+				FaultData_ECM[i].Hourmeter_Latest = HCESPN.Hourmeter_1601;
+
+
+				if (RCMData_ECMFaultCount_Today < 5)
+				{
+					for (l = 0; l < RCMData_ECMFaultCount_Today; l++)
+					{						
+                        	if (memcmp(FaultData_Code, RCMData_ECMFault_Today[l], 3) == 0)
+								break;
+					}
+
+					if (l == RCMData_ECMFaultCount_Today)
+					{						
+                        memcpy(RCMData_ECMFault_Today[l], FaultData_Code, 3);
+						RCMData_ECMFaultCount_Today++;
+					}
+				}		
+
+#if 0
+				FaultData_ECM[i].DateTime_Latest.Year = HCESPN.H941[0];
+				FaultData_ECM[i].DateTime_Latest.Month = HCESPN.H941[1];
+				FaultData_ECM[i].DateTime_Latest.Date = HCESPN.H941[2];
+				FaultData_ECM[i].DateTime_Latest.Hour = HCESPN.H941[3];
+				FaultData_ECM[i].DateTime_Latest.Minute = HCESPN.H941[4];
+						
+#endif
+
+			}			
+
+
+			FaultData_Delete_Count_ECM[i]  = 0;
+
+			break;
+		}
+	}
+
+
+	if (i == FaultCodeCount_ECM)
+	{
+		if (FaultCodeCount_ECM < FaultBufferSize_ECM)
+		{
+			k = i;
+			FaultCodeCount_ECM++;
+		}
+		else
+		{
+			k = 0;
+			
+			for (j = 1; j < FaultCodeCount_ECM; j++)
+			{
+				if (FaultData_ECM[j].Hourmeter_Latest < FaultData_ECM[k].Hourmeter_Latest)
+				{
+					k = j;
+				}
+			}
+		}
+
+
+
+		FaultData_ECM[k].TroubleCode[0] = FaultData_Code[0];
+		FaultData_ECM[k].TroubleCode[1] = FaultData_Code[1];
+		FaultData_ECM[k].TroubleCode[2] = FaultData_Code[2];
+		
+		FaultData_ECM[k].TroubleCode[3] = FaultData_Code[3] & 0x7f;
+
+		FaultData_ECM[k].TroubleCode[3] |= 0x80;
+
+		FaultData_ECM[k].Hourmeter_First = HCESPN.Hourmeter_1601;
+		FaultData_ECM[k].Hourmeter_Latest = HCESPN.Hourmeter_1601;
+
+
+#if 0
+		FaultData_ECM[k].MaintenanceTime_Total = 0;
+		FaultData_ECM[k].MaintenanceTime_Latest = 0;
+		
+		FaultData_ECM[k].DateTime_First.Year = HCESPN.H941[0];
+		FaultData_ECM[k].DateTime_First.Month = HCESPN.H941[1];
+		FaultData_ECM[k].DateTime_First.Date = HCESPN.H941[2];
+		FaultData_ECM[k].DateTime_First.Hour = HCESPN.H941[3];
+		FaultData_ECM[k].DateTime_First.Minute = HCESPN.H941[4];
+		
+		FaultData_ECM[k].DateTime_Latest.Year = HCESPN.H941[0];
+		FaultData_ECM[k].DateTime_Latest.Month = HCESPN.H941[1];
+		FaultData_ECM[k].DateTime_Latest.Date = HCESPN.H941[2];
+		FaultData_ECM[k].DateTime_Latest.Hour = HCESPN.H941[3];
+		FaultData_ECM[k].DateTime_Latest.Minute = HCESPN.H941[4];	
+
+
+#endif
+		FaultData_Delete_Count_ECM[i]  = 0;
+
+		if (RCMData_ECMFaultCount_Today < 5)
+		{
+			for (l = 0; l < RCMData_ECMFaultCount_Today; l++)
+			{
+				if (memcmp(FaultData_Code, RCMData_ECMFault_Today[l], 3) == 0)
+					break;
+			}
+		
+			if (l == RCMData_ECMFaultCount_Today)
+			{
+			   TempInt = FaultData_Code[0] + ((unsigned short)(FaultData_Code[1]))*256+ ((unsigned int)((FaultData_Code[2] >> 5) & 0x07))*256*256;
+				if( (TempInt != 0) && (TempInt <= 0xffff))
+				{
+					memcpy(RCMData_ECMFault_Today[l], FaultData_Code, 3);
+					RCMData_ECMFaultCount_Today++;
+				}
+			}
+		}
+
+	}
+}
+
+
+unsigned char ReadFaultInfo_ECM(unsigned char index)
+{
+	unsigned char result;
+
+	result = 0;
+	
+	if (index < FaultCodeCount_ECM)
+	{		
+		if ((FaultData_ECM[index].TroubleCode[3] & 0x80) == 0x80)
+		{
+			result |= 0x01;
+		}
+
+		if (FaultData_ECM[index].Hourmeter_Latest > HourmeterAtECMFaultInitial) 
+		{
+			result |= 0x02;
+		}
+		#if 0
+		if (((FaultData_ECM[index].TroubleCode[0] == 0x7f) && (FaultData_ECM[index].TroubleCode[1] == 0x02)&& ((FaultData_ECM[index].TroubleCode[2] & 0xe0) == 0x00)) 
+			|| ((FaultData_ECM[index].TroubleCode[0] == 0x0) && (FaultData_ECM[index].TroubleCode[1] == 0x00) 
+			&& ((FaultData_ECM[index].TroubleCode[2] & 0x0) == 0x00)))
+		{
+			result |= 0x04;
+		}
+		#else
+		if (((FaultData_ECM[index].TroubleCode[0] == 0x7f) && (FaultData_ECM[index].TroubleCode[1] == 0x02)&& ((FaultData_ECM[index].TroubleCode[2] & 0xe0) == 0x00)) 
+			|| ((FaultData_ECM[index].TroubleCode[0] == 0x0) && (FaultData_ECM[index].TroubleCode[1] == 0x00)))
+		{
+			result |= 0x04;
+		}
+		#endif
+	}
+	return result;
+}
+
+
+void ReadFaultData_ECM(unsigned char index, unsigned char *Data)
+{
+	memcpy(Data, FaultData_ECM[index].TroubleCode, 3);
+}
+
+//++, 221212 ysm, FSCU
+void ClearFSCUFault(void)
+{
+	if (++FaultData_Delete_Count_FSCU >= 5)
+	{
+		FaultData_Delete_Count_FSCU = 5;
+		HCESPN.H3333[0] = HCESPN.H3333[1] = HCESPN.H3333[2] = HCESPN.H3333[3] = HCESPN.H3333[4]  = 0;
+		//HCESPN.H1526 = 0;
+		COUNT_FLAG.Flag_FSCU_Error = 0;
+		//InitFSCU_error = 0;
+
+
+	}		
+
+
+}
+//--, 221212 ysm, FSCU
+
+//++, 221129 ysm, FSCU
+void Fault_Initialize_FSCU(void)
+{
+	HCESPN.H3333_[0] = HCESPN.H3333_[1] = HCESPN.H3333_[2] = HCESPN.H3333_[3] = HCESPN.H3333_[4] =0;
+}
+//--, 221129 ysm, FSCU
+
+
+
+//++, 220217 ysm, FINGERTIP
+void Fault_Initialize_FLT(void)
+{
+	HCESPN.H3510_[0] = HCESPN.H3510_[1] = HCESPN.H3510_[2] = HCESPN.H3510_[3] = HCESPN.H3510_[4] =0;
+	//HCESPN.H1527 = 0;
+}
+//--, 220217 ysm, FINGERTIP
+
+
+void Fault_Initialize(void)
+{
+	HourmeterAtECMFaultInitial = HCESPN.Hourmeter_1601;
+	FaultCodeCount_ECM_Logged = 0;
+}
+
+//++, 220217 ysm, FINGERTIP
+void ClearFLTFault(void)
+{
+	
+	if (++FaultData_Delete_Count_FLT >= 5)
+	{
+		FaultData_Delete_Count_FLT = 5;
+		HCESPN.H3510[0] = HCESPN.H3510[1] = HCESPN.H3510[2] = HCESPN.H3510[3] = HCESPN.H3510[4]  = 0;
+		//HCESPN.H1526 = 0;
+		COUNT_FLAG.Flag_FLT_Error = 0;
+		InitFLT_error = 0;
+
+	}		
+
+}
+//--, 220217 ysm, FINGERTIP
+
+void ClearECMFault(void)
+{
+	unsigned char i;
+	
+	for (i = 0; i < FaultCodeCount_ECM; i++)
+	{		
+		if (++FaultData_Delete_Count_ECM[i] >= 5)
+		{
+			FaultData_Delete_Count_ECM[i] = 5;
+			FaultData_ECM[i].TroubleCode[3] &= 0x7f;
+
+			if((FaultData_ECM[i].TroubleCode[0] == 0x64)&&(FaultData_ECM[i].TroubleCode[1] == 0x00)&&(FaultData_ECM[i].TroubleCode[2] == 0x1))
+				HDI_Oil_Pressure_Lamp_Warning_Count = 0;
+			
+			if((FaultData_ECM[i].TroubleCode[0] == 0x61)&&(FaultData_ECM[i].TroubleCode[1] == 0x00)&&(FaultData_ECM[i].TroubleCode[2] == 0x0E))
+				HDI_WIF_Warning_Count_Fmi14= 0;
+			
+			if((FaultData_ECM[i].TroubleCode[0] == 0x61)&&(FaultData_ECM[i].TroubleCode[1] == 0x00)&&(FaultData_ECM[i].TroubleCode[2] == 0x17))
+				HDI_WIF_Warning_Count_Fmi23= 0;
+
+	
+		}		
+	}
+}
+
+
+void MCU_Diagnosis(void)
+{
+	unsigned char i;
+	unsigned char Temp;
+
+	if (++Diagnosis_Count >= 60000)
+	{
+		Diagnosis_Count = 0;		
+	}
+
+	HCESPN.H1501 = 0;
+	HCESPN.H1502 = 0;
+	HCESPN.H1503 = 0;
+	
+	FaultCodeCount_ECM_Current = 0;
+	for (i = 0; i < FaultCodeCount_ECM; i++)
+	{
+		Temp = ReadFaultInfo_ECM(i);
+		if ((Temp & 0x01) && (~(Temp & 0x04))) 
+		{
+			memcpy(&FaultData_ECM_Current[FaultCodeCount_ECM_Current],&FaultData_ECM[i],sizeof(st_Fault));
+			FaultCodeCount_ECM_Current++;
+
+			HCESPN.H1502 = FaultCodeCount_ECM_Current;
+			
+		}
+	}
+
+	FaultCodeCount_ECM_Logged = 0;  
+	for (i = 0; i < FaultCodeCount_ECM; i++)
+	{
+		Temp = ReadFaultInfo_ECM(i);
+		if ((Temp & 0x02) && (~(Temp & 0x04)))
+		{
+			memcpy(&FaultData_ECM_Logged[FaultCodeCount_ECM_Logged],&FaultData_ECM[i],sizeof(st_Fault));
+			FaultCodeCount_ECM_Logged++;
+		}
+	}		
+
+
+	HCESPN.H1518 = 0;
+	if (HCESPN.H303 == 1)
+	{
+		if (HCESPN.H1518 < 5)
+		{
+			RCMData_WarmingHCESPN[HCESPN.H1518] = 303;
+		}
+		
+		HCESPN.H1518++;
+
+		if (RCMData_WarmingCount_Today < 5)
+		{
+			for (i = 0; i < RCMData_WarmingCount_Today; i++)
+			{
+				if (RCMData_WarmingHCESPN_Today[i] == 303)
+					break;
+			}
+
+			if (i == RCMData_WarmingCount_Today)
+			{
+				RCMData_WarmingHCESPN_Today[i] = 303;
+				RCMData_WarmingCount_Today++;
+			}
+		}
+	}	
+
+	if (HCESPN.H706 == 1)
+	{
+		if (HCESPN.H1518 < 5)
+		{
+			RCMData_WarmingHCESPN[HCESPN.H1518] = 706;
+		}
+		
+		HCESPN.H1518++;
+
+		if (RCMData_WarmingCount_Today < 5)
+		{
+			for (i = 0; i < RCMData_WarmingCount_Today; i++)
+			{
+				if (RCMData_WarmingHCESPN_Today[i] == 706)
+					break;
+			}
+
+			if (i == RCMData_WarmingCount_Today)
+			{
+				RCMData_WarmingHCESPN_Today[i] = 706;
+				RCMData_WarmingCount_Today++;
+			}
+		}
+	}
+	
+
+	if (HCESPN.H317 == 1)
+	{
+		if (HCESPN.H1518 < 5)
+		{
+			RCMData_WarmingHCESPN[HCESPN.H1518] = 317;
+		}
+		
+		HCESPN.H1518++;
+
+		if (RCMData_WarmingCount_Today < 5)
+		{
+			for (i = 0; i < RCMData_WarmingCount_Today; i++)
+			{
+				if (RCMData_WarmingHCESPN_Today[i] == 317)
+					break;
+			}
+
+			if (i == RCMData_WarmingCount_Today)
+			{
+				RCMData_WarmingHCESPN_Today[i] = 317;
+				RCMData_WarmingCount_Today++;
+			}
+		}
+	}	
+
+	
+	if (HCESPN.H504 == 1)
+	{
+		if (HCESPN.H1518 < 5)
+		{
+			RCMData_WarmingHCESPN[HCESPN.H1518] = 504;
+		}
+		
+		HCESPN.H1518++;
+
+		if (RCMData_WarmingCount_Today < 5)
+		{
+			for (i = 0; i < RCMData_WarmingCount_Today; i++)
+			{
+				if (RCMData_WarmingHCESPN_Today[i] == 504)
+					break;
+			}
+
+			if (i == RCMData_WarmingCount_Today)
+			{
+				RCMData_WarmingHCESPN_Today[i] = 504;
+				RCMData_WarmingCount_Today++;
+			}
+		}
+	}
+
+	if (HCESPN.H305 == 1)
+	{
+		if (HCESPN.H1518 < 5)
+		{
+			RCMData_WarmingHCESPN[HCESPN.H1518] = 305;
+		}
+		
+		HCESPN.H1518++;
+
+		if (RCMData_WarmingCount_Today < 5)
+		{
+			for (i = 0; i < RCMData_WarmingCount_Today; i++)
+			{
+				if (RCMData_WarmingHCESPN_Today[i] == 305)
+					break;
+			}
+
+			if (i == RCMData_WarmingCount_Today)
+			{
+				RCMData_WarmingHCESPN_Today[i] = 305;
+				RCMData_WarmingCount_Today++;
+			}
+		}
+	}
+
+	
+	if (HCESPN.H313 == 1)
+	{
+		if (HCESPN.H1518 < 5)
+		{
+			RCMData_WarmingHCESPN[HCESPN.H1518] = 313;
+		}
+		
+		HCESPN.H1518++;
+
+		if (RCMData_WarmingCount_Today < 5)
+		{
+			for (i = 0; i < RCMData_WarmingCount_Today; i++)
+			{
+				if (RCMData_WarmingHCESPN_Today[i] == 313)
+					break;
+			}
+
+			if (i == RCMData_WarmingCount_Today)
+			{
+				RCMData_WarmingHCESPN_Today[i] = 313;
+				RCMData_WarmingCount_Today++;
+			}
+		}
+	}
+
+	if (HCESPN.H537 == 1)
+	{
+		if (HCESPN.H1518 < 5)
+		{
+			RCMData_WarmingHCESPN[HCESPN.H1518] = 537;
+		}
+		
+		HCESPN.H1518++;
+
+		if (RCMData_WarmingCount_Today < 5)
+		{
+			for (i = 0; i < RCMData_WarmingCount_Today; i++)
+			{
+				if (RCMData_WarmingHCESPN_Today[i] == 537)
+					break;
+			}
+
+			if (i == RCMData_WarmingCount_Today)
+			{
+				RCMData_WarmingHCESPN_Today[i] = 537;
+				RCMData_WarmingCount_Today++;
+			}
+		}
+	}
+
+
+
+    if (HCESPN.H320 == 1)
+	{
+		if (HCESPN.H1518 < 5)
+		{
+			RCMData_WarmingHCESPN[HCESPN.H1518] = 320;
+		}
+		
+		HCESPN.H1518++;
+
+		if (RCMData_WarmingCount_Today < 5)
+		{
+			for (i = 0; i < RCMData_WarmingCount_Today; i++)
+			{
+				if (RCMData_WarmingHCESPN_Today[i] == 320)
+					break;
+			}
+
+			if (i == RCMData_WarmingCount_Today)
+			{
+				RCMData_WarmingHCESPN_Today[i] = 320;
+				RCMData_WarmingCount_Today++;
+			}
+		}
+	}      
+
+    if (HCESPN.H360 == 1)
+	{
+		if (HCESPN.H1518 < 5)
+		{
+			RCMData_WarmingHCESPN[HCESPN.H1518] = 360;
+		}
+		
+		HCESPN.H1518++;
+
+		if (RCMData_WarmingCount_Today < 5)
+		{
+			for (i = 0; i < RCMData_WarmingCount_Today; i++)
+			{
+				if (RCMData_WarmingHCESPN_Today[i] == 360)
+					break;
+			}
+
+			if (i == RCMData_WarmingCount_Today)
+			{
+				RCMData_WarmingHCESPN_Today[i] = 360;
+				RCMData_WarmingCount_Today++;
+			}
+		}
+	}    
+   
+	if ((Diagnosis_Count % 100) == 0)
+	{
+		ClearECMFault();
+		ClearFLTFault(); //++,--, 220217 ysm, FINGERTIP
+		ClearFSCUFault(); //++,--, 221212 ysm, FSCU
+	}
+}
+
+
+
+
+void Initialize_Diagnosis(void)
+{
+	unsigned int i;
+	unsigned char TempData[5];
+	
+	EepromRead(ADDRESS_DIAGNOSIS_HOURMETER_AT_ECM_FAULT_INITIAL, (unsigned char *)(&HourmeterAtECMFaultInitial), 4);
+	EepromRead(ADDRESS_DIAGNOSIS_FAULT_CODE_COUNT_ECM, &FaultCodeCount_ECM, 1);
+
+	if(FaultCodeCount_ECM > 20 )  FaultCodeCount_ECM = 0;
+
+	for (i = 0; i < FaultCodeCount_ECM; i++)
+	{
+		EepromRead(ADDRESS_DIAGNOSIS_FAULTDATA_ECM+ i * 32, (unsigned char *)(&FaultData_ECM[i]), sizeof(st_Fault));		
+		FaultData_ECM[i].TroubleCode[3] &= 0x7f;
+	}
+
+	HDI_Oil_Pressure_Lamp_Warning_Count = 0;
+	HDI_WIF_Warning_Count_Fmi14 = 0;
+	HDI_WIF_Warning_Count_Fmi23 = 0;
+
+	//++, 220217 ysm, FINGERTIP	
+	EepromRead(ADDRESS_H3510_, (unsigned char*)(&TempData[0]), 5);	
+
+	HCESPN.H3510_[0] = TempData[0];
+	HCESPN.H3510_[1] = TempData[1];
+	HCESPN.H3510_[2] = TempData[2];
+	HCESPN.H3510_[3] = TempData[3];
+	HCESPN.H3510_[4] = TempData[4];
+
+	HCESPN.H1526 = 0;
+	HCESPN.H1527 = 0;
+
+	#if 0
+	for (i = 0; i < 40; i++)
+	{
+		if ((HCESPN.H3510_[i / 8] & (1 << (i % 8))) == (1 << (i % 8)))
+			HCESPN.H1527++;
+	}	
+	#endif
+
+	HCESPN.H3510[0] = 0;
+	HCESPN.H3510[1] = 0;
+	HCESPN.H3510[2] = 0;
+	HCESPN.H3510[3] = 0;
+	HCESPN.H3510[4] = 0;
+
+	FaultData_Delete_Count_FLT = 0;		
+	//--, 220217 ysm, FINGERTIP
+
+	//++, 220929 ysm, FSCU	
+	EepromRead(ADDRESS_H3333_, (unsigned char*)(&TempData[0]), 5);	
+
+	HCESPN.H3333_[0] = TempData[0];
+	HCESPN.H3333_[1] = TempData[1];
+	HCESPN.H3333_[2] = TempData[2];
+	HCESPN.H3333_[3] = TempData[3];
+	HCESPN.H3333_[4] = TempData[4];
+
+	HCESPN.H1528 = 0;
+	HCESPN.H1529 = 0;
+
+		
+	HCESPN.H3333[0] = 0;
+	HCESPN.H3333[1] = 0;
+	HCESPN.H3333[2] = 0;
+	HCESPN.H3333[3] = 0;
+	HCESPN.H3333[4] = 0;
+
+	FaultData_Delete_Count_FSCU = 0;
+	//--, 220929 ysm, FSCU
+}
+
+void Diagnosis_End(void)
+{
+	unsigned char i;
+	unsigned char TempData[5];
+	
+	EepromWrite(ADDRESS_DIAGNOSIS_HOURMETER_AT_ECM_FAULT_INITIAL, (unsigned char *)(&HourmeterAtECMFaultInitial), 4);
+
+
+	EepromWrite(ADDRESS_DIAGNOSIS_FAULT_CODE_COUNT_ECM, &FaultCodeCount_ECM, 1);
+	for (i = 0; i < FaultCodeCount_ECM; i++)
+	{
+		EepromWrite(ADDRESS_DIAGNOSIS_FAULTDATA_ECM + i * 32, (unsigned char *)(&FaultData_ECM[i]), sizeof(st_Fault));		
+	}
+
+	//++, 220217 ysm, FINGERTIP	
+	TempData[0] = HCESPN.H3510_[0];
+	TempData[1] = HCESPN.H3510_[1];
+	TempData[2] = HCESPN.H3510_[2];
+	TempData[3] = HCESPN.H3510_[3];
+	TempData[4] = HCESPN.H3510_[4];
+
+	EepromWrite(ADDRESS_H3510_, (unsigned char *)(&TempData[0]), 5);	
+	//--, 220217 ysm, FINGERTIP
+
+	//++, 221212 ysm, FSCU
+	TempData[0] = HCESPN.H3333_[0];
+	TempData[1] = HCESPN.H3333_[1];
+	TempData[2] = HCESPN.H3333_[2];
+	TempData[3] = HCESPN.H3333_[3];
+	TempData[4] = HCESPN.H3333_[4];
+
+	EepromWrite(ADDRESS_H3333_, (unsigned char *)(&TempData[0]), 5);	
+	//--, 221212 ysm, FSCU
+
+
+	
+}

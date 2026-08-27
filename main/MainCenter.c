@@ -1,0 +1,1411 @@
+#include "FLV_Cluster_APP.h"
+
+
+#define ECU_COMM_ERROR 			0x01
+//#define TILT_LOCK_ALARM 		0x02
+#define FLT_ERROR				0x02 //++,--, 220616 FLT_ERR
+#define GEAR_CHANGE_ALARM 		0x04
+#define CLUTCH_PROTECTION_ALARM	0x08
+#define MAST_ALARM				0x10
+#define ANGLE_FB_ALARM			0x20
+#define ANGLE_LR_ALARM			0x40
+#define AUTOSHIFT_ALARM			0x80
+
+
+
+UCHAR OldCommError_Flag;
+
+UCHAR Display_Comm_Error;
+UCHAR Old_Display_Comm_Error;
+UINT32 OldCommErrortAddress = 0xff;
+UCHAR OldComm_Error_Count;
+
+UCHAR OldTiltSignal;
+UCHAR OldCommErrorIcon;
+UCHAR OldSignalGear;
+
+UCHAR GearIndex;
+
+UCHAR ShowGear;
+UCHAR ShowMast;
+
+extern UCHAR Flag_DIN[];
+extern unsigned char ClutchProtection;
+
+extern USHORT	OldSpeed;
+
+float OldAngleMast, OldAngleFrontBack,OldAngleLeftRight;
+unsigned char OldPitchFlag, OldRollFlag;
+UCHAR OldDisplayMast;
+UCHAR CurrDisplayMast;
+UCHAR OldDisplayFrontBack;
+UCHAR CurrDisplayFrontBack;
+UCHAR OldDisplayLeftRight;
+UCHAR CurrDisplayLeftRight;
+
+//++, 221212 ysm, FSCU
+UCHAR OldDisplaySeatBelt;
+UCHAR CurrDisplaySeatBelt;
+
+UCHAR SeatBeltAlarm_Count = 0;
+UCHAR SeatBeltAlarm_Count2 = 0;
+//--, 221212 ysm, FSCU
+
+uint32_t uwStartAddress_popup[12]={0,};
+extern unsigned char MAST_EQUIPMENT;
+extern unsigned char AutoShiftMode_Gear;
+extern unsigned char Old_AutoShiftMode_Gear;
+extern unsigned char Engine_Type;
+
+extern unsigned char ANGLE_EQUIPMENT;
+extern EEPROM_MODEL_DATA1 InfoModel1;
+
+void Check_Main_Popup(void)
+{
+/*
+	if(COUNT_FLAG.Flag_ECU_Comm_error==1)
+		COUNT_FLAG.Flag_Display_Popup |=ECU_COMM_ERROR;
+	else
+		COUNT_FLAG.Flag_Display_Popup &= ~(ECU_COMM_ERROR);
+*/
+	//++, 210303 ysm, TILT_LOCK
+	#if 0
+	if(COUNT_FLAG.Flag_AutoLeveling==1)
+		COUNT_FLAG.Flag_Display_Popup |=TILT_LOCK_ALARM;
+	else
+		COUNT_FLAG.Flag_Display_Popup &= ~(TILT_LOCK_ALARM);
+
+	if(COUNT_FLAG.Flag_Mast_Display==1)
+		COUNT_FLAG.Flag_Display_Popup |=MAST_ALARM;
+	else
+		COUNT_FLAG.Flag_Display_Popup &= ~(MAST_ALARM);
+
+	if(COUNT_FLAG.Flag_AngleFB_Display == 1)
+		COUNT_FLAG.Flag_Display_Popup |=ANGLE_FB_ALARM;
+	else
+		COUNT_FLAG.Flag_Display_Popup &= ~(ANGLE_FB_ALARM);
+
+	if(COUNT_FLAG.Flag_AngleLR_Display == 1)
+		COUNT_FLAG.Flag_Display_Popup |=ANGLE_LR_ALARM;
+	else
+		COUNT_FLAG.Flag_Display_Popup &= ~(ANGLE_LR_ALARM);
+
+
+	#endif
+	//--, 210303 ysm, TILT_LOCK
+	if(COUNT_FLAG.Flag_Gear_Display==1)
+		COUNT_FLAG.Flag_Display_Popup |=GEAR_CHANGE_ALARM;
+	else
+		COUNT_FLAG.Flag_Display_Popup &= ~(GEAR_CHANGE_ALARM);
+
+	
+	if(ClutchProtection == 1)
+		COUNT_FLAG.Flag_Display_Popup |=CLUTCH_PROTECTION_ALARM;
+	else
+		COUNT_FLAG.Flag_Display_Popup &= ~(CLUTCH_PROTECTION_ALARM);
+
+	if(COUNT_FLAG.Flag_AutoShift_Display == 1)
+		COUNT_FLAG.Flag_Display_Popup |=AUTOSHIFT_ALARM;
+	else
+		COUNT_FLAG.Flag_Display_Popup &= ~(AUTOSHIFT_ALARM);
+	
+}
+
+void DisplayMainTopMid()
+{
+#if 0
+	LCD_Draw_Color(37,9,148,116, COLOR_BLACK);	
+
+	if(InfoDisplaySetting.SpeedUnit == UNIT_SPEED_KMH)
+		PCXtoBMP_16bit(129, 99, 52, 26, FL_Image.mid_kmh);
+	else
+		PCXtoBMP_16bit(129, 99, 52, 26, FL_Image.mid_mph);
+				
+	ShowGear = 0;
+#else
+	//LCD_Draw_Color(37,9,148,91, COLOR_BLACK);	
+	//LCD_Draw_Color(37,9,148,107, COLOR_BLACK);
+	LCD_Draw_Color(37,9,148,120, COLOR_BLACK);
+	DisplayMainTopBackground();		
+#endif
+}
+
+void DisplayTiltLock()
+{
+
+	//if((OldDisplayMast != CurrDisplayMast)||(ShowMast != 1))
+	//if(OldDisplayMast != CurrDisplayMast)
+	//if(ShowMast != 1)
+	{	
+
+		if(CurrDisplayMast > 41)
+		{	
+			PCXtoBMP_16bit(41,6,138,94, FL_Image.angle_mast[41]);
+			
+		}
+		else
+		{
+			PCXtoBMP_16bit(41,6,138,94, FL_Image.angle_mast[CurrDisplayMast]);
+		}
+
+			
+
+		if(COUNT_FLAG.Flag_AutoLeveling == 1)
+		{
+
+			//++, 221212 ysm, FSCU
+			PCXtoBMP_16bit(58,103,106,21, FL_Image.tilt_lock);
+			LCD_Draw_Color(164,103,20,25, COLOR_BLACK);	
+			//--, 221212 ysm, FSCU
+	
+		}
+		else
+			LCD_Draw_Color(40,103,144,25, COLOR_BLACK);	 //++,--, 221212 ysm, FSCU
+	
+		
+		DisplayMainBottom();
+		//OldDisplayMast = CurrDisplayMast;
+
+		ShowMast = 1;
+			
+	}
+
+
+}
+
+void DisplayCurrentGear2()
+{
+	uint32_t uwStartAddress;
+
+
+	switch(OldSignalGear)
+	{
+		case GEAR_NEUTRAL: 	uwStartAddress = FL_Image.gear_n; 	break;
+		case GEAR_FORWARD:
+				if(((InfoModel1.ModelInfo >= MODEL_35L_9)&&(InfoModel1.ModelInfo <= MODEL_50L_9))
+					||((InfoModel1.ModelInfo >= MODEL_35D_9S)&&(InfoModel1.ModelInfo <= MODEL_50D_9S))
+					||((InfoModel1.ModelInfo >= MODEL_35D_9HDI)&&(InfoModel1.ModelInfo <= MODEL_50DN_9HDI)))
+				{
+					if(AutoShiftMode_Gear == 1) //++,--, 201019 ysm
+						uwStartAddress = FL_Image.gear_f1; 			
+					else if(AutoShiftMode_Gear == 2)
+						uwStartAddress = FL_Image.gear_f2;
+					else
+						uwStartAddress = FL_Image.gear_f; 
+				}
+				else
+					uwStartAddress = FL_Image.gear_f;
+				break;
+		case GEAR_REVERSE:
+				if((InfoModel1.ModelInfo >= MODEL_35D_9S)&&(InfoModel1.ModelInfo <= MODEL_50D_9S))
+				{
+					if(AutoShiftMode_Gear == 1)
+						uwStartAddress = FL_Image.gear_r1;
+					else if(AutoShiftMode_Gear == 2)
+						uwStartAddress = FL_Image.gear_r2;
+					else
+						uwStartAddress = FL_Image.gear_r; 
+				}
+				else
+					uwStartAddress = FL_Image.gear_r;
+				break;
+				
+		default:				uwStartAddress = 0; 			break;
+	}
+	if(uwStartAddress == 0)
+		LCD_Draw_Color(138,62,37,36, COLOR_BLACK);
+	else
+		PCXtoBMP_16bit(138,62,37,36, uwStartAddress);
+
+}
+
+
+void DisplayCurrentGear()
+{
+	uint32_t uwStartAddress;
+
+	if((ShowGear == 0) && (COUNT_FLAG.Flag_Gear_Display == 0)&&(ShowMast != 1))
+	{
+		ShowGear = 1;
+
+		switch(OldSignalGear)
+		{
+			case GEAR_NEUTRAL: 	uwStartAddress = FL_Image.gear_n; 	break;
+			case GEAR_FORWARD:
+					if(((InfoModel1.ModelInfo >= MODEL_35L_9)&&(InfoModel1.ModelInfo <= MODEL_50L_9))
+						||((InfoModel1.ModelInfo >= MODEL_35D_9S)&&(InfoModel1.ModelInfo <= MODEL_50D_9S))
+						||((InfoModel1.ModelInfo >= MODEL_35D_9HDI)&&(InfoModel1.ModelInfo <= MODEL_50DN_9HDI)))
+					{
+						if(AutoShiftMode_Gear == 1) //++,--, 201019 ysm
+							uwStartAddress = FL_Image.gear_f1; 			
+						else if(AutoShiftMode_Gear == 2)
+							uwStartAddress = FL_Image.gear_f2;
+						else
+							uwStartAddress = FL_Image.gear_f; 
+					}
+					else
+						uwStartAddress = FL_Image.gear_f;
+					break;
+			case GEAR_REVERSE: 	
+				if((InfoModel1.ModelInfo >= MODEL_35D_9S)&&(InfoModel1.ModelInfo <= MODEL_50D_9S))
+				{
+					if(AutoShiftMode_Gear == 1)
+						uwStartAddress = FL_Image.gear_r1;
+					else if(AutoShiftMode_Gear == 2)
+						uwStartAddress = FL_Image.gear_r2;
+					else
+						uwStartAddress = FL_Image.gear_r; 
+				}
+				else
+					uwStartAddress = FL_Image.gear_r;
+				break;
+				
+			default:				uwStartAddress = 0; 						break;
+		}
+		if(uwStartAddress == 0)
+			LCD_Draw_Color(138,62,37,36, COLOR_BLACK);
+		else
+			PCXtoBMP_16bit(138,62,37,36, uwStartAddress);
+
+		//LCD_Draw_Color(40,100,27,23, COLOR_BLACK);
+	}
+}
+
+void DisplayCommError()
+{
+	if(OldCommError_Flag != COUNT_FLAG.Flag_Display_Popup)
+	{
+		COUNT_FLAG.Comm_Error_Count=0;
+		#if 0
+		
+		if((COUNT_FLAG.Flag_Display_Popup & ECU_COMM_ERROR) != 0)
+		{
+			uwStartAddress_popup[COUNT_FLAG.Comm_Error_Count] =FL_Image.popup_msg_commerror ;
+			COUNT_FLAG.Comm_Error_Count++;
+			uwStartAddress_popup[COUNT_FLAG.Comm_Error_Count] =FL_Image.popup_icon_warning ;
+			COUNT_FLAG.Comm_Error_Count++;
+		}
+
+		
+		if((COUNT_FLAG.Flag_Display_Popup & TILT_LOCK_ALARM) != 0)
+		{
+			uwStartAddress_popup[COUNT_FLAG.Comm_Error_Count] =FL_Image.tilt_lock ;
+			COUNT_FLAG.Comm_Error_Count++;
+			uwStartAddress_popup[COUNT_FLAG.Comm_Error_Count] =FL_Image.popup_icon_warning ;
+			COUNT_FLAG.Comm_Error_Count++;
+		}
+		if((COUNT_FLAG.Flag_Display_Popup & MAST_ALARM) != 0)
+		{
+			uwStartAddress_popup[COUNT_FLAG.Comm_Error_Count] =FL_Image.angle_mast[OldDisplayMast] ;
+			COUNT_FLAG.Comm_Error_Count++;
+			uwStartAddress_popup[COUNT_FLAG.Comm_Error_Count] =FL_Image.popup_icon_warning ;
+			COUNT_FLAG.Comm_Error_Count++;
+		}
+		if((COUNT_FLAG.Flag_Display_Popup & ANGLE_FB_ALARM) != 0)
+		{
+			if(OldPitchFlag==0)
+				uwStartAddress_popup[COUNT_FLAG.Comm_Error_Count] =FL_Image.main_angle_fb_red[OldDisplayFrontBack] ;
+			else
+				uwStartAddress_popup[COUNT_FLAG.Comm_Error_Count] =FL_Image.main_angle_fb[OldDisplayFrontBack] ;
+			COUNT_FLAG.Comm_Error_Count++;
+			uwStartAddress_popup[COUNT_FLAG.Comm_Error_Count] =FL_Image.popup_icon_warning ;
+			COUNT_FLAG.Comm_Error_Count++;
+		}
+ 		if((COUNT_FLAG.Flag_Display_Popup & ANGLE_LR_ALARM) != 0)
+		{
+			if(OldRollFlag==0)
+				uwStartAddress_popup[COUNT_FLAG.Comm_Error_Count] =FL_Image.main_angle_lr_red[OldDisplayLeftRight] ;
+			else
+				uwStartAddress_popup[COUNT_FLAG.Comm_Error_Count] =FL_Image.main_angle_lr[OldDisplayLeftRight] ;
+			COUNT_FLAG.Comm_Error_Count++;
+			uwStartAddress_popup[COUNT_FLAG.Comm_Error_Count] =FL_Image.popup_icon_warning ;
+			COUNT_FLAG.Comm_Error_Count++;
+		}
+		#endif
+		//--, 210303 ysm, TILT_LOCK
+		if((COUNT_FLAG.Flag_Display_Popup & GEAR_CHANGE_ALARM) != 0)
+		{
+			if(OldSignalGear <= GEAR_REVERSE)
+			{
+				if(((InfoModel1.ModelInfo >= MODEL_35L_9)&&(InfoModel1.ModelInfo <= MODEL_50L_9))
+					||((InfoModel1.ModelInfo >= MODEL_35D_9S)&&(InfoModel1.ModelInfo <= MODEL_50D_9S))
+					||((InfoModel1.ModelInfo >= MODEL_35D_9HDI)&&(InfoModel1.ModelInfo <= MODEL_50DN_9HDI)))
+				{
+					if(OldSignalGear == GEAR_FORWARD)
+					{			
+						if(AutoShiftMode_Gear == 1)
+						{
+							uwStartAddress_popup[COUNT_FLAG.Comm_Error_Count] =FL_Image.popup_gearf1_3 ;
+						}
+						else if(AutoShiftMode_Gear == 2)
+						{
+							uwStartAddress_popup[COUNT_FLAG.Comm_Error_Count] =FL_Image.popup_gearf2_3;
+						}
+						else
+							uwStartAddress_popup[COUNT_FLAG.Comm_Error_Count] =FL_Image.popup_gear[OldSignalGear] ;
+							
+					}
+					else
+					{
+						if((InfoModel1.ModelInfo >= MODEL_35D_9S)&&(InfoModel1.ModelInfo <= MODEL_50D_9S))
+						{
+
+							if(OldSignalGear == GEAR_REVERSE)
+							{
+								if(AutoShiftMode_Gear == 1)
+								{
+									uwStartAddress_popup[COUNT_FLAG.Comm_Error_Count] =FL_Image.popup_gearr1;
+								}
+								else if(AutoShiftMode_Gear == 2)
+								{
+									uwStartAddress_popup[COUNT_FLAG.Comm_Error_Count] =FL_Image.popup_gearr2;
+								}
+								else
+									uwStartAddress_popup[COUNT_FLAG.Comm_Error_Count] =FL_Image.popup_gear[OldSignalGear] ;
+							}
+							else
+								uwStartAddress_popup[COUNT_FLAG.Comm_Error_Count] =FL_Image.popup_gear[OldSignalGear] ;
+
+						}
+						else
+							uwStartAddress_popup[COUNT_FLAG.Comm_Error_Count] =FL_Image.popup_gear[OldSignalGear] ;
+					}
+				}
+				else
+					uwStartAddress_popup[COUNT_FLAG.Comm_Error_Count] =FL_Image.popup_gear[OldSignalGear] ;
+				
+				GearIndex = COUNT_FLAG.Comm_Error_Count;
+				COUNT_FLAG.Comm_Error_Count++;
+				uwStartAddress_popup[COUNT_FLAG.Comm_Error_Count] =FL_Image.popup_icon_warning ;
+				COUNT_FLAG.Comm_Error_Count++;
+			}
+			else
+				GearIndex = 0xff;
+		}
+		else
+			GearIndex = 0xff;
+
+		if((COUNT_FLAG.Flag_Display_Popup & CLUTCH_PROTECTION_ALARM) != 0)
+		{
+			uwStartAddress_popup[COUNT_FLAG.Comm_Error_Count] =FL_Image.popup_clutch ;
+			COUNT_FLAG.Comm_Error_Count++;
+			uwStartAddress_popup[COUNT_FLAG.Comm_Error_Count] =FL_Image.popup_icon_warning ;
+			COUNT_FLAG.Comm_Error_Count++;
+		}
+		//++, 210303 ysm, TILT_LOCK
+
+		
+		OldCommError_Flag = COUNT_FLAG.Flag_Display_Popup;
+		COUNT_FLAG.Display_Comm_Error_Count = 0;
+		COUNT_FLAG.Current_Comm_Error_Count = 0;
+	}
+
+	if(uwStartAddress_popup[COUNT_FLAG.Current_Comm_Error_Count] == FL_Image.popup_icon_warning)
+	{
+		if((++COUNT_FLAG.Display_Comm_Error_Count%10)==0)
+		{
+			if( ++COUNT_FLAG.Current_Comm_Error_Count >= COUNT_FLAG.Comm_Error_Count)
+				COUNT_FLAG.Current_Comm_Error_Count=0;
+			COUNT_FLAG.Display_Comm_Error_Count=0;
+		}
+	}
+	else
+	{
+		
+		if((++COUNT_FLAG.Display_Comm_Error_Count%8)==0) //++,--, 201019 ysm
+		{
+			if((uwStartAddress_popup[COUNT_FLAG.Current_Comm_Error_Count] == FL_Image.popup_gear[0])
+				|| (uwStartAddress_popup[COUNT_FLAG.Current_Comm_Error_Count] == FL_Image.popup_gear[1])
+				|| (uwStartAddress_popup[COUNT_FLAG.Current_Comm_Error_Count] == FL_Image.popup_gear[2])
+				|| (uwStartAddress_popup[COUNT_FLAG.Current_Comm_Error_Count] == FL_Image.popup_gearf1_3)
+				|| (uwStartAddress_popup[COUNT_FLAG.Current_Comm_Error_Count] == FL_Image.popup_gearf2_3)
+				|| (uwStartAddress_popup[COUNT_FLAG.Current_Comm_Error_Count] == FL_Image.popup_gearr1)
+				|| (uwStartAddress_popup[COUNT_FLAG.Current_Comm_Error_Count] == FL_Image.popup_gearr2))
+			{
+				COUNT_FLAG.Flag_Gear_Display = 0;
+				COUNT_FLAG.Flag_Display_Popup &= ~(GEAR_CHANGE_ALARM);
+				
+			}
+			//++, 210303 ysm, TILT_LOCK
+			#if 0
+			else if(((uwStartAddress_popup[COUNT_FLAG.Current_Comm_Error_Count] >= FL_Image.angle_mast[0])
+				&& (uwStartAddress_popup[COUNT_FLAG.Current_Comm_Error_Count] <= FL_Image.angle_mast[5]))
+				|| ((uwStartAddress_popup[COUNT_FLAG.Current_Comm_Error_Count] >= FL_Image.angle_mast[6])
+				&& (uwStartAddress_popup[COUNT_FLAG.Current_Comm_Error_Count] <= FL_Image.angle_mast[41])))
+			{
+				COUNT_FLAG.Flag_Mast_Display = 0;
+				COUNT_FLAG.Flag_Display_Popup &= ~(MAST_ALARM);
+				
+			}
+			else if(((uwStartAddress_popup[COUNT_FLAG.Current_Comm_Error_Count] >= FL_Image.main_angle_fb[0])
+				&& (uwStartAddress_popup[COUNT_FLAG.Current_Comm_Error_Count] <= FL_Image.main_angle_fb[40]))
+				|| ((uwStartAddress_popup[COUNT_FLAG.Current_Comm_Error_Count] >= FL_Image.main_angle_fb_red[0])
+				&& (uwStartAddress_popup[COUNT_FLAG.Current_Comm_Error_Count] <= FL_Image.main_angle_fb_red[33])))
+			{
+				COUNT_FLAG.Flag_AngleFB_Display = 0;
+				COUNT_FLAG.Flag_Display_Popup &= ~(ANGLE_FB_ALARM);
+				
+			}
+			else if(((uwStartAddress_popup[COUNT_FLAG.Current_Comm_Error_Count] >= FL_Image.main_angle_lr[0])
+				&& (uwStartAddress_popup[COUNT_FLAG.Current_Comm_Error_Count] <= FL_Image.main_angle_lr[40]))
+				|| ((uwStartAddress_popup[COUNT_FLAG.Current_Comm_Error_Count] >= FL_Image.main_angle_lr_red[0])
+				&& (uwStartAddress_popup[COUNT_FLAG.Current_Comm_Error_Count] <= FL_Image.main_angle_lr_red[27])))
+			{
+				COUNT_FLAG.Flag_AngleLR_Display = 0;
+				COUNT_FLAG.Flag_Display_Popup &= ~(ANGLE_LR_ALARM);
+				
+			}	
+			#endif
+			//--, 210303 ysm, TILT_LOCK
+			
+			if( ++COUNT_FLAG.Current_Comm_Error_Count >= COUNT_FLAG.Comm_Error_Count)
+				COUNT_FLAG.Current_Comm_Error_Count=0;
+			COUNT_FLAG.Display_Comm_Error_Count=0;
+
+		}
+	}
+
+	
+	if(OldCommErrortAddress !=uwStartAddress_popup[COUNT_FLAG.Current_Comm_Error_Count])
+	{
+		OldCommErrortAddress = uwStartAddress_popup[COUNT_FLAG.Current_Comm_Error_Count];
+		if(OldCommErrortAddress == FL_Image.popup_icon_warning)
+		{
+			if(OldComm_Error_Count != 0xff)
+			{
+				DisplayMainTopMid();
+			}
+			//DisplayCurrentGear(); //++,--, 201221 ysm, UI2
+		}
+		//++, 210303 ysm, TILT_LOCK
+		#if 0
+		else if(((OldCommErrortAddress >= FL_Image.angle_mast[0] )&& (OldCommErrortAddress <= FL_Image.angle_mast[5]))
+			|| ((OldCommErrortAddress >= FL_Image.angle_mast[6]) && (OldCommErrortAddress <= FL_Image.angle_mast[41])))
+		{
+			LCD_Draw_Color(37,9,148,120, COLOR_BLACK); //++,--, 201221 ysm, UI2
+			//PCXtoBMP_16bit(76,9,69,85, OldCommErrortAddress); //++,--, 201221 ysm, UI2
+			PCXtoBMP_16bit(41,6,138,94, OldCommErrortAddress); //++,--, 201221 ysm, UI2
+			DisplayMainBottom();
+		}
+
+		else if(((OldCommErrortAddress >= FL_Image.main_angle_fb[0] )&& (OldCommErrortAddress <= FL_Image.main_angle_fb[40]))
+			|| ((OldCommErrortAddress >= FL_Image.main_angle_fb_red[6]) && (OldCommErrortAddress <= FL_Image.main_angle_fb_red[33])))
+		{
+			LCD_Draw_Color(37,9,148,120, COLOR_BLACK); //++,--, 201221 ysm, UI2
+			if(OldPitchFlag==0)
+				PCXtoBMP_16bit(41,6,138,94, FL_Image.main_angle_fb_red[OldDisplayFrontBack]) ;
+			else
+				PCXtoBMP_16bit(41,6,138,94, FL_Image.main_angle_fb[OldDisplayFrontBack]) ;
+
+			DisplayMainBottom();
+		}
+		else if(((OldCommErrortAddress >= FL_Image.main_angle_lr[0] )&& (OldCommErrortAddress <= FL_Image.main_angle_lr[40]))
+			|| ((OldCommErrortAddress >= FL_Image.main_angle_lr_red[0]) && (OldCommErrortAddress <= FL_Image.main_angle_lr_red[27])))
+		{
+			LCD_Draw_Color(37,9,148,120, COLOR_BLACK); //++,--, 201221 ysm, UI2
+
+			if(OldRollFlag==0)
+				PCXtoBMP_16bit(41,6,138,94, FL_Image.main_angle_lr_red[OldDisplayLeftRight]) ;
+			else
+				PCXtoBMP_16bit(41,6,138,94, FL_Image.main_angle_lr[OldDisplayLeftRight]) ;
+			DisplayMainBottom();
+		}		
+		else if(OldCommErrortAddress == FL_Image.tilt_lock)
+		{
+			//LCD_Draw_Color(37,9,148,85, COLOR_BLACK);	//++,--, 201221 ysm, UI2
+			LCD_Draw_Color(37,9,148,120, COLOR_BLACK); //++,--, 201221 ysm, UI2
+			PCXtoBMP_16bit(58,103,106,21, OldCommErrortAddress) ;
+			PCXtoBMP_16bit(41,6,138,94, FL_Image.angle_mast[OldDisplayMast]) ;
+			ShowMast = 1;
+			DisplayMainBottom();
+		}
+		#endif
+		//--, 210303 ysm, TILT_LOCK
+		else
+		{
+			LCD_Draw_Color(37,9,148,120, COLOR_BLACK); //++,--, 201221 ysm, UI2
+			PCXtoBMP_16bit(52,9,116,85, OldCommErrortAddress);	
+			if((OldCommErrortAddress == FL_Image.popup_gear[0]) || (OldCommErrortAddress == FL_Image.popup_gear[1])
+	 			|| (OldCommErrortAddress == FL_Image.popup_gear[2])|| (OldCommErrortAddress == FL_Image.popup_gearr1)|| (OldCommErrortAddress == FL_Image.popup_gearr2)
+	 			|| (OldCommErrortAddress == FL_Image.popup_gearf1_3)|| (OldCommErrortAddress == FL_Image.popup_gearf2_3)) //++,--, 210624 ysm
+				ShowGear = 0;
+			DisplayMainBottom();
+		}
+		OldComm_Error_Count = COUNT_FLAG.Comm_Error_Count;
+	}
+	else if(OldCommErrortAddress == FL_Image.popup_icon_warning)
+	{
+		
+		DisplayMainMid();
+		DisplayMainTop();
+		DisplayMainBottom();
+	}
+	else 
+	{		
+		DisplayMainBottom();
+	}
+}
+
+void DisplayCommErrorIcon()
+{			
+
+	#if 0
+	if(OldCommErrorIcon != COUNT_FLAG.Flag_ECU_Comm_error)
+	{
+		OldCommErrorIcon = COUNT_FLAG.Flag_ECU_Comm_error;
+
+		if(OldCommErrorIcon == 0)
+			LCD_Draw_Color(40,103,27,23, COLOR_BLACK);
+		else
+			PCXtoBMP_16bit(40,103,27,23, FL_Image.mid_icon_warning);	//100->103	
+	
+		//PCXtoBMP_16bit(68,100,27,23, FL_Image.mid_icon_warning);	
+	}
+	#else
+	//++, 230202 ysm, FSCU_HAC
+	if(OldCommErrorIcon != (COUNT_FLAG.Flag_ECU_Comm_error|COUNT_FLAG.Flag_FLT_Error|COUNT_FLAG.Flag_FLTCommError|COUNT_FLAG.Flag_FSCUCommError|COUNT_FLAG.Flag_FSCU_Error|COUNT_FLAG.Flag_FSCU_Invalid_Model))
+	{
+		OldCommErrorIcon = (COUNT_FLAG.Flag_ECU_Comm_error|COUNT_FLAG.Flag_FLT_Error|COUNT_FLAG.Flag_FLTCommError|COUNT_FLAG.Flag_FSCUCommError|COUNT_FLAG.Flag_FSCU_Error|COUNT_FLAG.Flag_FSCU_Invalid_Model);
+
+		if(OldCommErrorIcon == 0)
+			LCD_Draw_Color(40,103,27,23, COLOR_BLACK);
+		else
+			PCXtoBMP_16bit(40,103,27,23, FL_Image.mid_icon_warning);	//100->103	
+	}
+	//--, 230202 ysm, FSCU_HAC
+
+	
+	#endif
+}
+
+//++, 221212 ysm, FSCU
+void DisplaySeatBeltAlarm()
+{
+	if(SeatBeltAlarm_Count2 < 5)
+	{
+		if(SeatBeltAlarm_Count < 10)
+		{
+			CurrDisplaySeatBelt = 1;
+		
+		}
+		else if(SeatBeltAlarm_Count < 20)
+		{
+			CurrDisplaySeatBelt = 0;
+		}
+		
+		SeatBeltAlarm_Count++;
+		if(SeatBeltAlarm_Count >= 20)
+		{
+			SeatBeltAlarm_Count = 0;
+			SeatBeltAlarm_Count2++;
+		}		
+
+		if(COUNT_FLAG.SeatBeltStatus == 1)
+		{
+			if(Flag_DIN[INDEX_SW_BUCKLE] == 1)
+			{
+				CurrDisplaySeatBelt = 0;
+				SeatBeltAlarm_Count = 0;
+				SeatBeltAlarm_Count2 = 10;
+				
+			}
+		}
+
+	}
+	else
+	{
+		if(COUNT_FLAG.SeatBeltStatus == 1)
+		{
+			if(Flag_DIN[INDEX_SW_BUCKLE] == 1)
+			{
+				CurrDisplaySeatBelt = 0;
+			}
+			else
+			{
+				CurrDisplaySeatBelt = 1;
+			}
+		
+		}
+		else
+		{
+			CurrDisplaySeatBelt = 0;				
+		}
+	}
+	
+	if(OldDisplaySeatBelt != CurrDisplaySeatBelt)
+	{			
+		OldDisplaySeatBelt = CurrDisplaySeatBelt;
+		
+		if(OldDisplaySeatBelt==0)
+			LCD_Draw_Color(146, 105, 38, 23, COLOR_BLACK);
+		else
+			PCXtoBMP_16bit(146, 105, 38, 23, FL_Image.mid_icon_seatbelt);
+	}
+
+
+}
+//--, 221212 ysm, FSCU
+
+
+void DisplayMast()
+{
+	UCHAR Mast_Angle;
+	UCHAR temp_front_rear;
+
+	//if((OldSpeed == 0) && (MAST_EQUIPMENT == 1))
+	if((MAST_EQUIPMENT == 1)&&(ANGLE_EQUIPMENT == 1))
+	{
+		if(OldAngleMast != HCESPN.Mast_Angle_Disp)
+		{
+		#if 0
+			if((((OldAngleMast > HCESPN.Mast_Angle) && ((OldAngleMast -HCESPN.Mast_Angle) >= 10))
+				|| ((OldAngleMast < HCESPN.Mast_Angle) && ((HCESPN.Mast_Angle - OldAngleMast) >= 10)))
+				&& (OldAngleMast != 0xffff))
+				COUNT_FLAG.Flag_Mast_Display = 1;
+		#endif
+				
+			OldAngleMast = HCESPN.Mast_Angle_Disp;
+
+			//++, 210303 ysm, TILT_LOCK
+			#if 0
+			if(OldAngleMast == 0xfbff)
+			{
+				CurrDisplayMast = 42;
+			}
+			else
+			{
+				if(OldAngleMast>=0)
+				{
+					temp_front_rear = 1;
+					if(OldAngleMast>=100)	Mast_Angle=100;
+					else 						Mast_Angle = (USHORT)OldAngleMast;
+				}
+				else
+				{
+					temp_front_rear = 0;
+					if(OldAngleMast<=-100)	Mast_Angle=100;
+					else 						Mast_Angle = (USHORT)((-1)*OldAngleMast);
+				}
+
+				if(temp_front_rear)
+					CurrDisplayMast = 21+(Mast_Angle/5);
+				else
+					CurrDisplayMast = 20 - (Mast_Angle/5);				
+			}
+			#else
+			if(OldAngleMast>=0)
+			{
+				temp_front_rear = 1;
+				if(OldAngleMast>=100)	Mast_Angle=100;
+				else						Mast_Angle = (USHORT)OldAngleMast;
+			}
+			else
+			{
+				temp_front_rear = 0;
+				if(OldAngleMast<=-100)	Mast_Angle=100;
+				else						Mast_Angle = (USHORT)((-1)*OldAngleMast);
+			}
+			
+			if(temp_front_rear)
+				CurrDisplayMast = 21+(Mast_Angle/5);
+			else
+				CurrDisplayMast = 20 - (Mast_Angle/5);		
+
+			#endif
+			//--, 210303 ysm, TILT_LOCK
+
+			if(OldDisplayMast == 0xff)
+			{
+				OldDisplayMast = CurrDisplayMast;
+				//PCXtoBMP_16bit(99, 100, 38, 23, FL_Image.mid_icon_angle_mast[OldDisplayMast]);
+				if(COUNT_FLAG.Flag_Mast_Display != 1)
+					PCXtoBMP_16bit(68, 103, 38, 23, FL_Image.mid_icon_angle_mast[OldDisplayMast]); //100->103
+			}
+		}
+
+		if(OldDisplayMast != CurrDisplayMast)
+		{
+			//if((OldDisplayMast == 42) || (CurrDisplayMast == 42) || ((OldDisplayMast - CurrDisplayMast) == 1) || ((OldDisplayMast - CurrDisplayMast) == -1))
+			if( ((OldDisplayMast - CurrDisplayMast) == 1) || ((OldDisplayMast - CurrDisplayMast) == -1))
+			{
+				OldDisplayMast = CurrDisplayMast;
+			}		
+			else if(OldDisplayMast > CurrDisplayMast)
+			{
+				if((OldDisplayMast-CurrDisplayMast) > 5)
+					OldDisplayMast = OldDisplayMast - 6;
+				else if((OldDisplayMast-CurrDisplayMast) > 3)
+					OldDisplayMast = OldDisplayMast - 4;
+				else
+					OldDisplayMast = OldDisplayMast-2;
+			}
+			else if(OldDisplayMast < CurrDisplayMast)
+			{
+				if((CurrDisplayMast - OldDisplayMast) > 5)
+					OldDisplayMast = OldDisplayMast + 6;
+				else if((CurrDisplayMast - OldDisplayMast) > 3)
+					OldDisplayMast = OldDisplayMast + 4;
+				else
+					OldDisplayMast = OldDisplayMast+2;
+			}
+			if(COUNT_FLAG.Flag_Mast_Display != 1)
+				PCXtoBMP_16bit(68, 103, 38, 23, FL_Image.mid_icon_angle_mast[OldDisplayMast]); //100->103
+		}
+	}
+
+}
+
+void DisplayAngleFrontBack()
+{
+	//USHORT tempAngleFrontBack;
+
+	//if(MAST_EQUIPMENT == 1)
+	if(ANGLE_EQUIPMENT == 1) //++,--, 210225 ysm
+	{
+
+		#if 0
+		if((OldAngleFrontBack != HCESPN.Vehicle_Angle_X)||(OldPitchFlag != HCESPN.Pitch_Angle_Stabilize_Status))
+		{
+			if((((OldAngleFrontBack > HCESPN.Vehicle_Angle_X) && ((OldAngleFrontBack -HCESPN.Vehicle_Angle_X) >= 10))
+					|| ((OldAngleFrontBack < HCESPN.Vehicle_Angle_X) && ((HCESPN.Vehicle_Angle_X - OldAngleFrontBack) >= 10)))
+					&& (OldAngleFrontBack != 0xffff))
+					COUNT_FLAG.Flag_AngleFB_Display = 1;
+			
+			OldAngleFrontBack = HCESPN.Vehicle_Angle_X;
+			OldPitchFlag = HCESPN.Pitch_Angle_Stabilize_Status;
+
+			if(OldPitchFlag==0)
+			{
+				if(OldAngleFrontBack >= 20)
+				{
+					tempAngleFrontBack = (USHORT)(OldAngleFrontBack - 20);
+					if(tempAngleFrontBack>=80)	
+						CurrDisplayFrontBack = 0;
+					else 
+						CurrDisplayFrontBack = 16-(tempAngleFrontBack/5);
+				}
+				else if(OldAngleFrontBack <= -20)
+				{
+					tempAngleFrontBack = (USHORT)((OldAngleFrontBack*(-1)) + 20);
+					if(tempAngleFrontBack>=80)
+						CurrDisplayFrontBack = 33;
+					else
+						CurrDisplayFrontBack = 17+(tempAngleFrontBack/5);
+				}
+				else
+				{
+				    CurrDisplayFrontBack = 34;
+				}
+			}
+			else
+			{
+				if(OldAngleFrontBack <= 2 && OldAngleFrontBack >= -2)
+					CurrDisplayFrontBack = 20;
+				else if(OldAngleFrontBack > 2)
+				{
+					tempAngleFrontBack = (USHORT)(OldAngleFrontBack);
+					if(tempAngleFrontBack>=100)	
+						CurrDisplayFrontBack = 0;
+					else
+						CurrDisplayFrontBack = 20 - (tempAngleFrontBack/5);
+				}
+				else 
+				{
+					tempAngleFrontBack = (USHORT)(OldAngleFrontBack*(-1));
+					if(tempAngleFrontBack>=100)	
+						CurrDisplayFrontBack = 40;
+					else 
+						CurrDisplayFrontBack = 20 + (tempAngleFrontBack/5);
+				}
+			}
+
+			if(OldDisplayFrontBack == 0xff)
+			{
+				OldDisplayFrontBack = CurrDisplayFrontBack;
+				if(OldPitchFlag==0)
+					PCXtoBMP_16bit(108, 103, 38, 23, FL_Image.mid_icon_angle_fb_red[OldDisplayFrontBack]);  //100->103
+				else
+					PCXtoBMP_16bit(108, 103, 38, 23, FL_Image.mid_icon_angle_fb[OldDisplayFrontBack]);
+				
+			}
+		}
+
+		if(OldDisplayFrontBack != CurrDisplayFrontBack)
+		{
+			if(((OldDisplayFrontBack - CurrDisplayFrontBack) == 1) || ((OldDisplayFrontBack - CurrDisplayFrontBack) == -1))
+			{
+				OldDisplayFrontBack = CurrDisplayFrontBack;
+			}		
+			else if(OldDisplayFrontBack > CurrDisplayFrontBack)
+			{
+				if(((OldDisplayFrontBack-CurrDisplayFrontBack) > 5) && (OldDisplayFrontBack >=6))
+					OldDisplayFrontBack = OldDisplayFrontBack - 6;
+				else if(((OldDisplayFrontBack-CurrDisplayFrontBack) > 3) && (OldDisplayFrontBack >=4))
+					OldDisplayFrontBack = OldDisplayFrontBack - 4;
+				else if(OldDisplayFrontBack > 2)
+					OldDisplayFrontBack = OldDisplayFrontBack-2;
+				else
+					OldDisplayFrontBack = 0;
+			}
+			else if(OldDisplayFrontBack < CurrDisplayFrontBack)
+			{
+				if(((CurrDisplayFrontBack - OldDisplayFrontBack) > 5) && (OldDisplayFrontBack < (40-6)))
+					OldDisplayFrontBack = OldDisplayFrontBack + 6;
+				else if(((CurrDisplayFrontBack - OldDisplayFrontBack) > 3) && (OldDisplayFrontBack < (40-4)))
+					OldDisplayFrontBack = OldDisplayFrontBack + 4;
+				else if (OldDisplayFrontBack < (40-2))
+					OldDisplayFrontBack = OldDisplayFrontBack+2;
+				else
+					OldDisplayFrontBack = 40;
+			}
+			if(OldPitchFlag==0)
+					PCXtoBMP_16bit(108, 103, 38, 23, FL_Image.mid_icon_angle_fb_red[OldDisplayFrontBack]); //100->103
+				else
+					PCXtoBMP_16bit(108, 103, 38, 23, FL_Image.mid_icon_angle_fb[OldDisplayFrontBack]);
+
+				//PCXtoBMP_16bit(139, 100, 38, 23, FL_Image.mid_icon_angle_fb[OldDisplayFrontBack]);
+		}
+		#else
+		OldAngleFrontBack = HCESPN.Vehicle_Angle_X_Disp;  // 20 -> 2도 
+		OldPitchFlag = HCESPN.Pitch_Angle_Stabilize_Status;
+	
+		if((OldAngleFrontBack >= -200)&&(OldAngleFrontBack <= 200))
+		{
+			OldPitchFlag = 1;			
+			CurrDisplayFrontBack = (unsigned char)((200-OldAngleFrontBack)/10);
+		}		
+		else
+		{
+			OldPitchFlag = 0;
+
+			if(OldAngleFrontBack < -200)
+			{
+				CurrDisplayFrontBack = 33;
+			}
+			else if(OldAngleFrontBack > 200)
+			{
+			
+				CurrDisplayFrontBack = 0;
+			}
+			
+		}	
+			
+
+		if(OldDisplayFrontBack != CurrDisplayFrontBack)
+		{			
+			OldDisplayFrontBack = CurrDisplayFrontBack;
+			
+			if(OldPitchFlag==0)
+				PCXtoBMP_16bit(108, 103, 38, 23, FL_Image.mid_icon_angle_fb_red[OldDisplayFrontBack]); //100->103
+			else
+				PCXtoBMP_16bit(108, 103, 38, 23, FL_Image.mid_icon_angle_fb[OldDisplayFrontBack]);
+		}
+
+		#endif
+	}
+}
+
+void DisplayAngleLeftRight()
+{
+	USHORT tempAngleLeftRight;
+	
+	//if(MAST_EQUIPMENT == 1)
+	if(ANGLE_EQUIPMENT == 1) //++,--, 210225 ysm
+	{
+		if((OldAngleLeftRight != HCESPN.Vehicle_Angle_Y)||(OldRollFlag != HCESPN.Roll_Angle_Stabilize_Status))
+		{
+			if((((OldAngleLeftRight > HCESPN.Vehicle_Angle_Y) && ((OldAngleLeftRight -HCESPN.Vehicle_Angle_Y) >= 10))
+				|| ((OldAngleLeftRight < HCESPN.Vehicle_Angle_Y) && ((HCESPN.Vehicle_Angle_Y - OldAngleLeftRight) >= 10)))
+				&& (OldAngleLeftRight != 0xffff))
+				COUNT_FLAG.Flag_AngleLR_Display = 1;
+
+			OldAngleLeftRight = HCESPN.Vehicle_Angle_Y;
+			OldRollFlag = HCESPN.Roll_Angle_Stabilize_Status;
+
+			if(OldRollFlag==0)
+			{
+				if(OldAngleLeftRight >= 35)
+				{
+					tempAngleLeftRight = (unsigned short)(OldAngleLeftRight - 35);
+					if(tempAngleLeftRight>=65)	CurrDisplayLeftRight = 0;
+					else CurrDisplayLeftRight = 13 - (tempAngleLeftRight/5);
+				}
+				else if(OldAngleLeftRight <= -35)
+				{
+					tempAngleLeftRight = (unsigned short)((OldAngleLeftRight *(-1))+35);
+					if(tempAngleLeftRight>=65)	CurrDisplayLeftRight = 27;
+					else CurrDisplayLeftRight = 14 + (tempAngleLeftRight/5);
+				}
+				else
+				{
+					CurrDisplayLeftRight = 28;
+				}
+			}
+			else
+			{
+				if(OldAngleLeftRight <= 3 && OldAngleLeftRight >= -3)
+				{
+					CurrDisplayLeftRight = 20;
+				}
+				else if(OldAngleLeftRight > 3)
+				{
+					tempAngleLeftRight = (USHORT)(OldAngleLeftRight);
+					if(tempAngleLeftRight>=100)	CurrDisplayLeftRight = 0;
+					else CurrDisplayLeftRight = 20 - (tempAngleLeftRight/5);
+				}
+				else 
+				{
+					tempAngleLeftRight = (USHORT)((-1)*OldAngleLeftRight);
+					if(tempAngleLeftRight>=100)	CurrDisplayLeftRight = 40;
+					else CurrDisplayLeftRight = 20 + (tempAngleLeftRight/5);
+					
+				}
+			}		
+			
+			if(OldDisplayLeftRight == 0xff)
+			{
+				OldDisplayLeftRight= CurrDisplayLeftRight;
+				
+			}
+			
+		}
+		
+		if(OldDisplayLeftRight != CurrDisplayLeftRight)
+		{
+			if(((OldDisplayLeftRight - CurrDisplayLeftRight) == 1) || ((OldDisplayLeftRight - CurrDisplayLeftRight) == -1))
+			{
+				OldDisplayLeftRight = CurrDisplayLeftRight;
+			}		
+			else if(OldDisplayLeftRight > CurrDisplayLeftRight)
+			{
+				if((OldDisplayLeftRight-CurrDisplayLeftRight) > 5)
+					OldDisplayLeftRight = OldDisplayLeftRight - 6;
+				else if((OldDisplayLeftRight-CurrDisplayLeftRight) > 3)
+					OldDisplayLeftRight = OldDisplayLeftRight - 4;
+				else
+					OldDisplayLeftRight = OldDisplayLeftRight-2;
+			}
+			else if(OldDisplayLeftRight < CurrDisplayLeftRight)
+			{
+				if((CurrDisplayLeftRight - OldDisplayLeftRight) > 5)
+					OldDisplayLeftRight = OldDisplayLeftRight + 6;
+				else if((CurrDisplayLeftRight - OldDisplayLeftRight) > 3)
+					OldDisplayLeftRight = OldDisplayLeftRight + 4;
+				else
+					OldDisplayLeftRight = OldDisplayLeftRight+2;
+			}
+		}
+	}
+}
+
+void CheckCurrentGear()
+{ //++,--, 201019 ysm
+	//if(((OldSignalGear!= HCESPN.Gear_542)||(Old_AutoShiftMode_Gear != AutoShiftMode_Gear)) && (HCESPN.Gear_542 <= GEAR_REVERSE))
+	if((OldSignalGear!= HCESPN.Gear_542) && (HCESPN.Gear_542 <= GEAR_REVERSE))
+	{
+		OldSignalGear = HCESPN.Gear_542;
+		Old_AutoShiftMode_Gear = AutoShiftMode_Gear;
+		// ++, 200427 bwk
+		#if 0
+		if((COUNT_FLAG.Flag_Gear_Display == 1) && ((uwStartAddress_popup[COUNT_FLAG.Current_Comm_Error_Count] == FL_Image.popup_gear[0])
+			|| (uwStartAddress_popup[COUNT_FLAG.Current_Comm_Error_Count] == FL_Image.popup_gear[1])
+			|| (uwStartAddress_popup[COUNT_FLAG.Current_Comm_Error_Count] == FL_Image.popup_gear[2])))
+		{
+			uwStartAddress_popup[COUNT_FLAG.Current_Comm_Error_Count] = FL_Image.popup_gear[OldSignalGear] ;
+			COUNT_FLAG.Display_Comm_Error_Count =0;		
+		}
+		#else
+		if((COUNT_FLAG.Flag_Gear_Display == 1) && (GearIndex != 0xff))
+		{
+			if(OldSignalGear == GEAR_FORWARD)
+			{
+				if(((InfoModel1.ModelInfo >= MODEL_35L_9)&&(InfoModel1.ModelInfo <= MODEL_50L_9))
+					||((InfoModel1.ModelInfo >= MODEL_35D_9S)&&(InfoModel1.ModelInfo <= MODEL_50D_9S))
+					||((InfoModel1.ModelInfo >= MODEL_35D_9HDI)&&(InfoModel1.ModelInfo <= MODEL_50DN_9HDI)))
+				{
+					if(AutoShiftMode_Gear == 1)
+						uwStartAddress_popup[GearIndex] = FL_Image.popup_gearf1_3 ;
+					else if(AutoShiftMode_Gear == 2)
+						uwStartAddress_popup[GearIndex] = FL_Image.popup_gearf2_3 ;
+				}
+				else
+					uwStartAddress_popup[GearIndex] = FL_Image.popup_gear[OldSignalGear] ;
+			}
+			else
+			{
+				if((InfoModel1.ModelInfo >= MODEL_35D_9S)&&(InfoModel1.ModelInfo <= MODEL_50D_9S))
+				{
+					if(OldSignalGear == GEAR_REVERSE)
+					{
+						if(AutoShiftMode_Gear == 1)
+							uwStartAddress_popup[GearIndex] = FL_Image.popup_gearr1 ;
+						else if(AutoShiftMode_Gear == 2)
+							uwStartAddress_popup[GearIndex] = FL_Image.popup_gearr2 ;
+
+					}
+					else
+						uwStartAddress_popup[GearIndex] = FL_Image.popup_gear[OldSignalGear] ;
+
+				}
+				else
+				{
+					uwStartAddress_popup[GearIndex] = FL_Image.popup_gear[OldSignalGear] ;
+				}
+			}
+			if(GearIndex == COUNT_FLAG.Current_Comm_Error_Count)
+				COUNT_FLAG.Display_Comm_Error_Count =0;		
+		}
+		
+		#endif
+		// --, 200427 bwk
+		else
+		{
+			COUNT_FLAG.Flag_Gear_Display = 1;
+			//LCD_Draw_Color(40,100,27,23, COLOR_BLACK);			
+			LCD_Draw_Color(40,103,27,23, COLOR_BLACK);
+	//		Check_Main_Popup();
+		}
+	}
+	else if((Old_AutoShiftMode_Gear!= AutoShiftMode_Gear) && (HCESPN.Gear_542 == GEAR_FORWARD)
+		&& ( ((InfoModel1.ModelInfo >= MODEL_35L_9)&&(InfoModel1.ModelInfo <= MODEL_50L_9))		     
+		     ||((InfoModel1.ModelInfo >= MODEL_35D_9HDI)&&(InfoModel1.ModelInfo <= MODEL_50DN_9HDI))))
+	{
+		Old_AutoShiftMode_Gear = AutoShiftMode_Gear;
+
+		if((COUNT_FLAG.Flag_Gear_Display == 1) && (GearIndex != 0xff))
+		{
+			if(OldSignalGear == GEAR_FORWARD)
+			{
+				if(AutoShiftMode_Gear == 1)
+					uwStartAddress_popup[GearIndex] = FL_Image.popup_gearf1_3 ;
+				else if(AutoShiftMode_Gear == 2)
+					uwStartAddress_popup[GearIndex] = FL_Image.popup_gearf2_3 ;
+
+			}
+			else
+			{
+				uwStartAddress_popup[GearIndex] = FL_Image.popup_gear[OldSignalGear] ;
+			}
+			
+			if(GearIndex == COUNT_FLAG.Current_Comm_Error_Count)
+				COUNT_FLAG.Display_Comm_Error_Count =0;		
+		}
+		else
+		{
+			COUNT_FLAG.Flag_Gear_Display = 1;
+			//LCD_Draw_Color(40,100,27,23, COLOR_BLACK);
+			LCD_Draw_Color(40,103,27,23, COLOR_BLACK);
+		}
+	}
+	else if((Old_AutoShiftMode_Gear!= AutoShiftMode_Gear) && ((HCESPN.Gear_542 == GEAR_FORWARD)||(HCESPN.Gear_542 == GEAR_REVERSE)) && (((InfoModel1.ModelInfo >= MODEL_35D_9S)&&(InfoModel1.ModelInfo <= MODEL_50D_9S))))
+	{
+		Old_AutoShiftMode_Gear = AutoShiftMode_Gear;
+
+		if((COUNT_FLAG.Flag_Gear_Display == 1) && (GearIndex != 0xff))
+		{
+			if(OldSignalGear == GEAR_FORWARD)
+			{
+				if(AutoShiftMode_Gear == 1)
+					uwStartAddress_popup[GearIndex] = FL_Image.popup_gearf1_3 ;
+				else if(AutoShiftMode_Gear == 2)
+					uwStartAddress_popup[GearIndex] = FL_Image.popup_gearf2_3 ;
+
+			}
+			else
+			{
+
+				if((InfoModel1.ModelInfo >= MODEL_35D_9S)&&(InfoModel1.ModelInfo <= MODEL_50D_9S))
+				{
+					if(OldSignalGear == GEAR_REVERSE)
+					{
+						if(AutoShiftMode_Gear == 1)
+							uwStartAddress_popup[GearIndex] = FL_Image.popup_gearr1 ;
+						else if(AutoShiftMode_Gear == 2)
+							uwStartAddress_popup[GearIndex] = FL_Image.popup_gearr2 ;
+
+					}
+					else
+						uwStartAddress_popup[GearIndex] = FL_Image.popup_gear[OldSignalGear] ;
+
+				}
+				else
+				{
+					uwStartAddress_popup[GearIndex] = FL_Image.popup_gear[OldSignalGear] ;
+				}
+			}
+			
+			if(GearIndex == COUNT_FLAG.Current_Comm_Error_Count)
+				COUNT_FLAG.Display_Comm_Error_Count =0;		
+		}
+		else
+		{
+			COUNT_FLAG.Flag_Gear_Display = 1;
+			//LCD_Draw_Color(40,100,27,23, COLOR_BLACK);
+			LCD_Draw_Color(40,103,27,23, COLOR_BLACK);
+		}
+	}
+}
+
+
+void DisplayMainMid()
+{	
+
+	if(COUNT_FLAG.Flag_Mast_Display != 1)
+	{	
+	
+		DisplayCommErrorIcon();
+		DisplayCurrentGear();
+		//if(OldSpeed == 0)
+		{
+			DisplayMast();
+			DisplayAngleFrontBack();
+			DisplayAngleLeftRight();
+
+			//++, 221212 ysm, FSCU
+			DisplaySeatBeltAlarm();
+			//--, 221212 ysm, FSCU
+		}				
+
+	}
+	else
+		DisplayMast();
+
+}
+
+
+void DisplayMainCenterBackground2()
+{
+	OldTiltSignal = 0xff;
+	OldCommErrorIcon = 0xff;
+	Display_Comm_Error=0;
+	Old_Display_Comm_Error=0xff;
+	OldCommError_Flag = 0xff;
+	OldComm_Error_Count = 0xff;
+	ShowGear = 0;
+	GearIndex = 0xff;
+	OldAngleMast = OldAngleFrontBack = OldAngleLeftRight = 0xffff;
+	OldPitchFlag = OldRollFlag = 0xff;
+	OldDisplayMast = OldDisplayFrontBack = OldDisplayLeftRight = 0xff;
+	CurrDisplayMast = CurrDisplayFrontBack = CurrDisplayLeftRight = 0xff;
+
+	OldDisplaySeatBelt = CurrDisplaySeatBelt = 0xff; //++, 221212 ysm, FSCU
+
+	if(OldScreenIndex != ScreenIndex)
+	{
+		OldScreenIndex = ScreenIndex;
+		//OldSignalGear= 0xff;
+		OldCommErrortAddress  = 0xff;	
+		memset(&uwStartAddress_popup[0], 0x00, sizeof(uwStartAddress_popup));
+
+		//LCD_Draw_Color(37,9,148,85, COLOR_BLACK);
+		LCD_Draw_Color(37,9,148,120, COLOR_BLACK);
+	}
+}
+
+
+void DisplayMainCenterBackground()
+{
+	OldTiltSignal = 0xff;
+	OldCommErrorIcon = 0xff;
+	Display_Comm_Error=0;
+	Old_Display_Comm_Error=0xff;
+	OldCommError_Flag = 0xff;
+	OldComm_Error_Count = 0xff;
+	ShowGear = 0;
+	GearIndex = 0xff;
+	OldAngleMast = OldAngleFrontBack = OldAngleLeftRight = 0xffff;
+	OldPitchFlag = OldRollFlag = 0xff;
+	OldDisplayMast = OldDisplayFrontBack = OldDisplayLeftRight = 0xff;
+	CurrDisplayMast = CurrDisplayFrontBack = CurrDisplayLeftRight = 0xff;
+
+	OldDisplaySeatBelt = CurrDisplaySeatBelt = 0xff; //++, 221212 ysm, FSCU
+
+	if(OldScreenIndex != ScreenIndex)
+	{
+		OldScreenIndex = ScreenIndex;
+		OldSignalGear= 0xff;
+		OldCommErrortAddress  = 0xff;	
+		memset(&uwStartAddress_popup[0], 0x00, sizeof(uwStartAddress_popup));
+
+		//LCD_Draw_Color(37,9,148,85, COLOR_BLACK);
+		LCD_Draw_Color(37,9,148,120, COLOR_BLACK);
+	}
+}
+
+void DisplayMainCenter()
+{	
+	
+	CheckCurrentGear();
+	
+	if(ScreenIndex == SCREEN_STATE_MAIN_COMM_ERROR)
+	{
+		if(OldCommErrortAddress != FL_Image.popup_msg_commerror)
+		{
+			//LCD_Draw_Color(45,8,130,83, COLOR_BLACK);			// 121
+			PCXtoBMP_16bit(45,8,130,83, FL_Image.popup_msg_commerror);	
+			DisplayMainBottom();
+			OldCommErrortAddress = FL_Image.popup_msg_commerror;
+			Old_Display_Comm_Error = 1;
+		}
+	}
+	else if(ScreenIndex == SCREEN_STATE_MAIN_FLT_ERROR)
+	{
+		if(COUNT_FLAG.Flag_FLT_Error == 1)
+		{
+			if(OldCommErrortAddress != FL_Image.popup_msg_ftc_error)
+			{
+				//LCD_Draw_Color(45,8,130,83, COLOR_BLACK);
+				PCXtoBMP_16bit(45,8,130,83, FL_Image.popup_msg_ftc_error);	
+				DisplayMainBottom();
+				OldCommErrortAddress = FL_Image.popup_msg_ftc_error;
+				Old_Display_Comm_Error = 1;
+			}
+
+		}
+		else
+		{
+			if(OldCommErrortAddress != FL_Image.popup_msg_ftc_warning)
+			{
+				//LCD_Draw_Color(45,8,130,83, COLOR_BLACK);
+				PCXtoBMP_16bit(45,8,130,83, FL_Image.popup_msg_ftc_warning);	
+				DisplayMainBottom();
+				OldCommErrortAddress = FL_Image.popup_msg_ftc_warning;
+				Old_Display_Comm_Error = 1;
+			}
+
+		}	
+	}
+	//++, 221226 ysm, FSCU
+	else if(ScreenIndex == SCREEN_STATE_MAIN_FSCU_ERROR)
+	{
+		if(COUNT_FLAG.Flag_FSCU_Error == 1)
+		{
+			if(OldCommErrortAddress != FL_Image.popup_msg_fscu_error)
+			{
+				//LCD_Draw_Color(45,8,130,83, COLOR_BLACK);
+				PCXtoBMP_16bit(45,8,130,83, FL_Image.popup_msg_fscu_error);	
+				DisplayMainBottom();
+				OldCommErrortAddress = FL_Image.popup_msg_fscu_error;
+				Old_Display_Comm_Error = 1;
+			}
+
+		}
+		else if(COUNT_FLAG.Flag_FSCU_Error == 2) //++,--, 230125 ysm, FSCU
+		{
+			if(OldCommErrortAddress != FL_Image.popup_msg_fscu_warning)
+			{
+				//LCD_Draw_Color(45,8,130,83, COLOR_BLACK);
+				PCXtoBMP_16bit(45,8,130,83, FL_Image.popup_msg_fscu_warning);
+				DisplayMainBottom();
+				OldCommErrortAddress = FL_Image.popup_msg_fscu_warning;
+				Old_Display_Comm_Error = 1;
+			}
+
+		}	
+	}
+	else if(ScreenIndex == SCREEN_STATE_MAIN_FLT_COMM_ERROR)
+	{
+		if(OldCommErrortAddress != FL_Image.popup_msg_commerror_fingertip)
+		{
+			//LCD_Draw_Color(45,8,130,83, COLOR_BLACK);
+			PCXtoBMP_16bit(45,8,130,83, FL_Image.popup_msg_commerror_fingertip);	
+			DisplayMainBottom();
+			OldCommErrortAddress = FL_Image.popup_msg_commerror_fingertip;
+			Old_Display_Comm_Error = 1;
+		}
+	}
+	else if(ScreenIndex == SCREEN_STATE_MAIN_FSCU_COMM_ERROR)
+	{
+		if(OldCommErrortAddress != FL_Image.popup_msg_commerror_fscu)
+		{
+			//LCD_Draw_Color(45,8,130,83, COLOR_BLACK);
+			PCXtoBMP_16bit(45,8,130,83, FL_Image.popup_msg_commerror_fscu);	
+			DisplayMainBottom();
+			OldCommErrortAddress = FL_Image.popup_msg_commerror_fscu;
+			Old_Display_Comm_Error = 1;
+		}
+	}
+	else if(ScreenIndex == SCREEN_STATE_MAIN_FSCU_INVALID_MODEL) //++,--, 230616 ysm, FSCU_HAC
+	{
+		if(OldCommErrortAddress != FL_Image.popup_msg_fscu_invalid_model)
+		{
+			//LCD_Draw_Color(45,8,130,83, COLOR_BLACK);
+			PCXtoBMP_16bit(45,8,130,83, FL_Image.popup_msg_fscu_invalid_model);	
+			DisplayMainBottom();
+			OldCommErrortAddress = FL_Image.popup_msg_fscu_invalid_model;
+			Old_Display_Comm_Error = 1;
+		}
+	}
+	//--, 221226 ysm, FSCU
+	else
+	{
+		
+		Check_Main_Popup();
+
+		//++, 210303 ysm, TILT_LOCK
+		#if 0
+		if(ClutchProtection !=1 && COUNT_FLAG.Flag_AutoLeveling  !=1 && COUNT_FLAG.Flag_Gear_Display !=1 && COUNT_FLAG.Flag_Mast_Display != 1
+			&& COUNT_FLAG.Flag_AngleFB_Display != 1 && COUNT_FLAG.Flag_AngleLR_Display != 1 && COUNT_FLAG.Flag_AutoShift_Display != 1)
+		{
+			if(Old_Display_Comm_Error==1)
+			{
+				DisplayMainCenterBackground();
+
+				if(OldCommErrortAddress != FL_Image.popup_icon_warning)
+				{
+					DisplayMainTopMid();
+				}
+				OldCommErrortAddress = 0xff;
+			}
+
+			DisplayMainTop();	
+			DisplayMainMid();	
+			DisplayMainBottom();
+		}
+		else //  통신 에러 
+		{
+			Display_Comm_Error=1;
+			if(Old_Display_Comm_Error != Display_Comm_Error)
+			{
+				Old_Display_Comm_Error = Display_Comm_Error;
+				OldCommError_Flag = 0xff;
+			}
+			DisplayCommError();
+		}
+		#else
+
+		if(ClutchProtection !=1 && COUNT_FLAG.Flag_Gear_Display !=1 && COUNT_FLAG.Flag_AutoShift_Display != 1 )
+		{
+			if((Old_Display_Comm_Error==1)||(ShowMast == 2))
+			{
+				DisplayMainCenterBackground2();
+
+				if(OldCommErrortAddress != FL_Image.popup_icon_warning)
+				{
+					DisplayMainTopMid();
+				}
+				OldCommErrortAddress = 0xff;
+
+				ShowMast = 0;
+		
+			}
+			DisplayMainMid();
+			DisplayMainTop();			
+			DisplayMainBottom();
+		}
+		else //  통신 에러 
+		{
+			Display_Comm_Error=1;
+			if(Old_Display_Comm_Error != Display_Comm_Error)
+			{
+				Old_Display_Comm_Error = Display_Comm_Error;
+				OldCommError_Flag = 0xff;
+			}
+			
+			DisplayCommError();
+		}			
+		#endif
+		//--, 210303 ysm, TILT_LOCK
+	}
+}
+

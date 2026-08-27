@@ -1,0 +1,743 @@
+#include "FLV_Cluster_APP.h"
+#include "KeyButton.h"
+
+#define MAXSWITCH      5
+
+#define	Btn_ESC				0x08   
+#define	Btn_ENTER			0x10  
+#define	Btn_RIGHT			0x01   
+#define	Btn_LEFT			0x04   
+#define	Btn_MENU			0x02
+#define	Btn_LONG			0x80
+
+extern KEY_DATA_62103* TX_KEY_DATA_62103;          // ++, --, 210225 ctw Auto JIG Final Test
+
+GPIO_TypeDef*  KEYSWITCH_INPUTPORT[5]	=   
+{  
+	GPIOA, 	
+	GPIOA,      
+	GPIOC,      
+	GPIOC,      
+	GPIOA,                            
+};
+
+const unsigned short KEYSWITCH_INPUT[5]  =   
+{ 
+	C_KeySW0_Pin, 
+	C_KeySW1_Pin, 
+	C_KeySW2_Pin, 
+	C_KeySW3_Pin,
+	C_KeySW4_Pin,
+};
+
+UINT32 ScreenIndex;
+UINT32 OldScreenIndex;
+UCHAR CurserIndex;
+UCHAR OldCurserIndex;
+
+UCHAR SubCurserIndex;
+UCHAR OldSubCurserIndex;
+
+UCHAR Key_State;
+unsigned char KeySwitchScan;
+unsigned char Temp_Value1, Temp_Value2, Temp_Value3, Temp_Cnt;
+unsigned char KeySwitch_Value,KeySwitch_In;
+
+//++, 221212 ysm, FSCU
+unsigned char BrakeOilLevelLow_BuzzerStop;
+extern st_BUZZER BUZZER_FLAG;
+//--, 221212 ysm, FSCU
+
+//++, 201103 ysm, DPF
+extern UCHAR OldDPFGearN;
+extern UCHAR OldDPFParking;
+extern UCHAR OldDPFBrake;
+extern UCHAR OldCoolant;
+
+extern UINT32 OldCurScreenIndex;
+extern unsigned char OSHA_Cnt;
+
+//--, 201103 ysm, DPF
+
+extern USHORT Control_FLT_Valve_Value;
+
+extern unsigned char InitECU_Comm_error; //++,--, 221226 ysm, FSCU
+
+
+void Initialize_Key_Variables(void)
+{
+	ScreenIndex = 0;
+	OldScreenIndex = 0xFFFFFFFF;
+	Key_State=0;
+	KeySwitchScan=KeySwitch_Value=0;
+
+	//++, 221212 ysm, FSCU
+	BrakeOilLevelLow_BuzzerStop = 0;
+	//--, 221212 ysm, FSCU
+}
+
+void Input_Key_Process(unsigned char KeyValue)
+{
+	Key_State = KeyValue;
+}
+
+
+void KeySwitch_Process(void)
+{
+	unsigned char i, j, k;
+	unsigned char New_Value;
+
+	if (KeySwitchScan == 0) Temp_Value1 = 0;
+
+	New_Value = 0;
+
+	//  KeySwitch Press Check
+	for (i = 0; i < MAXSWITCH; i++)
+	{
+		k = 0;    
+		k = HAL_GPIO_ReadPin(KEYSWITCH_INPUTPORT[i],KEYSWITCH_INPUT[i]);
+
+		if (k == 0) 
+			j = 1;    
+		else        
+			j = 0;
+
+		New_Value <<= 1;    //  1Bit씩 Shitf하여 총 3Bit를 만든다.
+		New_Value  += j;    //  0 or 1
+	}
+
+	//  KeySwitch Value 생성
+	if ( (Temp_Value1 == 0) && (New_Value != 0) ) 
+	{
+		Temp_Value1 = New_Value;
+	}
+
+	if (KeySwitchScan == MAXSWITCH)	//  5msec
+	{
+		if (Temp_Value1 == 0) Temp_Value3 = Temp_Cnt = 0;
+		else
+		{
+			if (Temp_Value3 == Temp_Value1) //  눌려있던 키?
+			{
+				Temp_Cnt++;                 //  계속 눌려 있는가?
+
+				if (Temp_Cnt == 3)          //  2번 연속 체크 되었을 때, 45msec
+				{
+					KeySwitch_Value = Temp_Value1;   
+					Input_Key_Process(KeySwitch_Value);
+				}	
+				if (Temp_Cnt == 50)         //  5번 연속 체크 되었을 때		// 100 -> 50 수정 (FL9 에 비해 반 정도 줄음, EF는 기존에 오래 안누름 )
+				{
+					//  연속 스위치 루틴..                              
+					KeySwitch_Value = Temp_Value1;   
+					Temp_Cnt -= 25;		// 50 -> 25
+					Input_Key_Process(Btn_LONG | KeySwitch_Value );
+				}
+			}
+			else    //  순간적으로 눌렸는가?
+			{
+				Temp_Cnt    = 0;
+				Temp_Value3 = Temp_Value1;
+			}
+		}
+	}
+
+	if (++KeySwitchScan > MAXSWITCH) 
+		KeySwitchScan = 0;       
+
+	 if(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_0 || ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_1 || 
+       ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_2 || ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_3 || 
+           ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_4 || ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_5 || 
+               ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_A)
+    {
+        if((Temp_Value1&Btn_ESC) == Btn_ESC)
+			RMS_Key_Status.ESC = 1;
+        else
+			RMS_Key_Status.ESC = 0;
+
+		if((Temp_Value1&Btn_LEFT) == Btn_LEFT)
+			RMS_Key_Status.LEFT = 1;
+        else
+			RMS_Key_Status.LEFT = 0;
+
+		if((Temp_Value1&Btn_MENU) == Btn_MENU)
+			RMS_Key_Status.HOME = 1;
+        else					        
+			RMS_Key_Status.HOME = 0;
+
+		if((Temp_Value1&Btn_RIGHT) == Btn_RIGHT)        
+			RMS_Key_Status.RIGHT = 1;
+        else					        
+			RMS_Key_Status.RIGHT = 0;
+
+		if((Temp_Value1&Btn_ENTER) == Btn_ENTER)        
+			RMS_Key_Status.ENTER = 1;
+        else                                         
+			RMS_Key_Status.ENTER = 0;
+    }
+
+}
+
+void Input_Key(void)
+{
+#if 0	
+	if(Key_State != 0 && Send_key_Value==1)
+	{
+		gFL9_C_TX_BUF162[4] = Key_State;
+		CAN_TX_PS(162);
+	}
+
+	if(CalibrationFlag != 0)
+		Key_State=0;
+#endif
+	// 버전이 맞지 않는 경우 KEY 안눌리게 
+	if((ScreenIndex == SCREEN_STATE_NOTIMAGE)
+		|| (ScreenIndex == SCREEN_STATE_UPDATEIMAGE)
+		|| (ScreenIndex == SCREEN_STATE_POWEROFF)
+		|| (ScreenIndex == SCREEN_STATE_CLOCK_TOP)
+		|| (ScreenIndex == SCREEN_STATE_SWUPDATE)) //++,--, 221226 ysm, FSCU
+	{	
+		Key_State=0;
+		return;
+	}
+	
+	//++, 201104 ysm, DPF	
+	if(COUNT_FLAG.Flag_DPF_Info_ESC_Alarm == 1)
+	{
+		if(Key_State == 0)
+		{
+			COUNT_FLAG.Count_DPF_Info_ESC_Alarm ++;
+
+			if(COUNT_FLAG.Count_DPF_Info_ESC_Alarm > 100)
+			{
+				COUNT_FLAG.Count_DPF_Info_ESC_Alarm = 200;
+				COUNT_FLAG.Flag_DPF_Info_ESC_Alarm = 0;
+			}
+		}
+		else
+		{
+			COUNT_FLAG.Count_DPF_Info_ESC_Alarm = 0;
+			COUNT_FLAG.Flag_DPF_Info_ESC_Alarm = 1;
+		}
+	}
+	else
+	{
+		COUNT_FLAG.Count_DPF_Info_ESC_Alarm = 0;
+		COUNT_FLAG.Flag_DPF_Info_ESC_Alarm = 0;
+	}
+	//++, 201104 ysm, DPF
+	
+	switch(Key_State)
+	{
+
+		case Btn_MENU :
+      
+            // ++, 210225 ctw Auto JIG Final Test
+            TX_KEY_DATA_62103->Key2 = 1;
+            SendButtonStatus();
+            TX_KEY_DATA_62103->Key2 = 0;
+            // --, 210225 ctw Auto JIG Final Test
+                        
+			MenuKeyEvent();	
+			Key_State=0;
+			break;
+
+		case Btn_ESC :
+		#if 0
+			if(ScreenIndex == SCREEN_STATE_MAIN_TOP)
+			{
+				if(Tint_Buzzer==1 && Flag_Tint_Buzzer_Stop==0)	
+				{
+					Flag_Tint_Buzzer_Stop=1;
+				}
+			}
+		#endif
+	        
+	        // ++, 210225 ctw Auto JIG Final Test
+	        TX_KEY_DATA_62103->Key0 = 1;
+	        SendButtonStatus();
+	        TX_KEY_DATA_62103->Key0 = 0;
+	        // --, 210225 ctw Auto JIG Final Test
+                        
+			EscKeyEvent();
+			Key_State=0;
+			break;
+
+		case Btn_LEFT :
+      
+            // ++, 210225 ctw Auto JIG Final Test
+            TX_KEY_DATA_62103->Key1 = 1;
+            SendButtonStatus();
+            TX_KEY_DATA_62103->Key1 = 0;
+            // --, 210225 ctw Auto JIG Final Test
+                        
+			LeftKeyEvent();	
+			Key_State=0;
+			break;
+
+		case Btn_RIGHT :
+                  
+            // ++, 210225 ctw Auto JIG Final Test
+            TX_KEY_DATA_62103->Key3 = 1;
+            SendButtonStatus();
+            TX_KEY_DATA_62103->Key3 = 0;	
+            // --, 210225 ctw Auto JIG Final Test
+                        
+			RightKeyEvent();	
+			Key_State=0;
+			break;
+
+		case Btn_ENTER :
+                  
+	        // ++, 210225 ctw Auto JIG Final Test
+	        TX_KEY_DATA_62103->Key4 = 1;
+	        SendButtonStatus();
+	        TX_KEY_DATA_62103->Key4 = 0;
+	        // --, 210225 ctw Auto JIG Final Test
+                        
+			EnterKeyEvent();
+			Key_State=0;
+			break;
+
+		case Btn_LONG | Btn_RIGHT :
+			LongRightKeyEvent();
+			Key_State=0;	
+			break;
+
+		case Btn_LONG | Btn_LEFT :
+			LongLeftKeyEvent();
+			Key_State=0;	
+			break;
+
+		case Btn_LONG | Btn_LEFT | Btn_RIGHT | Btn_ENTER :	
+			LeftRightEnterEvent();
+			Key_State = 0;
+			break;
+		case Btn_LONG | Btn_LEFT | Btn_RIGHT :
+			LeftRightEvent();
+			Key_State = 0;
+			break;
+		default :
+			//Key_State=0;
+			break;
+	}
+
+}
+
+void SetScreenIndex(UINT32 Index)
+{
+	ScreenIndex = Index;
+
+	switch(ScreenIndex)
+	{
+		case SCREEN_STATE_MENU_MAINTENANCE_PW_POPUP:
+		case SCREEN_STATE_MENU_EQUIPMENT_PW_POPUP:
+		case SCREEN_STATE_MENU_MAINTENANCE_USERPWCHANGE_CURRENT_POPUP:
+		case SCREEN_STATE_MENU_MAINTENANCE_USERPWCHANGE_NEW_POPUP:					
+		case SCREEN_STATE_MENU_MAINTENANCE_USERPWCHANGE_RETYPE_POPUP:		
+		case SCREEN_STATE_MENU_DISPLAYSETTING_ESLPWCHANGE_CURRENT_POPUP:
+		case SCREEN_STATE_MENU_DISPLAYSETTING_ESLPWCHANGE_NEW_POPUP:					
+		case SCREEN_STATE_MENU_DISPLAYSETTING_ESLPWCHANGE_RETYPE_POPUP:		
+			return;
+		case SCREEN_STATE_MENU_MAINTENANCE_PW:
+		case SCREEN_STATE_MENU_EQUIPMENT_PW:
+		case SCREEN_STATE_MENU_MAINTENANCE_USERPWCHANGE_CURRENT:
+		case SCREEN_STATE_MENU_MAINTENANCE_USERPWCHANGE_NEW:					
+		case SCREEN_STATE_MENU_MAINTENANCE_USERPWCHANGE_RETYPE:		
+		case SCREEN_STATE_MENU_DISPLAYSETTING_ESLPWCHANGE_CURRENT:
+		case SCREEN_STATE_MENU_DISPLAYSETTING_ESLPWCHANGE_NEW:					
+		case SCREEN_STATE_MENU_DISPLAYSETTING_ESLPWCHANGE_RETYPE:		
+			if((OldScreenIndex&0xFFFFFFF0) == ScreenIndex)
+				return;
+		case SCREEN_STATE_MENU_MAINTENANCE_MANAGEMENT_LIST_HISTORY:
+		case SCREEN_STATE_MENU_MAINTENANCE_MANAGEMENT_HISTORY_DETAIL:
+		case SCREEN_STATE_MENU_MAINTENANCE_MANAGEMENT_LIST_REPLACE:
+		case SCREEN_STATE_MENU_MAINTENANCE_MANAGEMENT_REPLACE_POPUP:
+		case SCREEN_STATE_MENU_MAINTENANCE_MANAGEMENT_LIST_CYCLE:
+		case SCREEN_STATE_MENU_MAINTENANCE_MANAGEMENT_CHANGE_CYCLE:
+		case SCREEN_STATE_MENU_MAINTENANCE_MANAGEMENT_CYCLE_POPUP:
+			if(OldScreenIndex != SCREEN_STATE_MENU_MAINTENANCE_MANAGEMENT_LIST)
+				return;
+	}
+
+	if(m_MarInfo.cntMarText > 0)
+	{
+		memset(&m_MarText[0], 0x00, 10*sizeof(MarqueeTextView));
+		memset(&m_MarInfo, 0x00, sizeof(MarqueeTextInfo));
+	}
+
+}
+
+void EscKeyEvent(void)
+{
+	//++, 220627 ysm, DPF_ALARM
+	if(COUNT_FLAG.Flag_DPF_Buzzer_Alarm != 2)
+		COUNT_FLAG.Flag_DPF_ESC_Buzzer_Alarm = 1;
+	//--, 220627 ysm, DPF_ALARM
+	
+	//++, 221212 ysm, FSCU	
+	if(ScreenIndex == SCREEN_STATE_MAIN_TOP)
+	{
+		if((BUZZER_FLAG.BrakeOilLevel == 1)&&(BrakeOilLevelLow_BuzzerStop == 0))
+		{
+			BrakeOilLevelLow_BuzzerStop = 1;
+		}
+	}
+	//--, 221212 ysm, FSCU
+
+	//++, 230726 ysm, TILT_ALARM
+	if(BUZZER_FLAG.TiltAlarm == 1)
+	{
+		COUNT_FLAG.Flag_Tilt_ESC_Buzzer_Alarm = 1;
+	}
+	else
+	{
+		COUNT_FLAG.Flag_Tilt_ESC_Buzzer_Alarm = 0;
+	}
+	//--, 230726 ysm, TILT_ALARM
+	
+	switch(ScreenIndex)
+	{
+		case SCREEN_STATE_OSHA_TOP:		
+			OSHA_Cnt = 50;
+			SetScreenIndex(SCREEN_STATE_CLOCK_TOP);
+			break;
+		case SCREEN_STATE_ESL_PASSWORD:
+			ESCKeyEventNumberInput();
+			break;
+		case SCREEN_STATE_ESL_PASSWORD_POPUP:
+			SetScreenIndex(SCREEN_STATE_ESL_PASSWORD);
+			break;		
+		//++, 221226 ysm, FSCU	
+		case SCREEN_STATE_MAIN_COMM_ERROR:
+		case SCREEN_STATE_MAIN_FLT_ERROR:	
+		case SCREEN_STATE_MAIN_FLT_COMM_ERROR:
+		case SCREEN_STATE_MAIN_FSCU_ERROR:
+		case SCREEN_STATE_MAIN_FSCU_COMM_ERROR:	
+		case SCREEN_STATE_MAIN_FSCU_INVALID_MODEL: //++,--, 230616 ysm, FSCU_HAC
+			InitECU_Comm_error = 2;
+			SetScreenIndex(SCREEN_STATE_MAIN_TOP);
+			break;
+		//--, 221226 ysm, FSCU	
+
+		case SCREEN_STATE_MENU_EQUIPMENT_TOP:
+		case SCREEN_STATE_MENU_MAINTENANCE_TOP:
+		case SCREEN_STATE_MENU_DISPLAYSETTING_TOP:
+			SetScreenIndex(SCREEN_STATE_MAIN_TOP);
+			break;
+		//++, 201104 ysm, DPF	
+		case SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_TOP: 							
+		case SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_STEP1:					
+		case SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_STEP2:					
+		//case SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_STEP3: 				
+		case SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_STEP4:			
+		case SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_COMPLETE:				
+		case SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_NOT_COMPLETE:			
+		//case SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_CALL:
+		case SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_END: 	
+			OldDPFParking = OldDPFGearN = OldDPFBrake = OldCoolant = 0xff;	
+			OldCurScreenIndex = 0xffff;
+			COUNT_FLAG.Flag_DPF_Info_ESC_Alarm = 1;
+			SetScreenIndex(SCREEN_STATE_MAIN_TOP);
+			break;
+		//--, 201104 ysm, DPF				
+		default:
+			switch(ScreenIndex & 0xF0000000)
+			{
+				case SCREEN_STATE_MENU_EQUIPMENT_TOP:
+					ESCKeyEventMenuEquipment();
+					break;
+				case SCREEN_STATE_MENU_MAINTENANCE_TOP:
+					ESCKeyEventMenuMaintenance();
+					break;
+				case SCREEN_STATE_MENU_DISPLAYSETTING_TOP:
+					ESCKeyEventMenuDisplaySetting();
+					break;
+			}		
+			break;
+			
+
+	}
+}
+
+void LeftKeyEvent(void)
+{
+	//++, 221226 ysm, FSCU
+	#if 0
+	if(ScreenIndex == SCREEN_STATE_MAIN_COMM_ERROR)
+	{
+		if((COUNT_FLAG.Flag_FLT_Error == 1)||(COUNT_FLAG.Flag_FLT_Error == 2))
+			SetScreenIndex(SCREEN_STATE_MAIN_FLT_ERROR);
+	}
+	else if(ScreenIndex == SCREEN_STATE_MAIN_FLT_ERROR)
+	{
+		if(COUNT_FLAG.Flag_ECU_Comm_error == 1)
+			SetScreenIndex(SCREEN_STATE_MAIN_COMM_ERROR);
+	}
+	#endif
+	//--, 221226 ysm, FSCU
+
+
+
+	switch(ScreenIndex & 0xF0000000)
+	{
+		case SCREEN_STATE_ESL_PASSWORD:
+			if(ScreenIndex == SCREEN_STATE_ESL_PASSWORD)
+				LeftKeyEventNumberInput();
+			break;
+
+		case SCREEN_STATE_MAIN_TOP:
+			break;
+		case SCREEN_STATE_MENU_EQUIPMENT_TOP:
+			LeftKeyEventMenuEquipment();
+			break;
+		case SCREEN_STATE_MENU_MAINTENANCE_TOP:
+			LeftKeyEventMenuMaintenance();
+			break;
+		case SCREEN_STATE_MENU_DISPLAYSETTING_TOP:
+			LeftKeyEventMenuDisplaySetting();
+			break;
+	}
+
+
+}
+
+void RightKeyEvent(void)
+{
+	//++, 221226 ysm, FSCU
+	#if 0
+	if(ScreenIndex == SCREEN_STATE_MAIN_COMM_ERROR)
+	{
+		if((COUNT_FLAG.Flag_FLT_Error == 1)||(COUNT_FLAG.Flag_FLT_Error == 2))
+			SetScreenIndex(SCREEN_STATE_MAIN_FLT_ERROR);
+	}
+	else if(ScreenIndex == SCREEN_STATE_MAIN_FLT_ERROR)
+	{
+		if(COUNT_FLAG.Flag_ECU_Comm_error == 1)
+			SetScreenIndex(SCREEN_STATE_MAIN_COMM_ERROR);
+	}
+	#endif
+	//--, 221226 ysm, FSCU
+
+	switch(ScreenIndex & 0xF0000000)
+	{
+		case SCREEN_STATE_ESL_PASSWORD:
+			if(ScreenIndex == SCREEN_STATE_ESL_PASSWORD)
+				RightKeyEventNumberInput();
+			break;
+		case SCREEN_STATE_MAIN_TOP:
+			break;
+		case SCREEN_STATE_MENU_EQUIPMENT_TOP:
+			RightKeyEventMenuEquipment();
+			break;
+		case SCREEN_STATE_MENU_MAINTENANCE_TOP:
+			RightKeyEventMenuMaintenance();
+			break;
+		case SCREEN_STATE_MENU_DISPLAYSETTING_TOP:
+			RightKeyEventMenuDisplaySetting();
+			break;				
+	}
+}
+
+void EnterKeyEvent(void)
+{
+	switch(ScreenIndex & 0xF0000000)
+	{
+	case SCREEN_STATE_ESL_PASSWORD:
+		if(ScreenIndex == SCREEN_STATE_ESL_PASSWORD)
+			EnterKeyEventNumberInput();
+		else
+			SetScreenIndex(SCREEN_STATE_ESL_PASSWORD);
+		break;
+	case SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_TOP:
+		EnterKeyEventDPFPopup();
+		break;
+	case SCREEN_STATE_MENU_EQUIPMENT_TOP:
+		EnterKeyEventMenuEquipment();
+		break;
+	case SCREEN_STATE_MENU_MAINTENANCE_TOP:
+		EnterKeyEventMenuMaintenance();
+		break;
+	case SCREEN_STATE_MENU_DISPLAYSETTING_TOP:
+		EnterKeyEventMenuDisplaySetting();
+		break;
+
+	//++, 220617 ysm
+	case SCREEN_STATE_MAIN_TOP:
+
+		#if 0
+		if(COUNT_FLAG.Flag_ECU_Comm_error == 1)
+			SetScreenIndex(SCREEN_STATE_MAIN_COMM_ERROR);
+		else if((COUNT_FLAG.Flag_FLT_Error == 1)||(COUNT_FLAG.Flag_FLT_Error == 2))
+			SetScreenIndex(SCREEN_STATE_MAIN_FLT_ERROR);
+		#else
+		if(InitECU_Comm_error == 2)
+		{
+			InitECU_Comm_error = 0;
+
+		}
+		#endif
+		break;
+	//--, 220617 ysm	
+
+		
+
+	}
+}
+void MenuKeyEvent(void)
+{
+	//++, 201103 ysm, DPF
+	#if 0
+	if(((ScreenIndex & 0xF0000000) == SCREEN_STATE_ESL_PASSWORD)
+		|| ((ScreenIndex & 0xF0000000) == SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_TOP))
+		return;
+	#else
+	if((ScreenIndex & 0xF0000000) == SCREEN_STATE_ESL_PASSWORD)
+		return;
+
+	if(ScreenIndex == SCREEN_STATE_OSHA_TOP)
+		return;
+
+	if((ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_0)||(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_1)||
+		(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_2)||(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_3)||
+		(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_4)||(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_5)||
+		(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_4))
+	{
+		return;
+	}
+	#endif
+	//--, 201103 ysm, DPF
+	switch(ScreenIndex & 0xF0000000)
+	{
+		case SCREEN_STATE_MAIN_TOP:
+		//++, 201103 ysm, DPF	
+		case SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_TOP:								
+		case SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_STEP1:					
+		case SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_STEP2:					
+		case SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_STEP3:					
+		case SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_STEP4:			
+		//case SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_COMPLETE:				
+		//case SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_NOT_COMPLETE:			
+		case SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_CALL:
+		case SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_END:		
+			OldDPFParking = OldDPFGearN = OldDPFBrake = OldCoolant = 0xff;	
+			OldCurScreenIndex = 0xffff;
+		//--, 201103 ysm, DPF	
+			SetScreenIndex(SCREEN_STATE_MENU_EQUIPMENT_TOP);
+			break;
+		default:
+			if((COUNT_FLAG.Flag_DPF_Info > 0)&&(COUNT_FLAG.Flag_DPF_Info_ESC_Alarm == 0))
+			{
+				switch(COUNT_FLAG.Flag_DPF_Info)
+				{
+					case 1:	SetScreenIndex(SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_STEP1);	break;				
+					case 2: SetScreenIndex(SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_STEP2);	break;
+					case 3: SetScreenIndex(SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_STEP3);	break;
+					case 4: SetScreenIndex(SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_STEP4);	break;	
+
+				}	
+			}
+			else
+				SetScreenIndex(SCREEN_STATE_MAIN_TOP);
+			break;
+	}
+
+}
+
+void LongRightKeyEvent(void)
+{
+	switch(ScreenIndex)
+	{
+		case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_LIFT_UP_SET:
+		case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_LIFT_DOWN_SET:
+		case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_TILT_A_SET:
+		case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_TILT_B_SET:
+		case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_AUX1_A_SET:
+		case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_AUX1_B_SET:
+		case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_AUX2_A_SET:
+		case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_AUX2_B_SET:
+			CurserIndex = CURSER_DOWN_RIGHT;
+
+			if(SubCurserIndex < 2)
+			{			
+				Control_FLT_Valve_Value += 10;
+
+				if(Control_FLT_Valve_Value > 2000)
+					Control_FLT_Valve_Value = 0;
+
+			}
+			else
+			{
+				Control_FLT_Valve_Value += 100;
+
+				if(Control_FLT_Valve_Value > 2000)
+					Control_FLT_Valve_Value = 0;
+
+			}
+			
+			KeyUIcnt100ms = 0;
+
+			break;
+			
+		default :
+			
+			break;
+	}
+
+}
+
+void LongLeftKeyEvent(void)
+{
+	switch(ScreenIndex)
+	{
+		case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_LIFT_UP_SET:
+		case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_LIFT_DOWN_SET:
+		case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_TILT_A_SET:
+		case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_TILT_B_SET:
+		case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_AUX1_A_SET:
+		case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_AUX1_B_SET:
+		case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_AUX2_A_SET:
+		case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_AUX2_B_SET:
+			CurserIndex = CURSER_UP_LEFT;
+
+			if(SubCurserIndex < 2)
+			{			
+				if(Control_FLT_Valve_Value >= 10)
+					Control_FLT_Valve_Value -= 10;
+				else
+					Control_FLT_Valve_Value = 2000;
+			}
+			else
+			{
+				if(Control_FLT_Valve_Value >= 100)
+					Control_FLT_Valve_Value -= 100;
+				else
+					Control_FLT_Valve_Value = 2000;
+
+			}
+			
+			KeyUIcnt100ms = 0;
+
+			break;
+
+		default :
+
+			break;
+
+	}
+
+}
+
+
+void LeftRightEnterEvent(void)
+{
+	if(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_MACHINEINFO_CLUSTER_SERIAL_NUMBER)
+	{
+		SetScreenIndex(SCREEN_STATE_MENU_EQUIPMENT_MACHINEINFO_CLUSTER_DETAIL_HIDDEN);
+		SendVersion();
+	}
+}
+
+void LeftRightEvent(void)
+{
+}

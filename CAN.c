@@ -1,0 +1,4585 @@
+#include "FLV_Cluster_APP.h"
+
+#include <string.h>
+
+unsigned char can1_status;
+unsigned char can2_status;
+unsigned char can1_status_buf[100];
+unsigned char can2_status_buf[100];
+unsigned char can1_tx_error_count;
+unsigned char can2_tx_error_count;
+
+
+struct st_CAN_Message_Ring_Buffer_Tx_Single CAN1_Message_Ring_Buffer_Tx_Single;
+struct st_CAN_Message_Ring_Buffer_Tx_Single CAN2_Message_Ring_Buffer_Tx_Single;
+unsigned char CAN1_RingBufferFlag = 0;
+unsigned char CAN2_RingBufferFlag = 0;
+
+
+extern CAN_HandleTypeDef hcan1;
+extern CAN_HandleTypeDef hcan2;
+
+extern RTC_HandleTypeDef hrtc;
+
+//CAN UPDATE
+extern unsigned char CAN_Update_flag;
+
+UCHAR gRecvMulti_ECU[MULTI_BUF_SIZE];
+UCHAR gRecvMulit_ECU_Flag=0;
+UCHAR gRecvMulit_ECU_TotalPacket=0;
+
+// CID
+UCHAR gRecvMulti_CID[MULTI_BUF_SIZE];
+UCHAR Cluster_Serial[20];
+UCHAR Cluster_Model[20];
+UCHAR gSendMulti_Cluster_Info[42];
+
+// ++, 210225 ctw Auto JIG Final Test
+UCHAR gRecvMulti_HW_Test[MULTI_BUF_SIZE];
+UCHAR gSendMulti_Cluster_Info_HW_2nd_Test[55];          // 28-->54
+UCHAR Cluster_Lot[20];
+
+unsigned char Total_Packet_HW_Test;
+unsigned char TotalPacketNum_HW_Test;
+unsigned char Total_data_HW_Test;
+unsigned char Total_Packet_Final_Test;
+unsigned char Total_data_Final_Test;
+unsigned char Flag_Send_Final_Test;
+unsigned char TotalPacketNum_Final_Test;
+
+unsigned char CAN_DATA_0xABAB_Flag = 0;
+// --, 210225 ctw Auto JIG Final Test
+
+unsigned char Total_Packet_CID;
+unsigned char Total_data_CID;
+unsigned char Flag_Send_CID;
+unsigned char Flag_Send_CID2;
+unsigned char Count_Send_CID;
+
+unsigned char TotalPacketNum_CID;
+unsigned char TotalPacketNum_CID2;
+
+
+unsigned char RMCU_CID_Req_Count;
+
+
+TP_CM										RX_CID_MULTI_TP_CM;
+
+TP_CM										RX_HW_Test_MULTI_TP_CM;         // ++, --, 210225 ctw Auto JIG Final Test
+
+TP_CM										RX_ECU_MULTI_TP_CM;
+CAN_ECU_DATA_61443							RX_ECU_DATA_61443;
+CAN_ECU_DATA_61444							RX_ECU_DATA_61444;
+CAN_ECU_DATA_64890							RX_ECU_DATA_64890;
+CAN_ECU_DATA_65252							RX_ECU_DATA_65252;
+CAN_ECU_DATA_65279							RX_ECU_DATA_65279;
+CAN_ECU_DATA_65262							RX_ECU_DATA_65262;
+CAN_ECU_DATA_65226							RX_ECU_DATA_65226;
+
+// ++, 200924 ctw LPG
+CAN_ECU_DATA_65253							RX_ECU_DATA_65253;
+CAN_ECU_DATA_65263							RX_ECU_DATA_65263;
+// --, 200924 ctw LPG
+CAN_ECU_DATA_65265							RX_ECU_DATA_65265;
+
+CAN_ECU_DATA_65266							RX_ECU_DATA_65266;
+
+
+CAN_ECU_MULTI_DATA_65226					RX_ECU_MULTI_DATA_65226;
+CAN_ECU_MULTI_DATA_65242					RX_ECU_MULTI_DATA_65242;
+CAN_ECU_MULTI_DATA_64965					RX_ECU_MULTI_DATA_64965;
+
+
+CAN_JIG_DATA_65292							RX_JIG_DATA_65292;
+
+CAN_MMI_DATA_65471							RX_MMI_DATA_65471;
+CAN_MMI_DATA_43981							RX_MMI_DATA_43981;
+
+// ++, 210225 ctw Auto JIG Final Test
+CAN_MMI_DATA_63023							RX_MMI_DATA_63023;
+CAN_MMI_DATA_62767                          RX_MMI_DATA_62767;
+unsigned char Flag_Send_HW_Test = 0;
+// --, 210225 ctw Auto JIG Final Test
+
+
+CAN_FLT_LEVER_SETTING_65474*				TX_FLT_DATA_65474;
+CAN_FLT_LEVER_SETTING_65474					RX_FLT_DATA_65474;
+CAN_FLT_LEVER_SETTING_65474					RX_FLT_DATA_65474_TEMP;
+
+
+CAN_FLT_LEVER_SETTING_65476*				TX_FLT_DATA_65476;
+CAN_FLT_LEVER_SETTING_65476					RX_FLT_DATA_65476;
+
+CAN_FLT_LEVER_DEADZONE_65477*				TX_FLT_DATA_65477;
+CAN_FLT_LEVER_DEADZONE_65477				RX_FLT_DATA_65477;
+CAN_FLT_LEVER_DEADZONE_65477				RX_FLT_DATA_65477_TEMP;
+
+
+CAN_FLT_LEVER_VALVE_65478*					TX_FLT_DATA_65478;
+CAN_FLT_LEVER_VALVE_65478					RX_FLT_DATA_65478;
+CAN_FLT_LEVER_VALVE_65478					RX_FLT_DATA_65478_TEMP;
+
+
+CAN_FLT_VEHICLE_MODEL_65435*				TX_FLT_DATA_65435;
+
+//++, 220929 ysm, FSCU
+CAN_FSCU_STATE1_65525						RX_FSCU_DATA_65525;
+CAN_FSCU_DEMAND_65524*						TX_FSCU_DEMAND_DATA_65524;
+
+CAN_FLT_SUB_65290							RX_FLT_SUB_65290;
+CAN_FLT_SUB_65291							RX_FLT_SUB_65291;
+//--, 220929 ysm, FSCU
+
+
+
+#if MENU_SHOW_SPEEDLIMIT
+UCHAR gTX_BUF65452[8] = {0, };
+UCHAR gTX_BUF65453[8] = {0, };
+
+
+SPEED_LIMIT_SET_STATUS_65452				RX_SPEED_LIMIT_SET_STATUS_65452;
+SPEED_LIMIT_SET_STATUS_65452*				TX_SPEED_LIMIT_SET_STATUS_65452;
+
+SPEED_LIMIT_TQ_STATUS_65453*				TX_SPEED_LIMIT_TQ_STATUS_65453;
+
+
+extern uint8_t PID_limit_ON;
+extern float result_SPN518_torq_limit;
+extern unsigned char SpeedLimitStep;
+
+#endif
+
+unsigned char _Cluster_Serial[20];
+unsigned char _Cluster_Model[20];
+
+unsigned char _ECM_Serial[20];
+unsigned char _ECM_PartNumber[20];
+unsigned char _ECM_SW_Version[20];
+
+unsigned char _FLT_Serial[20];
+unsigned char _FLT_PartNumber[20];
+unsigned char _FLT_SW_Version;
+unsigned char _FLT_SW_Sub_Version;
+
+
+unsigned char Flag_Comm_ECM;
+unsigned char Cnt_TransmitDataToECU;
+unsigned char ECM_65242_ReceiveFlag;
+unsigned short PGN_65242_Transmit_Count;
+unsigned char ECM_64965_ReceiveFlag;
+
+//++, 220217 ysm, FINGERTIP
+TP_CM										RX_FLT_MULTI_TP_CM;
+CAN_ECU_DATA_65226							RX_FLT_DATA_65226;
+CAN_ECU_MULTI_DATA_65226					RX_FLT_MULTI_DATA_65226;
+
+CAN_FLT_MULTI_DATA_65330					RX_FLT_MULTI_DATA_65330;
+
+UCHAR gRecvMulti_FLT[MULTI_BUF_SIZE];
+UCHAR gRecvMulit_FLT_Flag=0;
+UCHAR gRecvMulit_FLT_TotalPacket=0;
+//--, 220217 ysm, FINGERTIP
+
+
+UCHAR gTX_BUF1[8] = {0, };
+UCHAR gTX_BUF57344[8] = {0, };
+UCHAR gTX_BUF61423[8] = {0, };
+UCHAR gTX_BUF65265[8] = {0, };
+UCHAR gTX_BUF65434[8] = {0, };
+UCHAR gTX_BUF61460[8] = {0, };
+
+UCHAR gTX_BUF65474[8] = {0, };
+UCHAR gTX_BUF65476[8] = {0, };
+UCHAR gTX_BUF65477[8] = {0, };
+UCHAR gTX_BUF65478[8] = {0, };
+UCHAR gTX_BUF65435[8] = {0, };
+
+//++, 220818 ysm, ACC_TEST2
+UCHAR gTX_BUF65416[8] = {0, };
+//--, 220818 ysm, ACC_TEST2
+
+
+// ++, 210225 ctw Auto JIG Final Test
+UCHAR gTX_BUF62103[8] = {0, };
+UCHAR gTX_BUF65281[8] = {0, };
+// --, 210225 ctw Auto JIG Final Test
+
+// ++, 200924 ctw LPG
+UCHAR gTX_BUF65132[8] = {0, };
+UCHAR gTX_BUF65219[8] = {0, };
+// --, 200924 ctw LPG
+
+UCHAR gTX_BUF60159[8] = {0, };
+
+//++, 220525 ysm, HDI
+UCHAR gTX_BUF65360[8] = {0, };
+DMP9_DATA_65360*							TX_DPM9_DATA_65360;
+
+UCHAR gTX_BUF65444[8] = {0, };
+SMVCU_DATA_65444*							TX_SMVCU_DATA_65444;
+
+//--, 220525 ysm, HDI
+
+UCHAR gTX_BUF65354[8] = {0, }; // 0xFF4A - Hydraulic Pressure
+UCHAR gTX_BUF61453[8] = {0, }; // 0xF00D - AUTO TILT
+UCHAR gTX_BUF65431[8] = {0, }; // 0xFF97 - GAUGE
+
+//++, 220929 ysm, FSCU
+UCHAR gTX_BUF65524[8] = {0, };
+
+TP_CM										RX_FSCU_MULTI_TP_CM;
+CAN_ECU_DATA_65226							RX_FSCU_DATA_65226;
+CAN_ECU_MULTI_DATA_65226					RX_FSCU_MULTI_DATA_65226;
+
+CAN_FLT_MULTI_DATA_65330					RX_FSCU_MULTI_DATA_65330;
+
+UCHAR gRecvMulti_FSCU[MULTI_BUF_SIZE];
+UCHAR gRecvMulit_FSCU_Flag=0;
+UCHAR gRecvMulit_FSCU_TotalPacket=0;
+
+unsigned char _FSCU_Serial[20];
+unsigned char _FSCU_PartNumber[20];
+unsigned char _FSCU_SW_Version;
+unsigned char _FSCU_SW_Sub_Version;
+//--, 220929 ysm, FSCU
+
+
+unsigned char InitFSCU_Flag; //++,--, 221226 ysm, FSCU
+
+
+CAN_FLT_HYDRAULIC_PRESS_65354*				TX_FLT_DATA_65354;
+CAN_FLT_AUTO_TILT_61453*					TX_FLT_DATA_61453;
+CAN_GAUGE_DATA_65431*						TX_GAUGE_DATA_65431;
+
+
+
+TORQUE_SPEED_CONTROL1_DATA_1*				TX_TORQUE_SPEED_CONTROL1_DATA_1;
+CM1_DATA_57344*							TX_CM1_DATA_57344;
+VERSION_DATA_61423*						TX_VERSION_DATA_61423;
+CCVS_DATA_65265*							TX_CCVS_DATA_65265;
+VEHICLE_STATUS_DATA_65434*					TX_CLUSTER_DATA_65434;
+G_SENSOR_DATA_61460*						TX_G_SENSOR_DATA_61460;
+
+//++, 220818 ysm, ACC_TEST2
+ACC_SENSOR_DATA_65416*						TX_ACC_SENSOR_DATA_65416;
+ACC_TUNE									ACCS;
+//--, 220818 ysm, ACC_TEST2
+
+
+// ++, 210225 ctw Auto JIG Final Test
+KEY_DATA_62103*                             TX_KEY_DATA_62103;
+CAN_CLUSTER_DIN_65281*                      TX_CAN_CLUSTER_DIN_65281;
+// --, 210225 ctw Auto JIG Final Test
+
+// ++, 200924 ctw LPG
+TCO1_DATA_65132*							TX_TCO1_DATA_65132;
+ETC5_DATA_65219*								TX_ETC5_DATA_65219;
+// --, 200924 ctw LPG
+
+RQST_DATA_60159*							TX_RQST_DATA_60159;
+
+// ++, 210225 ctw Auto JIG Final Test
+extern unsigned char Tab_Number;
+extern st_CANDATA_HCEPGN_63279         TX_CANDATA_HCEPGN_63279;
+UCHAR gSendMulti_Cluster_Info_Final_Test[53];
+
+
+extern RTC_HandleTypeDef hrtc;
+
+extern RTC_TimeTypeDef sTime;
+extern RTC_DateTypeDef sDate;
+extern RTC_TimeTypeDef sChangeTime;
+extern RTC_DateTypeDef sChangeDate;
+extern unsigned char ChangeAMPMStatus;
+// --, 210225 ctw Auto JIG Final Test
+
+// ++, 200819 bwk
+#if 0
+extern unsigned short Calculate_Speed_Value ;
+#else
+extern float Calculate_Speed_Value ;
+#endif
+// --, 200819 bwk
+extern unsigned char OPSS_Status;
+extern unsigned short Desire_torque;
+
+extern EEPROM_MODEL_DATA2	InfoModel2;
+extern unsigned char SpeedLimitOverrideControlMode;
+extern unsigned char SpeedLimitTorque;
+
+extern unsigned short temp_mast_angle[];
+extern unsigned short Pitch_buffer[];
+extern unsigned short Roll_buffer[];
+extern unsigned char InitECU_Comm_error;
+
+extern unsigned char Engine_Type;
+
+extern EEPROM_MODEL_DATA1 InfoModel1;
+
+
+unsigned char PROTO_EQUIPMENT = 0;
+unsigned char MAST_EQUIPMENT = 0;
+unsigned char ANGLE_EQUIPMENT = 0;
+unsigned char RMCU_EQUIPMENT = 0;
+
+unsigned char FINGERTIP_EQUIPMENT = 0;
+
+
+unsigned char TotalPacketNum_61184;
+unsigned char HCEPGN_61184_MSGT_250_Transmit_Flag;
+unsigned char HCEPGN_61184_MSGT_250_Transmit_Data[128];
+unsigned char HCEPGN_61184_MSGT_250_Transmit_Data_Count;
+
+unsigned char RMS3_CTS_Receive_Cnt;
+
+unsigned int MultiPacket_RMCU_ReceiveFlag;
+unsigned int MultiPacket_RMCU_RX_PGN;
+unsigned char MultiPacket_RMCU_RX_Data[1785];       
+unsigned short MultiPacket_RMCU_RX_DataCount;
+unsigned char MultiPacket_RMCU_RX_LineCount;
+unsigned char MultiPacket_RMCU_RX_Line_CheckFlag[32];
+
+
+unsigned char RMS3_CTS_Receive_Flag;
+unsigned char MSS_ESL_Flag;
+
+extern st_COUNT_FLAG COUNT_FLAG;
+extern unsigned char BD_Receive_Count3;
+extern unsigned char RMCU_CID_OK;
+
+unsigned char Total_data_HCE_CID;
+unsigned char Total_Packet_HCE_CID;
+unsigned char Temp_HCE_CID_Data[42];
+
+extern st_Key_Status RMS_Key_Status;
+
+extern st_DATA_RTC RTC_Data;
+extern st_DOUT_DATA	DOUT_DATA;
+
+extern unsigned char HDI_Oil_Pressure_Lamp_Warning_Count;
+extern unsigned char HDI_WIF_Warning_Count_Fmi14;
+extern unsigned char HDI_WIF_Warning_Count_Fmi23;
+extern USHORT FLT_Lever_Voltage[3];
+extern USHORT Temp_FLT_Lever_Voltage[3];
+extern USHORT Control_FLT_Lever_Voltage;
+
+extern USHORT FLT_DeadZone_Voltage[2];
+extern USHORT Temp_FLT_DeadZone_Voltage[2];
+extern USHORT Control_FLT_DeadZone_Voltage;
+
+extern USHORT FLT_Valve_Value[4];
+extern USHORT Temp_FLT_Valve_Value[4];
+
+extern unsigned char Speed_Limit_Test_Flag; //++,--, 220901 ysm
+extern unsigned char ZEROSTART_Travel_Cut_Relay;
+
+extern st_DOUT_DATA	DOUT_DATA; //++,--, 221226 ysm, FSCU
+extern unsigned char EngineStartFlag; //++,--, 230127 ysm, FSCU
+extern unsigned char FSCU_EngineStartFlag; //++,--, 230209 ysm, FSCU
+
+extern unsigned char FSCU_HAC_OFF_Flag; //++,--, 230503 ysm, FSCU_HAC
+
+void Initialize_CAN_Variable(void)
+{
+	Total_Packet_CID = 0;
+	Total_data_CID = 0;
+	Flag_Send_CID = 0;
+	Flag_Send_CID2 = 0;
+        
+    // ++, 210701 ctw Auto JIG Final Test
+    Total_Packet_Final_Test = 0;
+    Total_data_Final_Test = 0;
+    Flag_Send_Final_Test = 1;
+    // --, 210701 ctw Auto JIG Final Test
+        
+	Flag_Comm_ECM = 0;
+	Cnt_TransmitDataToECU = 0;
+	ECM_65242_ReceiveFlag = 0;   
+	TotalPacketNum_CID = 0;	
+	TotalPacketNum_CID2 = 0;
+	PGN_65242_Transmit_Count = 0;
+	ECM_64965_ReceiveFlag = 0;
+
+	Total_data_HCE_CID = 0;
+	Total_Packet_HCE_CID = 0;
+	
+	MAST_EQUIPMENT = 0;
+	ANGLE_EQUIPMENT = 0;
+	RMCU_EQUIPMENT = 0;
+
+	FINGERTIP_EQUIPMENT = 0;
+	
+	//++, 211124 ysm
+	MSS_ESL_Flag = 0;
+	//--, 211124 ysm
+
+	InitFSCU_Flag = 0; //++,--, 221226 ysm, FSCU
+	
+	memset((UCHAR*)(&gRecvMulti_CID[0]), 0xff, sizeof(gRecvMulti_CID));
+	memset((UCHAR*)(&Cluster_Serial[0]), 0xff, sizeof(Cluster_Serial));
+	memset((UCHAR*)(&_Cluster_Serial[0]), 0xff, sizeof(_Cluster_Serial));
+	memset((UCHAR*)(&_Cluster_Model[0]), 0xff, sizeof(_Cluster_Model));
+	memset((UCHAR*)(&gSendMulti_Cluster_Info[0]), 0xff, sizeof(gSendMulti_Cluster_Info));
+	memset((UCHAR*)(&Temp_HCE_CID_Data[0]), 0xff, sizeof(Temp_HCE_CID_Data));
+
+	//++, 221226 ysm, FSCU
+	memset((UCHAR*)(&_ECM_Serial[0]), 0xff, sizeof(_ECM_Serial));
+	memset((UCHAR*)(&_ECM_PartNumber[0]), 0xff, sizeof(_ECM_PartNumber));
+	memset((UCHAR*)(&_ECM_SW_Version[0]), 0xff, sizeof(_ECM_SW_Version));
+
+	memset((UCHAR*)(&_FLT_Serial[0]), 0xff, sizeof(_FLT_Serial));
+	memset((UCHAR*)(&_FLT_PartNumber[0]), 0xff, sizeof(_FLT_PartNumber));
+	_FLT_SW_Version = 0xff;
+	_FLT_SW_Sub_Version = 0xff;
+
+	memset((UCHAR*)(&_FSCU_Serial[0]), 0xff, sizeof(_FSCU_Serial));
+	memset((UCHAR*)(&_FSCU_PartNumber[0]), 0xff, sizeof(_FSCU_PartNumber));
+	_FSCU_SW_Version = 0xff;
+	_FSCU_SW_Sub_Version = 0xff;
+	//--, 221226 ysm, FSCU
+
+	memset(&RX_CID_MULTI_TP_CM,0xff,sizeof(RX_CID_MULTI_TP_CM));
+	memset(&RX_ECU_MULTI_TP_CM,0xff,sizeof(RX_ECU_MULTI_TP_CM));
+	memset(&RX_HW_Test_MULTI_TP_CM,0xff,sizeof(RX_HW_Test_MULTI_TP_CM));    // ++, --, 210225 ctw Auto JIG Final Test
+
+	//++, 220217 ysm, FINGERTIP
+	memset(&RX_FLT_MULTI_TP_CM,0xff,sizeof(RX_FLT_MULTI_TP_CM));
+	memset(&RX_FLT_DATA_65226,0xff,sizeof(RX_FLT_DATA_65226));
+	memset(&RX_FLT_MULTI_DATA_65226,0xff,sizeof(RX_FLT_MULTI_DATA_65226));
+	memset(&RX_FLT_MULTI_DATA_65330,0xff,sizeof(RX_FLT_MULTI_DATA_65330));
+	//--, 220217 ysm, FINGERTIP
+	
+	memset(&RX_ECU_DATA_61443,0xff,sizeof(RX_ECU_DATA_61443));
+	memset(&RX_ECU_DATA_61444,0xff,sizeof(RX_ECU_DATA_61444));
+	memset(&RX_ECU_DATA_64890,0xff,sizeof(RX_ECU_DATA_64890));
+	memset(&RX_ECU_DATA_65226,0xff,sizeof(RX_ECU_DATA_65226));
+	memset(&RX_ECU_MULTI_DATA_65226,0xff,sizeof(RX_ECU_MULTI_DATA_65226));
+	memset(&RX_ECU_MULTI_DATA_65242,0xff,sizeof(RX_ECU_MULTI_DATA_65242));
+	memset(&RX_ECU_MULTI_DATA_64965,0xff,sizeof(RX_ECU_MULTI_DATA_64965));
+	memset(&RX_ECU_DATA_65252,0xff,sizeof(RX_ECU_DATA_65252));
+	memset(&RX_ECU_DATA_65262,0xff,sizeof(RX_ECU_DATA_65262));
+	memset(&RX_ECU_DATA_65279,0xff,sizeof(RX_ECU_DATA_65279));
+	
+// ++, 200924 ctw LPG
+	memset(&RX_ECU_DATA_65253,0xff,sizeof(RX_ECU_DATA_65253));
+	memset(&RX_ECU_DATA_65263,0xff,sizeof(RX_ECU_DATA_65263));
+// --, 200924 ctw LPG
+
+
+	memset(&RX_ECU_DATA_65265,0xff,sizeof(RX_ECU_DATA_65265));
+	memset(&RX_ECU_DATA_65266,0xff,sizeof(RX_ECU_DATA_65266));
+
+
+	memset(&RX_JIG_DATA_65292,0x00,sizeof(RX_JIG_DATA_65292));
+
+	memset(&RX_MMI_DATA_65471, 0xff, sizeof(RX_MMI_DATA_65471));
+	memset(&RX_MMI_DATA_43981, 0xff, sizeof(RX_MMI_DATA_43981));
+        
+    // ++, 210225 ctw Auto JIG Final Test
+    memset(&RX_MMI_DATA_62767, 0xff, sizeof(RX_MMI_DATA_62767));
+    memset(&RX_MMI_DATA_63023, 0xff, sizeof(RX_MMI_DATA_63023));
+    // --, 210225 ctw Auto JIG Final Test
+
+	memset(&RX_FLT_DATA_65474, 0xff, sizeof(RX_FLT_DATA_65474));
+    memset(&RX_FLT_DATA_65476, 0xff, sizeof(RX_FLT_DATA_65476));
+	memset(&RX_FLT_DATA_65477, 0xff, sizeof(RX_FLT_DATA_65477));
+
+
+	memset((UCHAR*)(&gTX_BUF1[0]), 0xff, 8);
+	TX_TORQUE_SPEED_CONTROL1_DATA_1 = (TORQUE_SPEED_CONTROL1_DATA_1*)&gTX_BUF1[0];
+
+	memset((UCHAR*)(&gTX_BUF57344[0]), 0xff, 8);
+	TX_CM1_DATA_57344 = (CM1_DATA_57344*)&gTX_BUF57344[0];
+
+	memset((UCHAR*)(&gTX_BUF61423[0]), 0xff, 8);
+	TX_VERSION_DATA_61423 = (VERSION_DATA_61423*)&gTX_BUF61423[0];
+
+	memset((UCHAR*)(&gTX_BUF65265[0]), 0xff, 8);
+	TX_CCVS_DATA_65265 = (CCVS_DATA_65265*)&gTX_BUF65265[0];
+
+	memset((UCHAR*)(&gTX_BUF65434[0]), 0xff, 8);
+	TX_CLUSTER_DATA_65434 = (VEHICLE_STATUS_DATA_65434*)&gTX_BUF65434[0];
+
+	memset((UCHAR*)(&gTX_BUF61460[0]), 0xff, 8);
+	TX_G_SENSOR_DATA_61460 = (G_SENSOR_DATA_61460*)&gTX_BUF61460[0];
+
+	//++, 220818 ysm, ACC_TEST2
+	memset((UCHAR*)(&gTX_BUF65416[0]), 0xff, 8);
+	TX_ACC_SENSOR_DATA_65416 = (ACC_SENSOR_DATA_65416*)&gTX_BUF65416[0];
+	//--, 220818 ysm, ACC_TEST2
+
+        // ++, 210225 ctw Auto JIG Final Test
+	memset((UCHAR*)(&gTX_BUF62103[0]), 0x00, 8);
+	TX_KEY_DATA_62103 = (KEY_DATA_62103*)&gTX_BUF62103[0];
+
+	memset((UCHAR*)(&gTX_BUF65281[0]), 0x00, 8);
+	TX_CAN_CLUSTER_DIN_65281 = (CAN_CLUSTER_DIN_65281*)&gTX_BUF65281[0];
+        // --, 210225 ctw Auto JIG Final Test
+        
+	// ++, 200924 ctw LPG
+	memset((UCHAR*)(&gTX_BUF65132[0]), 0xff, 8);
+	TX_TCO1_DATA_65132 = (TCO1_DATA_65132*)&gTX_BUF65132[0];
+
+	memset((UCHAR*)(&gTX_BUF65219[0]), 0xff, 8);
+	TX_ETC5_DATA_65219 = (ETC5_DATA_65219*)&gTX_BUF65219[0];
+// --, 200924 ctw LPG
+
+	memset((UCHAR*)(&gTX_BUF60159[0]), 0xff, 8);
+	TX_RQST_DATA_60159 = (RQST_DATA_60159*)&gTX_BUF60159[0];
+
+	//++, 220525 ysm, HDI
+	memset((UCHAR*)(&gTX_BUF65360[0]), 0xff, 8);
+	TX_DPM9_DATA_65360 = (DMP9_DATA_65360*)&gTX_BUF65360[0];
+
+	memset((UCHAR*)(&gTX_BUF65444[0]), 0xff, 8);
+	TX_SMVCU_DATA_65444 = (SMVCU_DATA_65444*)&gTX_BUF65444[0];
+	//--, 220525 ysm, HDI
+
+	memset((UCHAR*)(&gTX_BUF65474[0]), 0xff, 8);
+	TX_FLT_DATA_65474 = (CAN_FLT_LEVER_SETTING_65474*)&gTX_BUF65474[0];
+
+	memset((UCHAR*)(&gTX_BUF65476[0]), 0xff, 8);
+	TX_FLT_DATA_65476 = (CAN_FLT_LEVER_SETTING_65476*)&gTX_BUF65476[0];
+
+	memset((UCHAR*)(&gTX_BUF65477[0]), 0xff, 8);
+	TX_FLT_DATA_65477 = (CAN_FLT_LEVER_DEADZONE_65477*)&gTX_BUF65477[0];
+
+	memset((UCHAR*)(&gTX_BUF65478[0]), 0xff, 8);
+	TX_FLT_DATA_65478 = (CAN_FLT_LEVER_VALVE_65478*)&gTX_BUF65478[0];
+
+	memset((UCHAR*)(&gTX_BUF65435[0]), 0xff, 8);
+	TX_FLT_DATA_65435 = (CAN_FLT_VEHICLE_MODEL_65435*)&gTX_BUF65435[0];	
+
+	memset((UCHAR*)(&gTX_BUF65354[0]), 0xff, 8);
+	TX_FLT_DATA_65354 = (CAN_FLT_HYDRAULIC_PRESS_65354*)&gTX_BUF65354[0]; 
+
+	memset((UCHAR*)(&gTX_BUF61453[0]), 0xff, 8);
+	TX_FLT_DATA_61453 = (CAN_FLT_AUTO_TILT_61453*)&gTX_BUF61453[0]; 
+
+	memset((UCHAR*)(&gTX_BUF65431[0]), 0xff, 8);
+	TX_GAUGE_DATA_65431 = (CAN_GAUGE_DATA_65431*)&gTX_BUF65431[0];	
+
+
+	//++, 220929 ysm, FSCU
+	memset(&RX_FSCU_DATA_65525, 0xff, sizeof(RX_FSCU_DATA_65525));	
+	
+	memset((UCHAR*)(&gTX_BUF65524[0]), 0xff, 8);
+	TX_FSCU_DEMAND_DATA_65524 = (CAN_FSCU_DEMAND_65524*)&gTX_BUF65524[0];
+
+	memset(&RX_FSCU_MULTI_TP_CM,0xff,sizeof(RX_FSCU_MULTI_TP_CM));
+	memset(&RX_FSCU_DATA_65226,0xff,sizeof(RX_FSCU_DATA_65226));
+	memset(&RX_FSCU_MULTI_DATA_65226,0xff,sizeof(RX_FSCU_MULTI_DATA_65226));
+	memset(&RX_FSCU_MULTI_DATA_65330,0xff,sizeof(RX_FSCU_MULTI_DATA_65330));
+
+	memset(&RX_FLT_SUB_65290, 0xff, sizeof(RX_FLT_SUB_65290));
+	memset(&RX_FLT_SUB_65291, 0xff, sizeof(RX_FLT_SUB_65291));
+	//--, 220929 ysm, FSCU
+	
+	
+#if MENU_SHOW_SPEEDLIMIT	
+	memset((UCHAR*)(&gTX_BUF65452[0]), 0xff, 8);	
+	TX_SPEED_LIMIT_SET_STATUS_65452 = (SPEED_LIMIT_SET_STATUS_65452*)&gTX_BUF65452[0];
+
+	
+	memset(&RX_SPEED_LIMIT_SET_STATUS_65452,0xff,sizeof(RX_SPEED_LIMIT_SET_STATUS_65452));
+    RX_SPEED_LIMIT_SET_STATUS_65452.SpeedLimit_P = 110;
+    RX_SPEED_LIMIT_SET_STATUS_65452.SpeedLimit_I = 10;
+    RX_SPEED_LIMIT_SET_STATUS_65452.SpeedLimit_D = 1100;
+    RX_SPEED_LIMIT_SET_STATUS_65452.SpeedLimit_LowTq = 16;
+	
+	Speed_Limit_Test_Flag = 0;
+
+	memset((UCHAR*)(&gTX_BUF65453[0]), 0xff, 8);	
+	TX_SPEED_LIMIT_TQ_STATUS_65453 = (SPEED_LIMIT_TQ_STATUS_65453*)&gTX_BUF65453[0];
+	
+#endif
+#if TEST_MODE
+	COUNT_FLAG.Flag_ECU_Comm_error = 0;
+#else
+	COUNT_FLAG.Flag_ECU_Comm_error = 1;
+#endif
+
+}
+
+
+void Initialize_CanSystem(unsigned char ch)
+{
+	CAN_FilterTypeDef sFilterConfig;
+
+	unsigned int FilterId = 0;//0x0A000000;
+	unsigned int FilterMask = 0;//0x0A000000;
+
+	if(ch == 1)
+	{        
+		sFilterConfig.FilterBank = 1;
+		sFilterConfig.FilterMode = CAN_FILTERMODE_IDMASK;
+		sFilterConfig.FilterScale = CAN_FILTERSCALE_32BIT;
+		sFilterConfig.FilterIdHigh = (FilterId << 3) >> 16;
+		sFilterConfig.FilterIdLow = (0xFFFF & (FilterId << 3)) | (1 << 2);
+		sFilterConfig.FilterMaskIdHigh = (FilterMask << 3) >> 16;
+		sFilterConfig.FilterMaskIdLow = (0xFFFF & (FilterMask << 3)) | (1 << 2);
+		sFilterConfig.FilterFIFOAssignment = CAN_RX_FIFO0;
+		sFilterConfig.FilterActivation = ENABLE;
+		sFilterConfig.SlaveStartFilterBank = 2;
+		HAL_CAN_ConfigFilter(&hcan1, &sFilterConfig);
+
+		HAL_CAN_Start(&hcan1); // CAN 통신을 시작합니다
+		HAL_CAN_ActivateNotification(&hcan1, CAN_IT_RX_FIFO0_MSG_PENDING);
+	}
+	else if(ch == 2)
+	{
+		sFilterConfig.FilterBank = 13;
+		sFilterConfig.FilterMode = CAN_FILTERMODE_IDMASK;
+		sFilterConfig.FilterScale = CAN_FILTERSCALE_32BIT;
+		sFilterConfig.FilterIdHigh = (FilterId << 3) >> 16;
+		sFilterConfig.FilterIdLow = (0xFFFF & (FilterId << 3)) | (1 << 2);
+		sFilterConfig.FilterMaskIdHigh = (FilterMask << 3) >> 16;
+		sFilterConfig.FilterMaskIdLow = (0xFFFF & (FilterMask << 3)) | (1 << 2);
+		sFilterConfig.FilterFIFOAssignment = CAN_RX_FIFO0;
+		sFilterConfig.FilterActivation = ENABLE;
+		sFilterConfig.SlaveStartFilterBank = 13;
+		HAL_CAN_ConfigFilter(&hcan2, &sFilterConfig);
+
+		HAL_CAN_Start(&hcan2); // CAN 통신을 시작합니다
+		HAL_CAN_ActivateNotification(&hcan2, CAN_IT_RX_FIFO0_MSG_PENDING);
+	}
+}
+
+void CAN1_TX_RingBuffer(void)
+{
+	CAN_TxHeaderTypeDef  TxHeader;
+	unsigned char  TxData[8] = {0};
+	unsigned char i;
+	unsigned int TxMailBox;
+
+	if (CAN1_Message_Ring_Buffer_Tx_Single.Head != CAN1_Message_Ring_Buffer_Tx_Single.Tail)
+	{
+		TxHeader.StdId=	((unsigned long)(CAN1_Message_Ring_Buffer_Tx_Single.Message[CAN1_Message_Ring_Buffer_Tx_Single.Tail].Priority) << 8) + 
+			((unsigned long)(CAN1_Message_Ring_Buffer_Tx_Single.Message[CAN1_Message_Ring_Buffer_Tx_Single.Tail].Data_Page) << 6) + 
+			((unsigned long)(CAN1_Message_Ring_Buffer_Tx_Single.Message[CAN1_Message_Ring_Buffer_Tx_Single.Tail].PDU_Format & 0xfc) >> 2);
+
+		TxHeader.ExtId=	((unsigned long)(CAN1_Message_Ring_Buffer_Tx_Single.Message[CAN1_Message_Ring_Buffer_Tx_Single.Tail].PDU_Format & 0x03) << 16) + 
+			((unsigned long)(CAN1_Message_Ring_Buffer_Tx_Single.Message[CAN1_Message_Ring_Buffer_Tx_Single.Tail].PDU_Specific& 0xff) << 8) + 
+			((unsigned long)(CAN1_Message_Ring_Buffer_Tx_Single.Message[CAN1_Message_Ring_Buffer_Tx_Single.Tail].Source_Address& 0xff) << 0) ;
+
+		TxHeader.ExtId=	(TxHeader.StdId<<18)+TxHeader.ExtId;
+
+		TxHeader.IDE = CAN_ID_EXT;
+		TxHeader.RTR = CAN_RTR_DATA;
+		TxHeader.DLC = 8;
+
+		for (i = 0; i < 8; i++)
+		{
+			TxData[i] = CAN1_Message_Ring_Buffer_Tx_Single.Message[CAN1_Message_Ring_Buffer_Tx_Single.Tail].Data[i];
+		}
+
+		TxMailBox = HAL_CAN_GetTxMailboxesFreeLevel(&hcan1);
+		can1_status = HAL_CAN_AddTxMessage (&hcan1, &TxHeader, TxData, &TxMailBox);
+
+		if(can1_status !=HAL_ERROR)
+		{
+			if (++(CAN1_Message_Ring_Buffer_Tx_Single.Tail) >= MAX_CAN_TX_DATA_SINGLE)
+			{
+				CAN1_Message_Ring_Buffer_Tx_Single.Tail = 0;	
+			}	
+		}
+		else
+		{
+			can1_status_buf[can1_tx_error_count++] = can1_status;
+			if(can1_tx_error_count>99)	can1_tx_error_count=0;
+		}
+	}
+
+	
+	if(COUNT_FLAG.ECM_WarningCounter++>12000)
+		COUNT_FLAG.ECM_WarningCounter=20000;
+	
+}
+
+
+
+void CAN2_TX_RingBuffer(void)
+{
+	CAN_TxHeaderTypeDef  TxHeader;
+	unsigned char  TxData[8] = {0};
+	unsigned char i;
+	unsigned int TxMailBox;
+
+	if (CAN2_Message_Ring_Buffer_Tx_Single.Head != CAN2_Message_Ring_Buffer_Tx_Single.Tail)
+	{
+		TxHeader.StdId=	((unsigned long)(CAN2_Message_Ring_Buffer_Tx_Single.Message[CAN2_Message_Ring_Buffer_Tx_Single.Tail].Priority) << 8) + 
+			((unsigned long)(CAN2_Message_Ring_Buffer_Tx_Single.Message[CAN2_Message_Ring_Buffer_Tx_Single.Tail].Data_Page) << 6) + 
+			((unsigned long)(CAN2_Message_Ring_Buffer_Tx_Single.Message[CAN2_Message_Ring_Buffer_Tx_Single.Tail].PDU_Format & 0xfc) >> 2);
+		TxHeader.ExtId=	((unsigned long)(CAN2_Message_Ring_Buffer_Tx_Single.Message[CAN2_Message_Ring_Buffer_Tx_Single.Tail].PDU_Format & 0x03) << 16) + 
+			((unsigned long)(CAN2_Message_Ring_Buffer_Tx_Single.Message[CAN2_Message_Ring_Buffer_Tx_Single.Tail].PDU_Specific& 0xff) << 8) + 
+			((unsigned long)(CAN2_Message_Ring_Buffer_Tx_Single.Message[CAN2_Message_Ring_Buffer_Tx_Single.Tail].Source_Address& 0xff) << 0) ;
+
+		TxHeader.ExtId=	(TxHeader.StdId<<18)+TxHeader.ExtId;
+
+		TxHeader.IDE = CAN_ID_EXT;
+		TxHeader.RTR = CAN_RTR_DATA;
+		TxHeader.DLC = 8;
+
+		for (i = 0; i < 8; i++)
+		{
+			TxData[i] = CAN2_Message_Ring_Buffer_Tx_Single.Message[CAN2_Message_Ring_Buffer_Tx_Single.Tail].Data[i];
+		}
+
+		TxMailBox = HAL_CAN_GetTxMailboxesFreeLevel(&hcan2);
+		can2_status = HAL_CAN_AddTxMessage (&hcan2, &TxHeader, TxData, &TxMailBox);
+
+		if(can2_status !=HAL_ERROR)
+		{
+			if (++(CAN2_Message_Ring_Buffer_Tx_Single.Tail) >= MAX_CAN_TX_DATA_SINGLE)
+			{
+				CAN2_Message_Ring_Buffer_Tx_Single.Tail = 0;	
+			}	
+		}
+		else
+		{
+			can2_status_buf[can2_tx_error_count++] = can2_status;
+			if(can2_tx_error_count>99)	can2_tx_error_count=0;
+		}
+	}
+}
+
+int Find_CID_SubVersion_Index(UCHAR* CID)
+{
+	int SubVersion = 0xFF;
+
+	int Index = 7;
+	int Index2 = 2;
+	////////////// Find Serial Number/////////////
+	for(int i = 6; i < 26; i++){
+		if(gSendMulti_Cluster_Info[i] != 0x2A)
+		{
+			Index++;
+		}
+		else{
+			break;
+		}
+	}
+	/////////////////////////////////////////////
+	//////////// Find Model Name/////////////////
+	for(int i  = Index + 1; i < 40; i++){
+		if(gSendMulti_Cluster_Info[i] != 0x2A)
+		{
+			Index2++;
+		}
+		else{
+			SubVersion = Index+Index2;
+			break;
+		}
+	}
+	/////////////////////////////////////////////
+	return SubVersion;
+}
+
+void prepare_MCU_HCECID_Data(void)
+{
+
+	unsigned char index;
+	unsigned char tempchar[5];
+
+	
+	UCHAR Software_Version_high = TX_VERSION_DATA_61423->SW_Version_High;
+	UCHAR Software_Version_low = TX_VERSION_DATA_61423->SW_Version_Low;
+	UCHAR Software_Version_Sub_high = TX_VERSION_DATA_61423->SW_Version_Sub_High;
+
+ 	for(int i = 0; i < 4; i++)
+		tempchar[i] = 0;
+	
+	
+	Temp_HCE_CID_Data[0] = 1; //Component Code (MCU = 1, CLUSTER = 11, DASHBOARD = 21)
+	Temp_HCE_CID_Data[1] = 0x01; //Manufacturer Code (TAEHA = 1)
+
+	EepromRead(ADDRESS_MANUFACTURE_YEAR, (unsigned char*)(&tempchar[0]), 1); 	
+	
+	if(tempchar[0] > 99)	tempchar[0] = 21;
+	Temp_HCE_CID_Data[2] = HCESPN.H971 = tempchar[0]; // Manufacture Year
+	
+	EepromRead(ADDRESS_MANUFACTURE_MONTH, (unsigned char*)(&tempchar[0]), 1); 
+
+	if(tempchar[0] > 12)	tempchar[0] = 7;
+	Temp_HCE_CID_Data[3] = HCESPN.H972 = tempchar[0]; // Manufacture Month
+
+	EepromRead(ADDRESS_MANUFACTURE_DATE, (unsigned char*)(&tempchar[0]), 1); 	
+	
+	if(tempchar[0] > 31)	tempchar[0] = 21;
+	Temp_HCE_CID_Data[4] = HCESPN.H973 = tempchar[0]; // Mnaufacture Day
+
+
+	HCESPN.H974 = (Software_Version_high<<4)+(Software_Version_low&0x0f);
+	Temp_HCE_CID_Data[5] = HCESPN.H974; // Software Version
+
+	index = 6;
+
+
+	for(int i=0; i<10; i++) // Serial Number(max 10bytes)
+	{
+		Temp_HCE_CID_Data[index] = _Cluster_Serial[i+4];
+		index++;
+	}
+
+	if(	Temp_HCE_CID_Data[index] != 0x2A)
+	{
+		Temp_HCE_CID_Data[index] = 0x2A;
+		index++;
+	}
+
+	if(InfoModel1.ModelInfo == MODEL_35L_9)
+	{
+		strcpy(HCESPN.H960, "35L-9");
+	}
+	else if(InfoModel1.ModelInfo == MODEL_40L_9)
+	{
+		strcpy(HCESPN.H960, "40L-9");
+	}
+	else if(InfoModel1.ModelInfo == MODEL_45L_9)
+	{
+		strcpy(HCESPN.H960, "45L-9");
+	}
+	else if(InfoModel1.ModelInfo == MODEL_50L_9)
+	{
+		strcpy(HCESPN.H960, "50L-9");
+	}
+	else if(InfoModel1.ModelInfo == MODEL_35D_9S)
+	{
+		strcpy(HCESPN.H960, "35D-9S");
+	}
+	else if(InfoModel1.ModelInfo == MODEL_40D_9S)
+	{
+		strcpy(HCESPN.H960, "40D-9S");
+	}
+	else if(InfoModel1.ModelInfo == MODEL_45D_9S)
+	{
+		strcpy(HCESPN.H960, "45D-9S");
+	}
+	else if(InfoModel1.ModelInfo == MODEL_50D_9S)
+	{
+		strcpy(HCESPN.H960, "50D-9SA");
+	}
+	else if(InfoModel1.ModelInfo == MODEL_25D_9VB)
+	{
+		strcpy(HCESPN.H960, "25D-9V");
+	}
+	else if(InfoModel1.ModelInfo == MODEL_30D_9VB)
+	{
+		strcpy(HCESPN.H960, "30D-9V");
+	}
+	else if(InfoModel1.ModelInfo == MODEL_35DN_9VB)
+	{
+		strcpy(HCESPN.H960, "35DN-9V");
+	}
+	else if(InfoModel1.ModelInfo == MODEL_25LC_9)
+	{
+		strcpy(HCESPN.H960, "25LC-9");
+	}
+	else if(InfoModel1.ModelInfo == MODEL_30LC_9)
+	{
+		strcpy(HCESPN.H960, "30LC-9");
+	}		
+	else if(InfoModel1.ModelInfo == MODEL_33LC_9)
+	{
+		strcpy(HCESPN.H960, "33LC-9");
+	}		
+	else if(InfoModel1.ModelInfo == MODEL_25D_9VS)
+	{
+		strcpy(HCESPN.H960, "25D-9VS");
+	}
+	else if(InfoModel1.ModelInfo == MODEL_30D_9VS)
+	{
+		strcpy(HCESPN.H960, "30D-9VS");
+	}
+	else if(InfoModel1.ModelInfo == MODEL_35DN_9VS)
+	{
+		strcpy(HCESPN.H960, "35DN-9VS");
+	}
+	else if(InfoModel1.ModelInfo == MODEL_25D_9HDI)
+	{
+		strcpy(HCESPN.H960, "25D-9V");
+	}
+	else if(InfoModel1.ModelInfo == MODEL_30D_9HDI)
+	{
+		strcpy(HCESPN.H960, "30D-9V");
+	}
+	else if(InfoModel1.ModelInfo == MODEL_35DN_9HDI)
+	{
+		strcpy(HCESPN.H960, "35DN-9V");
+	}
+	else if(InfoModel1.ModelInfo == MODEL_25D_9HDI_S)
+	{
+		strcpy(HCESPN.H960, "25D-9VS");
+	}
+	else if(InfoModel1.ModelInfo == MODEL_30D_9HDI_S)
+	{
+		strcpy(HCESPN.H960, "30D-9VS");
+	}
+	else if(InfoModel1.ModelInfo == MODEL_35DN_9HDI_S)
+	{
+		strcpy(HCESPN.H960, "35DN-9VS");
+	}
+	else if(InfoModel1.ModelInfo == MODEL_35D_9HDI)
+	{
+		strcpy(HCESPN.H960, "35D-9VB");
+	}	
+	else if(InfoModel1.ModelInfo == MODEL_40D_9HDI)
+	{
+		strcpy(HCESPN.H960, "40D-9VB");
+	}	
+	else if(InfoModel1.ModelInfo == MODEL_45D_9HDI)
+	{
+		strcpy(HCESPN.H960, "45D-9VB");
+	}
+	else if(InfoModel1.ModelInfo == MODEL_50DN_9HDI)
+	{
+		strcpy(HCESPN.H960, "50DN-9VB");
+	}
+	else if(InfoModel1.ModelInfo == MODEL_25L_9A)
+	{
+		strcpy(HCESPN.H960, "25L-9A");
+	}
+	else if(InfoModel1.ModelInfo == MODEL_30L_9A)
+	{
+		strcpy(HCESPN.H960, "30L-9A");
+	}
+	else if(InfoModel1.ModelInfo == MODEL_33L_9A)
+	{
+		strcpy(HCESPN.H960, "33L-9A");
+	}
+	else if(InfoModel1.ModelInfo == MODEL_35LN_9A)
+	{
+		strcpy(HCESPN.H960, "35LN-9A");
+	}
+	else
+	{
+		strcpy(HCESPN.H960, "35L-9");
+	}
+
+	for(int j=0; j<10; j++) // MODEL NAME(MCU = MACHINE MODEL)
+	{
+		Temp_HCE_CID_Data[index] = HCESPN.H960[j];
+
+		if(HCESPN.H960[j] == 0x00)
+		{
+			Temp_HCE_CID_Data[index] = 0x2A;
+			break;
+		}
+		index++;
+	}
+
+	Temp_HCE_CID_Data[++index] = HCESPN.H977 = (Software_Version_Sub_high<<4); // Software Sub Version
+
+	index++;
+	Total_data_HCE_CID = index;
+	Total_Packet_HCE_CID = 	index/7;
+
+	if((Total_data_HCE_CID%7)!=0)	Total_Packet_HCE_CID++;
+}
+
+void prepare_CID_Data(void)
+{
+	UCHAR index;
+	UCHAR index_length;
+
+	UCHAR VersionHigh = TX_VERSION_DATA_61423->SW_Version_High;
+	UCHAR VersionLow = TX_VERSION_DATA_61423->SW_Version_Low;
+	UCHAR VersionSubHigh = TX_VERSION_DATA_61423->SW_Version_Sub_High;
+	//UCHAR VersionSubLow = TX_VERSION_DATA_61423->SW_Version_Sub_Low;
+
+	UCHAR HW_VersionHigh = TX_VERSION_DATA_61423->HW_Version_High;
+	UCHAR HW_VersionLow = TX_VERSION_DATA_61423->HW_Version_Low;
+	UCHAR HW_VersionSub = TX_VERSION_DATA_61423->HW_Version_SUB;
+	unsigned char tempchar[]={'F','S','5','C','2','0','0','7','D','0','0','0','0','5',};
+	unsigned char tempchar1[]={'F','S','5','C','2','0','0','8','D','0','0','0','0','6',};	
+
+	EepromRead(ADDRESS_CID, (unsigned char *)(&_Cluster_Serial[0]), 20);
+	memcpy((unsigned char *)(&gSendMulti_Cluster_Info[6]),(unsigned char *)(&_Cluster_Serial[0]),20);
+	EepromRead(ADDRESS_MODEL, (unsigned char *)(&_Cluster_Model[0]), 20);
+	
+
+	if((memcmp(&tempchar[0],&_Cluster_Serial,14) ==0)
+		|| (memcmp(&tempchar1[0],&_Cluster_Serial,14) ==0))
+		PROTO_EQUIPMENT = 1;
+	else
+		PROTO_EQUIPMENT = 0;
+
+	for(index=0;index<20;index++)
+	{
+		if((gSendMulti_Cluster_Info[6+index] == 0xff) || (gSendMulti_Cluster_Info[6+index] == 0x00))
+		{
+			gSendMulti_Cluster_Info[6+index] = 0x2a;
+			break;
+		}
+	}
+
+	if((_Cluster_Model[0] == 0x00) || (_Cluster_Model[0] == 0xff))
+		sprintf ((char *)gSendMulti_Cluster_Info[7+index], "2YFG-15311*") ; 
+	else
+	{
+		index_length = index+1;
+		memcpy((unsigned char *)(&gSendMulti_Cluster_Info[7+index]),(unsigned char *)(&_Cluster_Model[0]),20);
+
+		for(index=index_length;index<(index_length+20);index++)
+		{
+			if((gSendMulti_Cluster_Info[index] == 0xff) || (gSendMulti_Cluster_Info[index] == 0x00))
+			{
+				gSendMulti_Cluster_Info[index] = 0x2a;
+				break;
+			}
+		}
+		
+	}
+
+	Total_data_CID = Find_CID_SubVersion_Index(gSendMulti_Cluster_Info);
+
+	gSendMulti_Cluster_Info[0] = (HW_VersionHigh<<4) + (HW_VersionLow);
+	gSendMulti_Cluster_Info[1] = (0x0F & HW_VersionSub);
+
+	gSendMulti_Cluster_Info[5] = ((VersionHigh & 0x0F) << 4) + (VersionLow & 0x0F);
+	gSendMulti_Cluster_Info[Total_data_CID] = ((VersionSubHigh & 0x0F) << 4);// + (VersionSubLow & 0x0F);
+
+	Total_data_CID = Total_data_CID + 1;
+	Total_Packet_CID = Total_data_CID/7;
+	if((Total_data_CID%7)!=0)	Total_Packet_CID++;
+}
+
+void SendTP_CM_BAM_MultiPacket_32(void)
+{
+	struct st_CAN_Message1 Message;
+
+	Message.Priority = 7;
+	Message.Data_Page = 0;
+	Message.PDU_Format =0xEC;
+	Message.PDU_Specific = 0xFF;
+	Message.Source_Address = SA_CLUSTER;
+
+	Message.Data[0]=0x20;
+	Message.Data[1]=Total_data_CID;
+	Message.Data[2]=0;
+	Message.Data[3]=Total_Packet_CID;
+	Message.Data[4]=0xff;
+	Message.Data[5]=0x32;
+	Message.Data[6]=0xFF;
+	Message.Data[7]=0;
+	CAN1_OperateRingBuffer(Message);
+}
+
+void SendMultiPacketData_32(unsigned char packet_no)
+{
+	struct st_CAN_Message1 Message;
+
+	Message.Priority = 7;
+	Message.Data_Page = 0;
+	Message.PDU_Format =0xEB;
+	Message.PDU_Specific = 0xFF;
+	Message.Source_Address = SA_CLUSTER;
+
+	Message.Data[0] = packet_no;
+
+	memcpy(&Message.Data[1], &gSendMulti_Cluster_Info[(packet_no-1)*7], 7);
+
+	CAN1_OperateRingBuffer(Message);
+}
+
+// ++, 210629 ctw Auto JIG Final Test
+void SendTP_CM_BAM_MultiPacket_97(void)
+{
+	struct st_CAN_Message1 Message;
+
+	Message.Priority = 7;
+	Message.Data_Page = 0;
+	Message.PDU_Format =0xEC;
+	Message.PDU_Specific = 0x97;
+	Message.Source_Address = SA_CLUSTER;
+
+	Message.Data[0]=0x20;
+	Message.Data[1]=Total_data_HW_Test;
+	Message.Data[2]=0;
+	Message.Data[3]=Total_Packet_HW_Test;
+	Message.Data[4]=0xff;
+	Message.Data[5]=0x97;
+	Message.Data[6]=0xFC;
+	Message.Data[7]=0;
+	CAN1_OperateRingBuffer(Message);
+}
+
+void SendMultiPacketData_97_2nd(unsigned char packet_no)
+{
+	struct st_CAN_Message1 Message;
+
+	Message.Priority = 7;
+	Message.Data_Page = 0;
+	Message.PDU_Format =0xEB;
+	Message.PDU_Specific = 0x97;
+	Message.Source_Address = SA_CLUSTER;
+
+	Message.Data[0] = packet_no;
+
+	memcpy(&Message.Data[1], &gSendMulti_Cluster_Info_HW_2nd_Test[(packet_no-1)*7], 7);
+
+	CAN1_OperateRingBuffer(Message);
+}
+
+void SendMultiPacketData_97_Final(unsigned char packet_no)
+{
+	struct st_CAN_Message1 Message;
+
+	Message.Priority = 7;
+	Message.Data_Page = 0;
+	Message.PDU_Format =0xEB;
+	Message.PDU_Specific = 0x97;
+	Message.Source_Address = SA_CLUSTER;
+
+	Message.Data[0] = packet_no;
+
+	memcpy(&Message.Data[1], &gSendMulti_Cluster_Info_Final_Test[(packet_no-1)*7], 7);
+
+	CAN1_OperateRingBuffer(Message);
+}
+// --, 210629 ctw Auto JIG Final Test
+
+void CAN_TX_CID(void)
+{
+// ++, 210629 ctw Auto JIG Final Test
+#if 0
+	if((Flag_Send_CID) && (Total_data_CID > 19))
+#else
+        if((Flag_Send_CID) && (Total_data_CID > 15))
+#endif
+// --, 210629 ctw Auto JIG Final Test
+	{
+		if(TotalPacketNum_CID == 0)
+		{
+			SendTP_CM_BAM_MultiPacket_32();
+			TotalPacketNum_CID += 1;
+		}
+		else if(TotalPacketNum_CID != 0)
+		{
+                  
+// ++, 210629 ctw Auto JIG Final Test
+#if 1
+			SendMultiPacketData_32(TotalPacketNum_CID);
+#else
+			SendMultiPacketData_32(Total_Packet_Final_Test);
+#endif
+// --, 210629 ctw Auto JIG Final Test
+                        
+			TotalPacketNum_CID += 1;
+
+			if(TotalPacketNum_CID > Total_Packet_CID)
+			{
+				Flag_Send_CID = 0;
+				TotalPacketNum_CID = 0;
+			}
+		}
+	}
+	else
+	{
+		Flag_Send_CID = 0;
+		TotalPacketNum_CID = 0;
+	}
+}
+
+
+void SendTP_CM_BAM_MultiPacket_61184(void)
+{	
+	struct st_CAN_Message1 Message;
+	
+	Message.Priority = 7;
+	Message.Data_Page = 0;
+	Message.PDU_Format =0xEC;
+	Message.PDU_Specific = 0x4A;
+	Message.Source_Address = 0x47;
+	
+	for (int i = 0; i < 8; i++)
+	{
+		Message.Data[i] = 0xff;
+	}
+
+	Message.Data[0]=0x10;
+	Message.Data[1]=HCEPGN_61184_MSGT_250_Transmit_Data_Count;
+	Message.Data[2]=0;
+	Message.Data[3]=(HCEPGN_61184_MSGT_250_Transmit_Data_Count+6)/7;
+	Message.Data[4]=0xFF;
+	Message.Data[5]=0x00;
+	Message.Data[6]=0xEF;
+	Message.Data[7]=0;
+	
+	CAN2_OperateRingBuffer(Message);
+	
+}
+
+void SendMultiPacketData_61184(unsigned char packet_no)
+{	
+	struct st_CAN_Message1 Message;
+
+	Message.Priority = 7;
+	Message.Data_Page = 0;
+	Message.PDU_Format =0xEB;
+	Message.PDU_Specific = 0x4A;
+	Message.Source_Address = 0x47;
+
+	Message.Data[0] = packet_no;
+
+	memcpy(&Message.Data[1], &HCEPGN_61184_MSGT_250_Transmit_Data[(packet_no-1)*7], 7);
+
+	CAN2_OperateRingBuffer(Message);
+}
+
+void SendKEY(void)
+{
+	struct st_CAN_Message1 Message;
+
+	Message.Priority = 6;
+	Message.Data_Page = 0;
+	Message.PDU_Format =0xEF;		
+	Message.PDU_Specific = 0x47;
+    Message.Source_Address = 0x28;
+
+	Message.Data[0] = 0x01;
+	Message.Data[1] = 0xFF;
+	
+	Message.Data[2] |= (unsigned char)((RMS_Key_Status.HOME << 0) & 0x01);
+	Message.Data[2] |= (unsigned char)((RMS_Key_Status.LEFT << 1) & 0x02);
+	Message.Data[2] |= (unsigned char)((RMS_Key_Status.RIGHT << 2) & 0x04);
+	Message.Data[2] |= (unsigned char)((RMS_Key_Status.ENTER << 3) & 0x08);
+	Message.Data[2] |= (unsigned char)((RMS_Key_Status.ESC << 4) & 0x10);
+	
+	Message.Data[3] = 0xFF;
+	Message.Data[4] = 0xFF;
+	Message.Data[5] = 0xFF;
+	Message.Data[6] = 0xFF;
+	Message.Data[7] = 0xFF;
+
+	CAN2_OperateRingBuffer(Message);
+
+	if((ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_0 || ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_1 || 
+	ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_2 || ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_3 || 
+        ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_4 || ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_5 || 
+        ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_A))
+	{
+
+		Message.Priority = 6;
+		Message.Data_Page = 0;
+		Message.PDU_Format =0xFF;		
+		Message.PDU_Specific = 0x2F;
+	    Message.Source_Address = 0x28;
+
+		Message.Data[0] = 0xFF;
+		Message.Data[1] = 121;
+		Message.Data[2] = 0xFF;
+		Message.Data[3] = 0xFF;
+		Message.Data[4] = 0xFF;
+		Message.Data[5] = 0xFF;
+		Message.Data[6] = 0xFF;
+		Message.Data[7] = 0xFF;
+
+		CAN2_OperateRingBuffer(Message);
+
+	}
+	else if((ScreenIndex != SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_0 && ScreenIndex != SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_1 && 
+	ScreenIndex != SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_2 && ScreenIndex != SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_3 && 
+        ScreenIndex != SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_4 && ScreenIndex != SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_5 && 
+        ScreenIndex != SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_A))
+	{
+
+		Message.Priority = 6;
+		Message.Data_Page = 0;
+		Message.PDU_Format =0xFF;		
+		Message.PDU_Specific = 0x2F;
+		Message.Source_Address = 0x28;
+		
+		Message.Data[0] = 0xFF;
+		Message.Data[1] = 0x00;
+		Message.Data[2] = 0xFF;
+		Message.Data[3] = 0xFF;
+		Message.Data[4] = 0xFF;
+		Message.Data[5] = 0xFF;
+		Message.Data[6] = 0xFF;
+		Message.Data[7] = 0xFF;		
+		
+		CAN2_OperateRingBuffer(Message);
+
+	}
+}
+
+
+
+void SendTP_CM_BAM_MultiPacket_CID(void)
+{
+	struct st_CAN_Message1 Message;
+
+	Message.Priority = 7;
+	Message.Data_Page = 0;
+	Message.PDU_Format =0xEC;
+	Message.PDU_Specific = 0xFF; //0xFF -> 0x4A //++,--, 210906 ysm
+	Message.Source_Address = 0x47;
+
+	Message.Data[0]=0x20;
+	Message.Data[1]=Total_data_HCE_CID;
+	Message.Data[2]=0;
+	Message.Data[3]=Total_Packet_HCE_CID;
+	Message.Data[4]=0xff;
+	Message.Data[5]=0x32;
+	Message.Data[6]=0xFF;
+	Message.Data[7]=0;
+	CAN2_OperateRingBuffer(Message);
+}
+
+void SendMultiPacketData_CID(unsigned char packet_no)
+{
+	struct st_CAN_Message1 Message;
+
+	Message.Priority = 7;
+	Message.Data_Page = 0;
+	Message.PDU_Format =0xEB;
+	Message.PDU_Specific = 0xFF; //0xFF -> 0x4A //++,--, 210906 ysm
+	Message.Source_Address = 0x47;
+
+	Message.Data[0] = packet_no;
+
+	memcpy(&Message.Data[1], &Temp_HCE_CID_Data[(packet_no-1)*7], 7);
+
+	CAN2_OperateRingBuffer(Message);
+}
+
+void Send_RMCU_CID_Request(void)
+{
+	struct st_CAN_Message1 Message;
+	
+	Message.Priority = 7;
+	Message.Data_Page = 0;
+	Message.PDU_Format =0xEA;
+	Message.PDU_Specific = 0x4A; //0xFF -> 0x4A //++,--, 210906 ysm
+	Message.Source_Address = 0x47;
+	
+	Message.Data[0] = 0x32;
+	Message.Data[1] = 0xFF;
+	Message.Data[2] = 0x00; 
+	Message.Data[3] = 0x00;
+	Message.Data[4] = 0xFF;
+	Message.Data[5] = 0xFF;
+	Message.Data[6] = 0xFF;
+	Message.Data[7] = 0xFF;
+	
+	CAN2_OperateRingBuffer(Message);
+}
+
+
+void SendCID(void)
+{
+
+	if(Flag_Send_CID2)
+	{
+		
+		if(TotalPacketNum_CID2 == 0)
+		{
+			SendTP_CM_BAM_MultiPacket_CID();
+			TotalPacketNum_CID2 += 1;
+		}
+		else if(TotalPacketNum_CID2 != 0)
+		{
+			SendMultiPacketData_CID(TotalPacketNum_CID2);
+			TotalPacketNum_CID2 += 1;
+
+			if(TotalPacketNum_CID2 > Total_Packet_HCE_CID)
+			{
+				Flag_Send_CID2 = 0;
+				TotalPacketNum_CID2 = 0;
+			}
+		}
+	}
+	else
+	{
+		Flag_Send_CID2 = 0;
+		TotalPacketNum_CID2 = 0;
+	}
+
+	if(RMCU_CID_OK == 0)
+	{
+		if(RMCU_CID_Req_Count == 0)
+		{
+			Send_RMCU_CID_Request();
+		}
+
+		if(RMCU_CID_Req_Count++ > 20)
+			RMCU_CID_Req_Count = 0;
+
+	}
+	else
+	{
+		RMCU_CID_Req_Count = 0;
+
+	}
+}
+
+void SendRMCU(void)
+{
+	struct st_CAN_Message1 Message;
+
+	if(HCEPGN_61184_MSGT_250_Transmit_Flag)
+	{
+		if(HCEPGN_61184_MSGT_250_Transmit_Data_Count>8)
+		{
+		
+			if(TotalPacketNum_61184 == 0)
+			{
+				SendTP_CM_BAM_MultiPacket_61184();
+				TotalPacketNum_61184 += 1;
+
+			}
+			else if((TotalPacketNum_61184 != 0)&&(RMS3_CTS_Receive_Flag == 1))
+			{
+				SendMultiPacketData_61184(TotalPacketNum_61184);
+				TotalPacketNum_61184 += 1;
+				
+				if(TotalPacketNum_61184 > ((HCEPGN_61184_MSGT_250_Transmit_Data_Count+6)/7))
+				{
+					HCEPGN_61184_MSGT_250_Transmit_Flag = 0;
+					RMS3_CTS_Receive_Cnt = 0;
+					TotalPacketNum_61184 = 0;
+					RMS3_CTS_Receive_Flag = 0;
+				}
+			}
+			else
+			{
+				if(RMS3_CTS_Receive_Cnt++>20)
+				{
+					RMS3_CTS_Receive_Cnt = 0;
+					TotalPacketNum_61184 = 0;
+					RMS3_CTS_Receive_Flag = 0;
+				}
+					
+			}
+
+		}
+		else
+		{
+			Message.Priority = 6;
+			Message.Data_Page = 0;
+			Message.PDU_Format =0xEF;		
+			Message.PDU_Specific = 0x4A;
+	        Message.Source_Address = 0x47;		
+
+			memcpy(&Message.Data[0], &HCEPGN_61184_MSGT_250_Transmit_Data[0], HCEPGN_61184_MSGT_250_Transmit_Data_Count);
+			CAN2_OperateRingBuffer(Message);
+
+			HCEPGN_61184_MSGT_250_Transmit_Flag = 0;
+			
+		}
+	}
+
+	if((COUNT_FLAG.Flag_RMCU_Check == 1)&&(COUNT_FLAG.Flag_RMCU_Set== 1))
+	{
+		SendKEY();		
+	}
+
+	SendCID();
+
+}
+
+//++, 211124 ysm
+void Send_MMS_Date(void)
+{
+
+	struct st_CAN_Message1 Message;
+
+	Message.Priority = 6;
+	Message.Data_Page = 0;
+	Message.PDU_Format =0xFF;		
+	Message.PDU_Specific = 0x42;
+	Message.Source_Address = 0x47;
+
+	Message.Data[0] = HCESPN.H941[0];
+	Message.Data[1] = HCESPN.H941[1];
+	Message.Data[2] = HCESPN.H941[2];
+	Message.Data[3] = HCESPN.H941[3];
+	Message.Data[4] = HCESPN.H941[4];
+	Message.Data[5] = HCESPN.H941[5];
+	Message.Data[6] = HCESPN.H942;
+	Message.Data[7] = HCESPN.H951;
+
+	if(COUNT_FLAG.Count_MMS >= 600)
+	{	
+		if(COUNT_FLAG.Count_MMS >= 700)
+		{
+			COUNT_FLAG.Count_MMS = 600;
+			CAN2_OperateRingBuffer(Message);
+		}
+	}
+	else
+	{
+		CAN2_OperateRingBuffer(Message);
+	}
+
+	COUNT_FLAG.Count_MMS++;
+
+}
+
+void Send_MTS(void) // SPN532
+{
+
+	struct st_CAN_Message1 Message;
+	unsigned char speed_low;
+	unsigned short speed_high;
+
+	speed_low = (unsigned char)(Calculate_Speed_Value*256/10);
+	speed_high = (unsigned short)(Calculate_Speed_Value*256/10);
+
+	Message.Priority = 6;
+	Message.Data_Page = 0;
+	Message.PDU_Format =0xFF;		
+	Message.PDU_Specific = 0x9A;
+	Message.Source_Address = 0x47;
+
+	Message.Data[0] = speed_low;
+	Message.Data[1] = (unsigned char)(speed_high>>8);
+	Message.Data[2] = 0xff;
+	Message.Data[3] = 0xff;
+	Message.Data[4] = 0xff;
+	Message.Data[5] = 0xff;
+	Message.Data[6] = 0xff;
+	Message.Data[7] = 0xff;	
+
+	CAN2_OperateRingBuffer(Message);
+
+}
+//--, 211124 ysm
+
+
+
+
+void CAN_TX_PGN(unsigned short PGN)
+{
+	struct st_CAN_Message1 Message;
+
+    //++, 201013 ysm, LPG 
+	if(PGN == 0x0000) //LPG, TSC1
+    {
+		Message.Priority = 3;
+        Message.Source_Address = 0x2F;
+    }		
+	else if(PGN == 0x0001) //DIESEL, TSC1
+	{
+		Message.Priority = 3;
+        Message.Source_Address = SA_CLUSTER;
+	}
+	else if(PGN == 0xEAFF)
+	{
+		Message.Priority = 6;
+		
+		if(Engine_Type == DIESEL_TYPE)
+			Message.Source_Address = SA_CLUSTER;
+		else
+			Message.Source_Address = 0xD0;
+	}
+	else
+    {
+		Message.Priority = 6;
+        Message.Source_Address = SA_CLUSTER;
+    }
+
+	//++, 210701 ysm, 9L
+	if(Engine_Type == LPG_TYPE)
+	{
+		Message.Source_Address = 0xD0;
+	}
+	//--, 210701 ysm, 9L
+
+	if((PGN == 0xFFC2)||(PGN == 0xFFC4)||(PGN == 0xFFC5)||(PGN == 0xFFC6))
+		Message.Source_Address = 0x2F; // 2F
+
+	if((PGN == 0xF014)||(PGN == 0xFF9B)||(PGN == 0xF00D)||(PGN == 0xFF4A)||(PGN == 0xFF97))
+		Message.Source_Address = 0x2F; // 2F
+
+	//++, 220929 ysm, FSCU
+	if(PGN == 0xFFF4)
+		Message.Source_Address = 0x2F; //++,--, 230117 ysm, FSCU_BUG_FIX
+	//--, 220929 ysm, FSCU
+	
+    //--, 201013 ysm, LPG
+	Message.Data_Page = 0;
+	Message.PDU_Format =(PGN&0xFF00)>>8;
+	Message.PDU_Specific = (PGN & 0xff);
+	
+
+	switch(PGN)
+	{
+		case 0x0000: memcpy(&Message.Data[0], &gTX_BUF1[0], 8); break; //++,--, 201013 ysm, LPG
+		case 0x0001: memcpy(&Message.Data[0], &gTX_BUF1[0], 8); break; //++,--, 201013 ysm, LPG
+		case 0xEA00: memcpy(&Message.Data[0], &gTX_BUF60159[0], 8); break;
+		case 0xEAFF: memcpy(&Message.Data[0], &gTX_BUF60159[0], 8); break;
+		case 0xE000: memcpy(&Message.Data[0], &gTX_BUF57344[0], 8); break;
+		case 0xEFEF: memcpy(&Message.Data[0], &gTX_BUF61423[0], 8); break;
+		case 0xFEF1: memcpy(&Message.Data[0], &gTX_BUF65265[0], 8); break;
+		case 0xFF9A: memcpy(&Message.Data[0], &gTX_BUF65434[0], 8); break;
+		case 0xF014: memcpy(&Message.Data[0], &gTX_BUF61460[0], 8); break;
+		case 0xF297: memcpy(&Message.Data[0], &gTX_BUF62103[0], 8); break;      // ++, --, 210225 ctw Auto JIG Final Test
+
+// ++, 200924 ctw LPG
+		case 0xFE6C: memcpy(&Message.Data[0], &gTX_BUF65132[0], 8); break;
+		case 0xFFC3: memcpy(&Message.Data[0], &gTX_BUF65219[0], 8); break;
+// --, 200924 ctw LPG
+
+		case 0xFF50: memcpy(&Message.Data[0], &gTX_BUF65360[0], 8); break;	//++,--, 220525 ysm, HDI
+		case 0xFFA4: memcpy(&Message.Data[0], &gTX_BUF65444[0], 8); break;	//++,--, 220531 ysm, HDI
+		
+		// ++, 210225 ctw Auto JIG Final Test
+		case 0xFF01: memcpy(&Message.Data[0], &gTX_BUF65281[0], 8); break;
+		// --, 210225 ctw Auto JIG Final Test
+
+		case 0xFF97: memcpy(&Message.Data[0], &gTX_BUF65431[0], 8); break;
+		case 0xFF4A: memcpy(&Message.Data[0], &gTX_BUF65354[0], 8); break;
+		case 0xF00D: memcpy(&Message.Data[0], &gTX_BUF61453[0], 8); break;
+		
+		case 0xFFC2: memcpy(&Message.Data[0], &gTX_BUF65474[0], 8); break;
+		case 0xFFC4: memcpy(&Message.Data[0], &gTX_BUF65476[0], 8); break;
+		case 0xFFC5: memcpy(&Message.Data[0], &gTX_BUF65477[0], 8); break;
+		case 0xFFC6: memcpy(&Message.Data[0], &gTX_BUF65478[0], 8); break;
+		case 0xFF9B: memcpy(&Message.Data[0], &gTX_BUF65435[0], 8); break;
+
+		//++, 220929 ysm, FSCU
+		case 0xFFF4: memcpy(&Message.Data[0], &gTX_BUF65524[0], 8); break;
+		//--, 220929 ysm, FSCU		
+
+		case 0xFF88: memcpy(&Message.Data[0], &gTX_BUF65416[0], 8); break; //++,--, 220818 ysm, ACC_TEST2
+		
+		#if MENU_SHOW_SPEEDLIMIT
+		case 0xFFAC: memcpy(&Message.Data[0], &gTX_BUF65452[0], 8); break;
+		case 0xFFAD: memcpy(&Message.Data[0], &gTX_BUF65453[0], 8); break;
+		#endif
+	}
+
+	#if 1
+	if((PGN == 0xFF88)||(PGN == 0xFFAC)||(PGN == 0xFFAD))
+		CAN2_OperateRingBuffer(Message);
+	else
+		CAN1_OperateRingBuffer(Message);
+	#else
+	CAN1_OperateRingBuffer(Message);			
+	#endif
+	
+	if((PGN == 0xE000)&&(Engine_Type == LPG_TYPE))
+	{
+		Message.Source_Address = 0x2F; // 2F
+
+		CAN1_OperateRingBuffer(Message);
+	}
+
+}
+
+//++, 221226 ysm, FSCU
+void Send_FSCU_Demand1(void)
+{
+	unsigned char data[7];
+	
+	if(COUNT_FLAG.Flag_FSCU_Enable == 1)
+	{
+		TX_FSCU_DEMAND_DATA_65524->Seatbekt_Interlock_State = InfoModel2.SeatBeltInterlock;
+		TX_FSCU_DEMAND_DATA_65524->Travel_Cut_Relay_State = DOUT_DATA.TRAVEL_CUT_OUTPUT;
+
+		if(++COUNT_FLAG.Count_MCU_AliveCount > 7)
+			COUNT_FLAG.Count_MCU_AliveCount = 0;
+
+		//++, 230503 ysm, FSCU_HAC
+		#if 0
+			
+		if(HCESPN.Gear_542 == 0) // NEUTRAL
+		{
+			TX_FSCU_DEMAND_DATA_65524->Gear_Selector_Status_Forward = 0;
+			TX_FSCU_DEMAND_DATA_65524->Gear_Selector_Status_Neutral = 1;
+			TX_FSCU_DEMAND_DATA_65524->Gear_Selector_Status_Reverse = 0;
+		}
+		else if(HCESPN.Gear_542 == 1) // FORWARD
+		{
+			TX_FSCU_DEMAND_DATA_65524->Gear_Selector_Status_Forward = 1;
+			TX_FSCU_DEMAND_DATA_65524->Gear_Selector_Status_Neutral = 0;
+			TX_FSCU_DEMAND_DATA_65524->Gear_Selector_Status_Reverse = 0;
+		}
+		else if(HCESPN.Gear_542 == 2) // REVERSE
+		{
+			TX_FSCU_DEMAND_DATA_65524->Gear_Selector_Status_Forward = 0;
+			TX_FSCU_DEMAND_DATA_65524->Gear_Selector_Status_Neutral = 0;
+			TX_FSCU_DEMAND_DATA_65524->Gear_Selector_Status_Reverse = 1;
+		}
+		else // ERROR
+		{
+			TX_FSCU_DEMAND_DATA_65524->Gear_Selector_Status_Forward = 0;
+			TX_FSCU_DEMAND_DATA_65524->Gear_Selector_Status_Neutral = 0;
+			TX_FSCU_DEMAND_DATA_65524->Gear_Selector_Status_Reverse = 0;
+
+		}
+		#else
+		if(FSCU_HAC_OFF_Flag == 1) // Step 2
+		{
+			// Neutral
+			TX_FSCU_DEMAND_DATA_65524->Gear_Selector_Status_Forward = 0;
+			TX_FSCU_DEMAND_DATA_65524->Gear_Selector_Status_Neutral = 1;
+			TX_FSCU_DEMAND_DATA_65524->Gear_Selector_Status_Reverse = 0;
+
+		}
+		else
+		{
+			if(HCESPN.Gear_542 == 0) // NEUTRAL
+			{
+				TX_FSCU_DEMAND_DATA_65524->Gear_Selector_Status_Forward = 0;
+				TX_FSCU_DEMAND_DATA_65524->Gear_Selector_Status_Neutral = 1;
+				TX_FSCU_DEMAND_DATA_65524->Gear_Selector_Status_Reverse = 0;
+			}
+			else if(HCESPN.Gear_542 == 1) // FORWARD
+			{
+				TX_FSCU_DEMAND_DATA_65524->Gear_Selector_Status_Forward = 1;
+				TX_FSCU_DEMAND_DATA_65524->Gear_Selector_Status_Neutral = 0;
+				TX_FSCU_DEMAND_DATA_65524->Gear_Selector_Status_Reverse = 0;
+			}
+			else if(HCESPN.Gear_542 == 2) // REVERSE
+			{
+				TX_FSCU_DEMAND_DATA_65524->Gear_Selector_Status_Forward = 0;
+				TX_FSCU_DEMAND_DATA_65524->Gear_Selector_Status_Neutral = 0;
+				TX_FSCU_DEMAND_DATA_65524->Gear_Selector_Status_Reverse = 1;
+			}
+			else // ERROR
+			{
+				TX_FSCU_DEMAND_DATA_65524->Gear_Selector_Status_Forward = 0;
+				TX_FSCU_DEMAND_DATA_65524->Gear_Selector_Status_Neutral = 0;
+				TX_FSCU_DEMAND_DATA_65524->Gear_Selector_Status_Reverse = 0;
+			
+			}
+
+		}
+
+		#endif
+		//--, 230503 ysm, FSCU_HAC
+
+		data[0] = (TX_FSCU_DEMAND_DATA_65524->Attach_Cut_SV_Demand)+((TX_FSCU_DEMAND_DATA_65524->Parking_SV_Demand)<<2)
+				+((TX_FSCU_DEMAND_DATA_65524->Seatbekt_Interlock_State)<<4)+((TX_FSCU_DEMAND_DATA_65524->Travel_Cut_Relay_State)<<6);
+
+		data[1] = (TX_FSCU_DEMAND_DATA_65524->Gear_Selector_Status_Forward)+((TX_FSCU_DEMAND_DATA_65524->Gear_Selector_Status_Neutral)<<2)
+				+((TX_FSCU_DEMAND_DATA_65524->Gear_Selector_Status_Reverse)<<4)+((TX_FSCU_DEMAND_DATA_65524->reserved1)<<6);
+		
+		data[2] = TX_FSCU_DEMAND_DATA_65524->reserved[0] = 0x00;  //++,--, 230116 ysm, FSCU_BUG_FIX
+		data[3] = TX_FSCU_DEMAND_DATA_65524->reserved[1];
+		data[4] = TX_FSCU_DEMAND_DATA_65524->reserved[2];
+		data[5] = TX_FSCU_DEMAND_DATA_65524->reserved[3];
+		data[6] = TX_FSCU_DEMAND_DATA_65524->reserved[4];
+
+		TX_FSCU_DEMAND_DATA_65524->Message_CRC8 = J1939Cfg_BldMsgCntrChks(data, COUNT_FLAG.Count_MCU_AliveCount, 0x18FFF46F);
+
+		CAN_TX_PGN(0xFFF4);
+	}
+}
+//--, 221226 ysm, FSCU
+
+
+//++, 220523 ysm, FINGERTIP
+void Send_Gauge_Data(void) // 200ms
+{
+
+	TX_GAUGE_DATA_65431->Fuel_Level_Percentage = HCESPN.H301;
+	TX_GAUGE_DATA_65431->Engine_Coolant_Temperature = HCESPN.H304_Coolant_temp;
+	TX_GAUGE_DATA_65431->Hydraulic_Oil_Temperature = HCESPN.H101;
+	TX_GAUGE_DATA_65431->Transmission_Oil_Temperature = HCESPN.TM_Oil_Temp;
+	TX_GAUGE_DATA_65431->Engine_Speed = HCESPN.rpm_310;
+	TX_GAUGE_DATA_65431->Battery_Voltage = 0xFF; //BATTERY_VOLT
+	
+	CAN_TX_PGN(0xFF97);
+}
+
+void Send_AUTO_TILT(void) // 100ms
+{
+
+	TX_FLT_DATA_61453->Auto_Tilt_SW = Flag_DIN[INDEX_AUTO_TILT_SIG];
+	
+	CAN_TX_PGN(0xF00D);
+}
+
+void Send_HP4(void) // 200ms
+{
+
+	TX_FLT_DATA_65354->Hydraulic_Pressure = 0;
+	
+	CAN_TX_PGN(0xFF4A);
+}
+
+
+
+void Send_VM(void) // Vehicle Model
+{
+	// TEST
+	if(InfoModel1.ModelInfo == MODEL_50L_9)
+		TX_FLT_DATA_65435->Vehicle_Model = 153;
+	else if(InfoModel1.ModelInfo == MODEL_45L_9)
+		TX_FLT_DATA_65435->Vehicle_Model = 152;
+	else if(InfoModel1.ModelInfo == MODEL_40L_9)
+		TX_FLT_DATA_65435->Vehicle_Model = 151;
+	//++, 230407 ysm, INTEG
+	else if(InfoModel1.ModelInfo == MODEL_25L_9A)
+		TX_FLT_DATA_65435->Vehicle_Model = 154;
+	else if(InfoModel1.ModelInfo == MODEL_30L_9A)
+		TX_FLT_DATA_65435->Vehicle_Model = 155;
+	else if(InfoModel1.ModelInfo == MODEL_33L_9A)
+		TX_FLT_DATA_65435->Vehicle_Model = 156;
+	else if(InfoModel1.ModelInfo == MODEL_35LN_9A)
+		TX_FLT_DATA_65435->Vehicle_Model = 157;
+	//--, 230407 ysm, INTEG
+	else
+		TX_FLT_DATA_65435->Vehicle_Model = 150;
+	
+	CAN_TX_PGN(0xFF9B);
+}
+void Set_FingerTip_Valve_Setting(void)
+{
+	if((ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_LIFT_UP_SET)||
+		(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_LIFT_DOWN_SET)||
+		(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_TILT_A_SET)||
+		(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_TILT_B_SET)||
+		(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_AUX1_A_SET)||
+		(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_AUX1_B_SET)||
+		(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_AUX2_A_SET)||
+		(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_AUX2_B_SET))
+	{
+	
+		if(COUNT_FLAG.Flag_FLT_Step == 0) // Inquiry
+		{			
+			TX_FLT_DATA_65478->Command_Mode = 0x00;
+
+			if(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_LIFT_UP_SET)
+				TX_FLT_DATA_65478->FTC_Lever_Select = 1;
+			else if(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_LIFT_DOWN_SET)
+				TX_FLT_DATA_65478->FTC_Lever_Select = 0;
+			else if(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_TILT_A_SET)
+				TX_FLT_DATA_65478->FTC_Lever_Select = 2;
+			else if(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_TILT_B_SET)
+				TX_FLT_DATA_65478->FTC_Lever_Select = 3;
+			else if(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_AUX1_A_SET)
+				TX_FLT_DATA_65478->FTC_Lever_Select = 4;
+			else if(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_AUX1_B_SET)
+				TX_FLT_DATA_65478->FTC_Lever_Select = 5;
+			else if(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_AUX2_A_SET)
+				TX_FLT_DATA_65478->FTC_Lever_Select = 6;
+			else if(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_AUX2_B_SET)
+				TX_FLT_DATA_65478->FTC_Lever_Select = 7;	
+
+			#if 1
+			TX_FLT_DATA_65478->FTC_Valve_Minimum_Open_Value = 0xffff;
+			TX_FLT_DATA_65478->FTC_Valve_Maximum_Open_Value = 0xffff;
+			TX_FLT_DATA_65478->FTC_Valve_Open_Delay_Value = 0xff;
+			TX_FLT_DATA_65478->FTC_Valve_close_Delay_Value = 0xff;
+			#else
+			TX_FLT_DATA_65478->FTC_Valve_Minimum_Open_Value = 0;
+			TX_FLT_DATA_65478->FTC_Valve_Maximum_Open_Value = 0;
+			TX_FLT_DATA_65478->FTC_Valve_Open_Delay_Value = 0;
+			TX_FLT_DATA_65478->FTC_Valve_close_Delay_Value = 0;
+
+			TX_FLT_DATA_65478->Reserved0 = 0;
+			TX_FLT_DATA_65478->Reserved1 = 0;
+
+			#endif
+			CAN_TX_PGN(0xFFC6);
+	
+			COUNT_FLAG.Flag_FLT_Step = 1;
+	
+		}			
+		else if(COUNT_FLAG.Flag_FLT_Step == 1) // Answer
+		{
+			if((RX_FLT_DATA_65478.Command_Mode == 0x02)&&(RX_FLT_DATA_65478.FTC_Lever_Select == TX_FLT_DATA_65478->FTC_Lever_Select))
+			{
+			
+				Temp_FLT_Valve_Value[0] = FLT_Valve_Value[0] = RX_FLT_DATA_65478.FTC_Valve_Minimum_Open_Value;
+				Temp_FLT_Valve_Value[1] = FLT_Valve_Value[1] = RX_FLT_DATA_65478.FTC_Valve_Maximum_Open_Value;
+				Temp_FLT_Valve_Value[2] = FLT_Valve_Value[2] = 10*((USHORT)(RX_FLT_DATA_65478.FTC_Valve_Open_Delay_Value));
+				Temp_FLT_Valve_Value[3] = FLT_Valve_Value[3] = 10*((USHORT)(RX_FLT_DATA_65478.FTC_Valve_close_Delay_Value));
+
+				COUNT_FLAG.Flag_FLT_Step = 2;
+			}
+			else // Retry Inquiry
+			{
+				TX_FLT_DATA_65478->Command_Mode = 0x00;
+
+				TX_FLT_DATA_65478->FTC_Valve_Minimum_Open_Value = 0xffff;
+				TX_FLT_DATA_65478->FTC_Valve_Maximum_Open_Value = 0xffff;
+				TX_FLT_DATA_65478->FTC_Valve_Open_Delay_Value = 0xff;
+				TX_FLT_DATA_65478->FTC_Valve_close_Delay_Value = 0xff;
+	
+				CAN_TX_PGN(0xFFC6);
+			}
+	
+		}
+	
+	}		
+	else if((ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_LIFT_UP_COMPLETE)||
+		(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_LIFT_DOWN_COMPLETE)||
+		(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_TILT_A_COMPLETE)||
+		(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_TILT_B_COMPLETE)||
+		(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_AUX1_A_COMPLETE)||
+		(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_AUX1_B_COMPLETE)||
+		(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_AUX2_A_COMPLETE)||
+		(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_AUX2_B_COMPLETE))
+	{
+		// SETUP
+		if(COUNT_FLAG.Flag_FLT_Step == 0) 
+		{		
+	
+			TX_FLT_DATA_65478->Command_Mode = 0x01;
+
+			if(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_LIFT_UP_SET)
+				TX_FLT_DATA_65478->FTC_Lever_Select = 1;
+			else if(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_LIFT_DOWN_SET)
+				TX_FLT_DATA_65478->FTC_Lever_Select = 0;
+			else if(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_TILT_A_SET)
+				TX_FLT_DATA_65478->FTC_Lever_Select = 2;
+			else if(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_TILT_B_SET)
+				TX_FLT_DATA_65478->FTC_Lever_Select = 3;
+			else if(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_AUX1_A_SET)
+				TX_FLT_DATA_65478->FTC_Lever_Select = 4;
+			else if(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_AUX1_B_SET)
+				TX_FLT_DATA_65478->FTC_Lever_Select = 5;
+			else if(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_AUX2_A_SET)
+				TX_FLT_DATA_65478->FTC_Lever_Select = 6;
+			else if(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_AUX2_B_SET)
+				TX_FLT_DATA_65478->FTC_Lever_Select = 7;	
+	
+			TX_FLT_DATA_65478->FTC_Valve_Minimum_Open_Value= Temp_FLT_Valve_Value[0];
+			TX_FLT_DATA_65478->FTC_Valve_Maximum_Open_Value= Temp_FLT_Valve_Value[1];
+			TX_FLT_DATA_65478->FTC_Valve_Open_Delay_Value= (UCHAR)(Temp_FLT_Valve_Value[2]/10);
+			TX_FLT_DATA_65478->FTC_Valve_close_Delay_Value= (UCHAR)(Temp_FLT_Valve_Value[3]/10);
+
+			COUNT_FLAG.Flag_FLT_Step = 1; // SEND MESSAGE
+	
+			CAN_TX_PGN(0xFFC6);
+	
+		}
+	
+	}
+
+
+
+}
+
+
+void Set_FingerTip_DeadZone(void)
+{
+	if((ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_LEVER_DEADZONE_LIFT_SET)||
+		(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_LEVER_DEADZONE_TILT_SET)||
+		(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_LEVER_DEADZONE_AUX1_SET)||
+		(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_LEVER_DEADZONE_AUX2_SET))
+	{
+	
+		if(COUNT_FLAG.Flag_FLT_Step == 0) // Inquiry
+		{			
+			TX_FLT_DATA_65477->Command_Mode = 0x00;
+			TX_FLT_DATA_65477->FTC_Lever_Select = ((ScreenIndex & 0x000F0000)>>16)-1;
+
+			TX_FLT_DATA_65477->FTC_Lever_DeadZone_Upside_Value = 0xffff;
+			TX_FLT_DATA_65477->FTC_Lever_DeadZone_Downside_Value = 0xffff;
+	
+			CAN_TX_PGN(0xFFC5);
+	
+			COUNT_FLAG.Flag_FLT_Step = 1;
+	
+		}			
+		else if(COUNT_FLAG.Flag_FLT_Step == 1) // Answer
+		{
+			if((RX_FLT_DATA_65477.Command_Mode == 0x02)&&(RX_FLT_DATA_65477.FTC_Lever_Select == TX_FLT_DATA_65477->FTC_Lever_Select))
+			{
+			
+				Temp_FLT_DeadZone_Voltage[0] = FLT_DeadZone_Voltage[0] = RX_FLT_DATA_65477.FTC_Lever_DeadZone_Upside_Value;
+				Temp_FLT_DeadZone_Voltage[1] = FLT_DeadZone_Voltage[1] = RX_FLT_DATA_65477.FTC_Lever_DeadZone_Downside_Value;
+
+				Control_FLT_DeadZone_Voltage = Temp_FLT_DeadZone_Voltage[0];
+
+				COUNT_FLAG.Flag_FLT_Step = 2;
+			}
+			else // Retry Inquiry
+			{
+				TX_FLT_DATA_65477->Command_Mode = 0x00;
+				TX_FLT_DATA_65477->FTC_Lever_Select = ((ScreenIndex & 0x000F0000)>>16)-1;
+
+				TX_FLT_DATA_65477->FTC_Lever_DeadZone_Upside_Value = 0xffff;
+				TX_FLT_DATA_65477->FTC_Lever_DeadZone_Downside_Value = 0xffff;
+	
+				CAN_TX_PGN(0xFFC5);
+			}
+	
+		}
+	
+	}		
+	else if((ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_LEVER_DEADZONE_LIFT_COMPLETE)||
+		(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_LEVER_DEADZONE_TILT_COMPLETE)||
+		(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_LEVER_DEADZONE_AUX1_COMPLETE)||
+		(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_LEVER_DEADZONE_AUX2_COMPLETE))
+	{
+		// SETUP
+		if(COUNT_FLAG.Flag_FLT_Step == 0) 
+		{		
+	
+			TX_FLT_DATA_65477->Command_Mode = 0x01;
+			TX_FLT_DATA_65477->FTC_Lever_Select = ((ScreenIndex & 0x000F0000)>>16)-1;
+	
+			TX_FLT_DATA_65477->FTC_Lever_DeadZone_Upside_Value= Temp_FLT_DeadZone_Voltage[0];
+			TX_FLT_DATA_65477->FTC_Lever_DeadZone_Downside_Value= Temp_FLT_DeadZone_Voltage[1];
+
+			COUNT_FLAG.Flag_FLT_Step = 1; // SEND MESSAGE
+	
+			CAN_TX_PGN(0xFFC5);
+	
+		}
+	
+	}
+
+
+
+}
+
+
+void Set_FingerTip_Lever_Position(void)
+{
+
+	if((ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_LEVER_POSITION_LIFT_SET)||
+		(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_LEVER_POSITION_TILT_SET)||
+		(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_LEVER_POSITION_AUX1_SET)||
+		(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_LEVER_POSITION_AUX2_SET))
+	{
+	
+		TX_FLT_DATA_65476->Command_Mode = 0x00;
+		TX_FLT_DATA_65476->FTC_Lever_Select = ((ScreenIndex & 0x000F0000)>>16)-1;
+
+		TX_FLT_DATA_65476->FTC_Lever_Current_Value = 0xffff;
+
+	
+		CAN_TX_PGN(0xFFC4);
+	
+		
+		if(COUNT_FLAG.Flag_FLT_Step == 0) // Inquiry
+		{		
+	
+			TX_FLT_DATA_65474->Command_Mode = 0x00;
+			TX_FLT_DATA_65474->FTC_Lever_Select = ((ScreenIndex & 0x000F0000)>>16)-1;
+
+			TX_FLT_DATA_65474->FTC_Lever_Minimum_Value = 0xffff;
+			TX_FLT_DATA_65474->FTC_Lever_Middle_Value = 0xffff;
+			TX_FLT_DATA_65474->FTC_Lever_Maximum_Value = 0xffff;
+			
+	
+			CAN_TX_PGN(0xFFC2);
+	
+			COUNT_FLAG.Flag_FLT_Step = 1;				
+	
+		}			
+		else if(COUNT_FLAG.Flag_FLT_Step == 1) // Answer
+		{
+			if((RX_FLT_DATA_65474.Command_Mode == 0x02)&&(RX_FLT_DATA_65474.FTC_Lever_Select == TX_FLT_DATA_65474->FTC_Lever_Select)&&
+				(RX_FLT_DATA_65476.Command_Mode == 0x02)&&(RX_FLT_DATA_65476.FTC_Lever_Select == TX_FLT_DATA_65476->FTC_Lever_Select))
+			{
+			
+				Temp_FLT_Lever_Voltage[0] = FLT_Lever_Voltage[0] = RX_FLT_DATA_65474.FTC_Lever_Minimum_Value;
+				Temp_FLT_Lever_Voltage[1] = FLT_Lever_Voltage[1] = RX_FLT_DATA_65474.FTC_Lever_Middle_Value;
+				Temp_FLT_Lever_Voltage[2] = FLT_Lever_Voltage[2] = RX_FLT_DATA_65474.FTC_Lever_Maximum_Value;
+				Control_FLT_Lever_Voltage = RX_FLT_DATA_65476.FTC_Lever_Current_Value;
+	
+				COUNT_FLAG.Flag_FLT_Step = 2;
+			}
+			else // Retry
+			{
+				TX_FLT_DATA_65474->Command_Mode = 0x00;
+				TX_FLT_DATA_65474->FTC_Lever_Select = ((ScreenIndex & 0x000F0000)>>16)-1;
+
+				TX_FLT_DATA_65474->FTC_Lever_Minimum_Value = 0xffff;
+				TX_FLT_DATA_65474->FTC_Lever_Middle_Value = 0xffff;
+				TX_FLT_DATA_65474->FTC_Lever_Maximum_Value = 0xffff;
+	
+				CAN_TX_PGN(0xFFC2);
+			}
+	
+		}
+		else
+		{		
+			if((RX_FLT_DATA_65476.Command_Mode == 0x02)&&(RX_FLT_DATA_65476.FTC_Lever_Select == TX_FLT_DATA_65476->FTC_Lever_Select))
+				Control_FLT_Lever_Voltage = RX_FLT_DATA_65476.FTC_Lever_Current_Value;
+		}
+	
+	}		
+	else if((ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_LEVER_POSITION_LIFT_COMPLETE)||
+		(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_LEVER_POSITION_TILT_COMPLETE)||
+		(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_LEVER_POSITION_AUX1_COMPLETE)||
+		(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_LEVER_POSITION_AUX2_COMPLETE))
+	{
+		// SETUP
+		if(COUNT_FLAG.Flag_FLT_Step == 0) 
+		{		
+	
+			TX_FLT_DATA_65474->Command_Mode = 0x01;
+			TX_FLT_DATA_65474->FTC_Lever_Select = ((ScreenIndex & 0x000F0000)>>16)-1;
+	
+			TX_FLT_DATA_65474->FTC_Lever_Minimum_Value = Temp_FLT_Lever_Voltage[0];
+			TX_FLT_DATA_65474->FTC_Lever_Middle_Value = Temp_FLT_Lever_Voltage[1];
+			TX_FLT_DATA_65474->FTC_Lever_Maximum_Value = Temp_FLT_Lever_Voltage[2];
+			
+			COUNT_FLAG.Flag_FLT_Step = 1; // SEND MESSAGE
+	
+			CAN_TX_PGN(0xFFC2);
+	
+		}
+	
+	}
+
+}
+
+
+void SendFingerTip(void)
+{
+	if(FINGERTIP_EQUIPMENT == 1)
+	{
+		switch(ScreenIndex)
+		{
+			case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_LEVER_POSITION_LIFT_SET:
+			case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_LEVER_POSITION_TILT_SET:
+			case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_LEVER_POSITION_AUX1_SET:
+			case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_LEVER_POSITION_AUX2_SET:	
+
+			case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_LEVER_POSITION_LIFT_COMPLETE:
+			case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_LEVER_POSITION_TILT_COMPLETE:
+			case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_LEVER_POSITION_AUX1_COMPLETE:
+			case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_LEVER_POSITION_AUX2_COMPLETE:	
+				Set_FingerTip_Lever_Position();
+				break;
+
+			case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_LEVER_DEADZONE_LIFT_SET:
+			case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_LEVER_DEADZONE_TILT_SET:
+			case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_LEVER_DEADZONE_AUX1_SET:
+			case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_LEVER_DEADZONE_AUX2_SET:	
+
+			case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_LEVER_DEADZONE_LIFT_COMPLETE:
+			case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_LEVER_DEADZONE_TILT_COMPLETE:
+			case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_LEVER_DEADZONE_AUX1_COMPLETE:
+			case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_LEVER_DEADZONE_AUX2_COMPLETE:	
+				Set_FingerTip_DeadZone();
+				break;
+
+			case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_LIFT_UP_SET:
+			case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_LIFT_DOWN_SET:
+			case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_TILT_A_SET:
+			case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_TILT_B_SET:
+			case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_AUX1_A_SET:
+			case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_AUX1_B_SET:
+			case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_AUX2_A_SET:
+			case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_AUX2_B_SET:	
+
+			case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_LIFT_UP_COMPLETE:
+			case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_LIFT_DOWN_COMPLETE:
+			case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_TILT_A_COMPLETE:
+			case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_TILT_B_COMPLETE:	
+			case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_AUX1_A_COMPLETE:
+			case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_AUX1_B_COMPLETE:
+			case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_AUX2_A_COMPLETE:
+			case SCREEN_STATE_MENU_EQUIPMENT_FINGERTIP_VALVE_SETTING_AUX2_B_COMPLETE:		
+				Set_FingerTip_Valve_Setting();
+				break;
+
+				
+			default :
+				
+				break;
+
+		}		
+	}
+
+}
+
+
+void SendVersion()
+{
+	CAN_TX_PGN(0xEFEF);
+}
+
+void SendGSensor()
+{
+	CAN_TX_PGN(0xF014);
+}
+
+//++, 220525 ysm, HDI
+void SendSMVCU()
+{
+	if((InfoModel1.ModelInfo >= MODEL_25D_9HDI)&&(InfoModel1.ModelInfo <= MODEL_50DN_9HDI))
+	{
+		if(DOUT_DATA.ANTI_RESTART_OUTPUT==1)
+			TX_SMVCU_DATA_65444->Starter_Control_Request = 1; // ON
+		else
+			TX_SMVCU_DATA_65444->Starter_Control_Request = 0; // OFF
+		
+		CAN_TX_PGN(0xFFA4);
+	}
+}
+
+void SendDPM9()
+{
+	if((InfoModel1.ModelInfo >= MODEL_25D_9HDI)&&(InfoModel1.ModelInfo <= MODEL_50DN_9HDI))
+	{
+		if(Flag_DIN[INDEX_PWD_STD_MODE_SEL] == 1) //STD
+			TX_DPM9_DATA_65360->TM_DPM9 = 1;
+		else
+			TX_DPM9_DATA_65360->TM_DPM9 = 0;
+		
+		CAN_TX_PGN(0xFF50);
+	}
+}
+//--, 220525 ysm, HDI
+
+extern unsigned short SpeedLimitSpeed;
+void SendTorqueSpeedControl1()
+{
+
+  	if((InfoModel2.SpeedLimitStatus == 1) && (SpeedLimitOverrideControlMode == 0x03))
+	{
+		TX_TORQUE_SPEED_CONTROL1_DATA_1->OverrideControlMode_695 = 3;
+
+		if((InfoModel1.ModelInfo >= MODEL_25D_9HDI)&&(InfoModel1.ModelInfo <= MODEL_50DN_9HDI))
+		{
+			TX_TORQUE_SPEED_CONTROL1_DATA_1->RequestedTorque_torqueLimit_518 = SpeedLimitTorque;
+		}
+		else
+		{			
+			if((Flag_DIN[INDEX_PWD_STD_MODE_SEL]) && (Desire_torque < SpeedLimitTorque))
+				TX_TORQUE_SPEED_CONTROL1_DATA_1->RequestedTorque_torqueLimit_518 = Desire_torque;
+			else
+	        {
+				TX_TORQUE_SPEED_CONTROL1_DATA_1->RequestedTorque_torqueLimit_518 = SpeedLimitTorque;				
+	            
+	        }
+		}
+	}
+	else
+	{
+		if((Engine_Type == DIESEL_TYPE)&&((InfoModel1.ModelInfo <= MODEL_35DN_9VB)||((InfoModel1.ModelInfo >= MODEL_25D_9VS)&&(InfoModel1.ModelInfo <= MODEL_35DN_9VS))))
+		{
+	
+			if(Flag_DIN[INDEX_PWD_STD_MODE_SEL])
+				TX_TORQUE_SPEED_CONTROL1_DATA_1->OverrideControlMode_695 = 3;
+			else 
+				TX_TORQUE_SPEED_CONTROL1_DATA_1->OverrideControlMode_695 = 0;
+		}
+		else
+		{
+			TX_TORQUE_SPEED_CONTROL1_DATA_1->OverrideControlMode_695 = 0;
+
+		}
+
+		TX_TORQUE_SPEED_CONTROL1_DATA_1->RequestedTorque_torqueLimit_518 = Desire_torque;
+
+	}
+
+    TX_TORQUE_SPEED_CONTROL1_DATA_1->OverrideControlModePriority_897 = 1; 
+
+	//if(Engine_Type == DIESEL_TYPE)
+	if((InfoModel1.ModelInfo <= MODEL_35DN_9VB)||((InfoModel1.ModelInfo >= MODEL_25D_9VS)&&(InfoModel1.ModelInfo <= MODEL_35DN_9VS)))
+		CAN_TX_PGN(0x0001);
+	else
+		CAN_TX_PGN(0x0000);
+}
+
+void SendCM1()
+{
+	TX_CM1_DATA_57344->Seat_SW_1504 = Flag_DIN[INDEX_SEAT_SW];
+	TX_CM1_DATA_57344->DPF_Regen_Inhibit_SW_3695 = Flag_DIN[INDEX_INHIBIT_REGENERATION_SIG];
+	TX_CM1_DATA_57344->DPF_Parked_Regen_SW_3696 = Flag_DIN[INDEX_PARKED_REGENERATION_SIG];
+	CAN_TX_PGN(0xE000);
+}
+
+void SendCCVS()
+{
+	// ++, 200407 bwk
+	#if 0
+	if(OPSS_Status == 1)
+		TX_CCVS_DATA_65265->ParkingBrakeSwitch_70 = 0;
+	else
+	#endif
+	// --, 200407 bwk
+		TX_CCVS_DATA_65265->ParkingBrakeSwitch_70 = Flag_DIN[INDEX_PARKING_PRESSURE_SW];
+	//TX_CCVS_DATA_65265->BrakeSwitch_597 = Flag_DIN[INDEX_BRAKE_SW]; // 200908 이원호대리 삭제 요청 
+
+    // ++, 210225 ctw Auto JIG Final Test
+    if(Tab_Number == 0x02)
+    {
+            TX_CCVS_DATA_65265->BrakeSwitch_597 = Flag_DIN[INDEX_SW_BUCKLE];
+    }
+    // --, 210225 ctw Auto JIG Final Test
+    
+	CAN_TX_PGN(0xFEF1);
+}
+
+void SendECMCID()
+{
+	unsigned char i;	
+	
+	if(Flag_Comm_ECM == 1)
+	{
+
+		if(PGN_65242_Transmit_Count < 60000)
+		{
+			PGN_65242_Transmit_Count++;
+
+			if( ++Cnt_TransmitDataToECU >= 100)
+			{
+				Cnt_TransmitDataToECU= 0;
+				
+			}		
+
+			//	 Request PGN 0x00FEDA 65242 // Request Software Identification
+			if( ( (Cnt_TransmitDataToECU % 51) == 1) && (ECM_65242_ReceiveFlag == 0))	 
+			{
+
+				for (i = 0; i < 8; i++)
+				{
+					TX_RQST_DATA_60159->Data[i] = 0xff;
+				}
+
+				TX_RQST_DATA_60159->Data[0] = 0xDA;
+				TX_RQST_DATA_60159->Data[1] = 0xFE;
+				TX_RQST_DATA_60159->Data[2] = 0x00;
+
+				
+				if((InfoModel1.ModelInfo >= MODEL_25D_9HDI)&&(InfoModel1.ModelInfo <= MODEL_50DN_9HDI))
+					CAN_TX_PGN(0xEA00);
+				else
+					CAN_TX_PGN(0xEAFF);
+
+			}
+			
+			//	 Request PGN 0x00FDC5 64965 // Request ECU Part Number // Request ECU Serial Number		
+			if( ((Cnt_TransmitDataToECU % 50) == 1) && (ECM_64965_ReceiveFlag == 0) )
+			{
+				for (i = 0; i < 8; i++)
+				{
+					TX_RQST_DATA_60159->Data[i] = 0xff;
+				}
+			
+				TX_RQST_DATA_60159->Data[0] = 0xC5;
+				TX_RQST_DATA_60159->Data[1] = 0xFD;
+				TX_RQST_DATA_60159->Data[2] = 0x00; 	
+			
+				CAN_TX_PGN(0xEAFF);
+			
+			}
+		}
+
+	}
+
+}
+void SendVehicleStatus()
+{
+	TX_CLUSTER_DATA_65434->SpeedSig_532= (unsigned short)((Calculate_Speed_Value * 256) / 10);
+	TX_CLUSTER_DATA_65434->Gear_542= HCESPN.Gear_542;
+
+	CAN_TX_PGN(0xFF9A);
+}
+
+
+void SendButtonStatus()
+{
+	CAN_TX_PGN(0xF297);
+}
+
+//++, 220818 ysm, ACC_TEST2
+void SendAccSensorData()
+{
+	CAN_TX_PGN(0xFF88);
+}
+//--, 220818 ysm, ACC_TEST2
+
+
+
+#if MENU_SHOW_SPEEDLIMIT
+void SendSpeedLImit()
+{
+	TX_SPEED_LIMIT_SET_STATUS_65452->SpeedLimit_P = RX_SPEED_LIMIT_SET_STATUS_65452.SpeedLimit_P;
+	TX_SPEED_LIMIT_SET_STATUS_65452->SpeedLimit_I = RX_SPEED_LIMIT_SET_STATUS_65452.SpeedLimit_I;
+	TX_SPEED_LIMIT_SET_STATUS_65452->SpeedLimit_D = RX_SPEED_LIMIT_SET_STATUS_65452.SpeedLimit_D;
+	TX_SPEED_LIMIT_SET_STATUS_65452->SpeedLimit_LowTq = RX_SPEED_LIMIT_SET_STATUS_65452.SpeedLimit_LowTq;
+
+	TX_SPEED_LIMIT_SET_STATUS_65452->MaxSpeedLimitStatus = InfoModel2.SpeedLimitStatus;
+	TX_SPEED_LIMIT_SET_STATUS_65452->MaxSpeedLimitSet= InfoModel2.SpeedLimitValue;	
+	TX_SPEED_LIMIT_SET_STATUS_65452->PID_limit_Status= PID_limit_ON;	
+
+	TX_SPEED_LIMIT_SET_STATUS_65452->Vehicle_Speed= (unsigned short)Calculate_Speed_Value;
+
+	CAN_TX_PGN(0xFFAC);
+
+	TX_SPEED_LIMIT_TQ_STATUS_65453->Actual_Torque = (unsigned char)HCESPN.Actual_Engine_Percent_Torque_513;
+	TX_SPEED_LIMIT_TQ_STATUS_65453->Limit_Torque = (unsigned char)result_SPN518_torq_limit;	
+
+	TX_SPEED_LIMIT_TQ_STATUS_65453->Engine_Speed = RX_ECU_DATA_61444.Engine_Speed_190;	
+
+	TX_SPEED_LIMIT_TQ_STATUS_65453->Limit_Step = SpeedLimitStep;
+	TX_SPEED_LIMIT_TQ_STATUS_65453->Speed_Limit_Flag = PID_limit_ON;
+
+	TX_SPEED_LIMIT_TQ_STATUS_65453->Reserved1 = COUNT_FLAG.ZeroStart_Cnt;
+
+	if(ZEROSTART_Travel_Cut_Relay == 1)
+		TX_SPEED_LIMIT_TQ_STATUS_65453->Travel_Cut_Output = 1;
+	else
+		TX_SPEED_LIMIT_TQ_STATUS_65453->Travel_Cut_Output = 0;
+
+	//TX_SPEED_LIMIT_TQ_STATUS_65453->Accel_Pedal_Percentage = HCESPN.Accel_pedal_position_91;
+
+	
+	TX_SPEED_LIMIT_TQ_STATUS_65453->Accel_Pedal_SW = HCESPN.Accel_Pedal1_Low_Idle_Sw;
+	
+	CAN_TX_PGN(0xFFAD);
+
+	
+}
+#endif
+
+void CanTx10mSecOperationFunc()
+{
+	SendECMCID();
+	SendVehicleStatus();
+	SendTorqueSpeedControl1();
+	SendAccSensorData(); //++,-- 220818 ysm, ACC_TEST2
+}
+
+void CanTx50mSecOperationFunc()
+{
+	//SendSMVCU();
+}
+
+void CanTx100mSecOperationFunc()
+{
+	//++, 220929 ysm, FSCU
+	Send_FSCU_Demand1();
+	//--, 220929 ysm, FSCU
+	SendCCVS();
+	SendGSensor();
+	#if MENU_SHOW_SPEEDLIMIT
+	SendSpeedLImit();
+	#endif
+	//Send_RMCU_CID_Request();
+	SendRMCU();
+	SendFingerTip();
+	Send_AUTO_TILT();
+	
+	//++, 211124 ysm
+	Send_MMS_Date();
+	//--, 211124 ysm	
+#if 0
+	SendDIN();
+	SendAIN();
+#endif
+    
+    // ++, 210225 ctw Auto JIG Final Test
+    if(Tab_Number == 0x01)
+    {
+            SendAIN_R();
+            SendAIN_V();
+    }
+    if(Tab_Number == 0x02)
+    {
+    	SendDIN();
+    }
+    if(Tab_Number == 0x04)
+    {
+            SendAIN_R();
+    }
+    
+    TX_CAN2_CHECK();
+    // --, 210225 ctw Auto JIG Final Test
+}
+
+//++, 211124 ysm
+void CanTx200mSecOperationFunc()
+{
+	Send_MTS();
+	Send_VM();
+	Send_Gauge_Data();
+	Send_HP4();
+}
+//--, 211124 ysm
+
+void CanTx1sSecOperationFunc()
+{
+	SendCM1();
+	SendDPM9(); //++,--, 220525 ysm, HDI
+}
+
+//++, 220929 ysm, FSCU
+void Check_FSCU_Error(unsigned char Data_Count)
+{
+	unsigned char i;
+	unsigned int TempInt;
+
+	HCESPN.H3333[0] = HCESPN.H3333[1] = HCESPN.H3333[2] = HCESPN.H3333[3] = HCESPN.H3333[4] = 0;
+	
+	for (i = 0; i < Data_Count; i++)
+	{
+		TempInt = RX_FSCU_MULTI_DATA_65226.EngineErrorBuffer[i][0] + ((unsigned short)(RX_FSCU_MULTI_DATA_65226.EngineErrorBuffer[i][1])) *256 + ((unsigned int)((RX_FSCU_MULTI_DATA_65226.EngineErrorBuffer[i][2] >> 5) & 0x07))*256*256;  
+		
+		if ( ((RX_FSCU_MULTI_DATA_65226.EngineErrorBuffer[i][0] != 0x00) || (RX_FSCU_MULTI_DATA_65226.EngineErrorBuffer[i][1] != 0x00) || (RX_FSCU_MULTI_DATA_65226.EngineErrorBuffer[i][2] != 0x00)) 
+		&& ((RX_FSCU_MULTI_DATA_65226.EngineErrorBuffer[i][0] != 0xff) || (RX_FSCU_MULTI_DATA_65226.EngineErrorBuffer[i][1] != 0xff) || (RX_FSCU_MULTI_DATA_65226.EngineErrorBuffer[i][2] != 0xff)) 
+		&&(TempInt < 0x7ffff) )  
+		{
+			//++, 230127 ysm, FSCU
+			if(COUNT_FLAG.ECM_WarningCounter > DTC_WAIT_TIME)      // 20120116     
+			{
+				if(FSCU_EngineStartFlag== 1) //++,--, 230209 ysm, FSCU
+					AddFSCUFault(RX_FSCU_MULTI_DATA_65226.EngineErrorBuffer[i], 1);
+			}
+			//--, 230127 ysm, FSCU
+		}
+	}	                   
+}
+//--, 220929 ysm, FSCU
+
+
+//++, 220217 ysm, FINGERTIP
+void Check_FLT_Error(unsigned char Data_Count)
+{
+	unsigned char i;
+	unsigned int TempInt;
+
+	HCESPN.H3510[0] = HCESPN.H3510[1] = HCESPN.H3510[2] = HCESPN.H3510[3] = HCESPN.H3510[4]  = 0;
+	
+	for (i = 0; i < Data_Count; i++)
+	{
+		TempInt = RX_FLT_MULTI_DATA_65226.EngineErrorBuffer[i][0] + ((unsigned short)(RX_FLT_MULTI_DATA_65226.EngineErrorBuffer[i][1])) *256 + ((unsigned int)((RX_FLT_MULTI_DATA_65226.EngineErrorBuffer[i][2] >> 5) & 0x07))*256*256;  
+		
+		if ( ((RX_FLT_MULTI_DATA_65226.EngineErrorBuffer[i][0] != 0x00) || (RX_FLT_MULTI_DATA_65226.EngineErrorBuffer[i][1] != 0x00) || (RX_FLT_MULTI_DATA_65226.EngineErrorBuffer[i][2] != 0x00)) 
+		&& ((RX_FLT_MULTI_DATA_65226.EngineErrorBuffer[i][0] != 0xff) || (RX_FLT_MULTI_DATA_65226.EngineErrorBuffer[i][1] != 0xff) || (RX_FLT_MULTI_DATA_65226.EngineErrorBuffer[i][2] != 0xff)) 
+	//	&&((RX_FLT_MULTI_DATA_65226.EngineErrorBuffer[i][0] != 0x73) ||(RX_FLT_MULTI_DATA_65226.EngineErrorBuffer[i][1] != 0x02) ||(RX_FLT_MULTI_DATA_65226.EngineErrorBuffer[i][2] != 0x02))
+	//	&&((RX_FLT_MULTI_DATA_65226.EngineErrorBuffer[i][0] != 0x7f) ||(RX_FLT_MULTI_DATA_65226.EngineErrorBuffer[i][1] != 0x02) ||(RX_FLT_MULTI_DATA_65226.EngineErrorBuffer[i][2] != 0x09))
+		&&(TempInt < 0x7ffff) )  
+		{
+			if(COUNT_FLAG.ECM_WarningCounter > DTC_WAIT_TIME)      // 20120116               
+				AddFLTFault(RX_FLT_MULTI_DATA_65226.EngineErrorBuffer[i], 1);
+		}
+	}	                   
+}
+//--, 220217 ysm, FINGERTIP
+
+
+
+void Check_ECM_Error(unsigned char Data_Count)
+{
+	unsigned char i;
+	unsigned int TempInt;
+
+	for (i = 0; i < Data_Count; i++)
+	{
+		TempInt = RX_ECU_MULTI_DATA_65226.EngineErrorBuffer[i][0] + ((unsigned short)(RX_ECU_MULTI_DATA_65226.EngineErrorBuffer[i][1])) *256 + ((unsigned int)((RX_ECU_MULTI_DATA_65226.EngineErrorBuffer[i][2] >> 5) & 0x07))*256*256;  
+		
+		if ( ((RX_ECU_MULTI_DATA_65226.EngineErrorBuffer[i][0] != 0x00) || (RX_ECU_MULTI_DATA_65226.EngineErrorBuffer[i][1] != 0x00) || (RX_ECU_MULTI_DATA_65226.EngineErrorBuffer[i][2] != 0x00)) 
+		&& ((RX_ECU_MULTI_DATA_65226.EngineErrorBuffer[i][0] != 0xff) || (RX_ECU_MULTI_DATA_65226.EngineErrorBuffer[i][1] != 0xff) || (RX_ECU_MULTI_DATA_65226.EngineErrorBuffer[i][2] != 0xff)) 
+		&&((RX_ECU_MULTI_DATA_65226.EngineErrorBuffer[i][0] != 0x73) ||(RX_ECU_MULTI_DATA_65226.EngineErrorBuffer[i][1] != 0x02) ||(RX_ECU_MULTI_DATA_65226.EngineErrorBuffer[i][2] != 0x02))
+		&&((RX_ECU_MULTI_DATA_65226.EngineErrorBuffer[i][0] != 0x7f) ||(RX_ECU_MULTI_DATA_65226.EngineErrorBuffer[i][1] != 0x02) ||(RX_ECU_MULTI_DATA_65226.EngineErrorBuffer[i][2] != 0x09))
+		&&(TempInt < 0x7ffff) )  
+		{
+			if(COUNT_FLAG.ECM_WarningCounter > DTC_WAIT_TIME)      // 20120116               
+				AddECMFault(RX_ECU_MULTI_DATA_65226.EngineErrorBuffer[i]);
+		}
+	}	                   
+}
+
+// ++, 210225 ctw Auto JIG Final Test
+void Tab_Classification(void)
+{
+    if(RX_MMI_DATA_62767.TAB_NUMBER == 0x01)
+    {
+            Tab_Number = 1;
+    }
+    else if(RX_MMI_DATA_62767.TAB_NUMBER == 0x02)
+    {
+            Tab_Number = 2;
+    }
+    else if(RX_MMI_DATA_62767.TAB_NUMBER == 0x03)
+    {
+            Tab_Number = 3;
+    }
+    else if(RX_MMI_DATA_62767.TAB_NUMBER == 0x04)
+    {
+            Tab_Number = 4;
+    }
+    else
+    {
+            Tab_Number = 0xff;
+    }
+}
+// --, 210225 ctw Auto JIG Final Test
+
+
+void CheckMMIData()
+{
+	st_DATA_RTC temp_RTC;
+	
+	RTC_Data.Year = RX_MMI_DATA_65471.Year;
+	RTC_Data.Month = RX_MMI_DATA_65471.Month;
+	RTC_Data.Date= RX_MMI_DATA_65471.Date;
+
+	RTC_Data.Hours = RX_MMI_DATA_65471.Hour;
+	RTC_Data.Minutes= RX_MMI_DATA_65471.Min;
+	RTC_Data.Seconds= RX_MMI_DATA_65471.Sec;
+		
+	temp_RTC = Calculate_RTC_LHO_Applied(&RTC_Data, HCESPN.H951, 1);
+	write_RTC(&temp_RTC);
+	
+}
+
+//++, 220929 ysm, FSCU
+
+//param[in]      canData_pau8:     CAN data array for calculation (Byte 0..6)
+//! \param[in]      msgCntr_u8:       Message counter of this message (incremented in callback)
+//! \param[in]      msgId_u32:        J1939 priority of the message
+//! \param[in,out]  -
+//! \return         message counter and checksum (used for CAN data (Byte 7)
+
+unsigned char J1939Cfg_BldMsgCntrChks ( unsigned char *canData_pau8, unsigned char msgCntr_u8, unsigned int msgId_u32)
+{
+    unsigned char i;
+    unsigned char chks_u8;            /* temporary calculated value */
+    unsigned char chksMsg_u8;         /* final message checksum     */
+    unsigned char cntrMsg_u8;         /* final message counter      */
+
+    /* init checksum variable */
+    chks_u8 = 0;
+
+    /* mask counter according SAE J1939 only 3 bits [0..7] */
+    cntrMsg_u8 = msgCntr_u8 & 0x07;
+
+    /* add CAN data byte 0..6 */
+    for (i=0; i<7; i++)
+    {
+        chks_u8 += *canData_pau8;
+        canData_pau8++;
+    }
+
+    /* add message counter */
+    chks_u8 +=  cntrMsg_u8;
+
+    /* add CAN message identifier */
+    chks_u8 +=  (unsigned char)( msgId_u32       ) +
+                (unsigned char)( msgId_u32 >>  8 ) +
+                (unsigned char)( msgId_u32 >> 16 ) +
+                (unsigned char)( msgId_u32 >> 24 );
+
+    /* build final checksum value */
+    chksMsg_u8 = ( (( chks_u8 >> 6 ) & 0x03 ) +
+                    ( chks_u8 >> 3          ) +
+                      chks_u8                 ) & 0x07;
+
+    /* return message counter and message checksum */
+    return ( (   cntrMsg_u8               ) |
+             ( ( chksMsg_u8 & 0x0F ) << 4 ) );
+
+} // end of  J1939Cfg_BldMsgCntrChks
+
+//++, 221226 ysm, FSCU
+
+
+void CAN_Parsing_FSCU(unsigned short PGN, unsigned char* RxData, CAN_RxHeaderTypeDef RxHeader)
+{
+	
+	
+	//unsigned char alive_count;
+	unsigned char i,j;
+	//unsigned char crc8;
+	
+	switch (PGN) 
+	{
+
+		case 0xFFF5:		//65625 	FSCU State1
+
+			//++, 230208 ysm, FSCU
+			#if 0
+			alive_count = (RxData[7] & 0x0F);	//++,--, 230116 ysm, FSCU_BUG_FIX
+
+			crc8 = J1939Cfg_BldMsgCntrChks(RxData, alive_count, RxHeader.ExtId);
+
+			if(InitFSCU_Flag == 0)
+			{
+				InitFSCU_Flag = 1;
+				COUNT_FLAG.Count_FSCU_AliveCount = alive_count;
+				
+			}
+			else
+			{
+				COUNT_FLAG.Count_FSCU_AliveCount++;
+							
+				if(COUNT_FLAG.Count_FSCU_AliveCount > 7)
+					COUNT_FLAG.Count_FSCU_AliveCount = 0;
+				
+			}
+
+			if(COUNT_FLAG.Count_FSCU_AliveCount != alive_count)
+			{
+				COUNT_FLAG.Count_FSCU_AliveCount_Fail++;
+				COUNT_FLAG.Count_FSCU_AliveCount = alive_count;
+				
+				if(COUNT_FLAG.Count_FSCU_AliveCount_Fail >= 3)
+				{
+					COUNT_FLAG.Count_FSCU_AliveCount_Fail = 3;
+					COUNT_FLAG.Flag_FSCUCommError = 1;
+				}
+
+			}
+			//++, 230202 ysm, FSCU
+			else
+			{
+				COUNT_FLAG.Count_FSCU_AliveCount_Fail = 0;
+			}
+			//--, 230202 ysm, FSCU
+			
+			if(crc8 == RxData[7])
+			{			
+				memcpy(&RX_FSCU_DATA_65525,RxData,sizeof(RX_FSCU_DATA_65525));
+				
+				COUNT_FLAG.Flag_FSCU_Enable = 1;
+
+				if((InfoModel1.ModelInfo <= MODEL_35DN_9VB)||((InfoModel1.ModelInfo >= MODEL_25D_9VS)&&(InfoModel1.ModelInfo <= MODEL_35DN_9VS)))
+				{
+
+					//++, 230116 ysm, FSCU_BUG_FIX
+					if(RX_FSCU_DATA_65525.Current_Group != 0)
+					{
+						COUNT_FLAG.Flag_FSCUCommError = 1;
+
+					}
+					//--, 230116 ysm, FSCU_BUG_FIX
+						
+				}
+				else if(((InfoModel1.ModelInfo >= MODEL_35L_9)&&(InfoModel1.ModelInfo <= MODEL_50L_9))||((InfoModel1.ModelInfo >= MODEL_25L_9A)&&(InfoModel1.ModelInfo <= MODEL_35LN_9A)))
+				{
+					//++, 230116 ysm, FSCU_BUG_FIX
+					if(RX_FSCU_DATA_65525.Current_Group != 5)
+					{
+						COUNT_FLAG.Flag_FSCUCommError = 1;
+
+
+					}
+					//--, 230116 ysm, FSCU_BUG_FIX
+
+				}
+				
+			}
+			else
+			{				
+				if(COUNT_FLAG.Flag_FSCU_Enable == 1)
+				{
+					if(COUNT_FLAG.Count_FSCU_CRC_Fail++ > 10)
+					{
+						COUNT_FLAG.Count_FSCU_CRC_Fail = 20;
+						COUNT_FLAG.Flag_FSCUCommError = 1;
+
+					}
+				}
+			}
+			#else
+			memcpy(&RX_FSCU_DATA_65525,RxData,sizeof(RX_FSCU_DATA_65525));
+			
+			COUNT_FLAG.Flag_FSCU_Enable = 1;
+			
+			if((InfoModel1.ModelInfo <= MODEL_35DN_9VB)||((InfoModel1.ModelInfo >= MODEL_25D_9VS)&&(InfoModel1.ModelInfo <= MODEL_35DN_9VS)))
+			{
+			
+				//++, 230116 ysm, FSCU_BUG_FIX
+				if(RX_FSCU_DATA_65525.Current_Group != 0)
+				{
+					//++, 230616 ysm, FSCU_HAC
+					if(COUNT_FLAG.Count_FSCU_Invalid_Model++ > 5)
+					{
+						COUNT_FLAG.Count_FSCU_Invalid_Model = 10;
+						COUNT_FLAG.Flag_FSCU_Invalid_Model = 1;
+					}		
+					//--, 230616 ysm, FSCU_HAC
+			
+				}
+				else
+				{
+					COUNT_FLAG.Count_FSCU_Invalid_Model = 0;
+					COUNT_FLAG.Flag_FSCU_Invalid_Model = 0;
+
+				}
+				//--, 230116 ysm, FSCU_BUG_FIX
+					
+			}
+			else if(((InfoModel1.ModelInfo >= MODEL_35L_9)&&(InfoModel1.ModelInfo <= MODEL_50L_9))||((InfoModel1.ModelInfo >= MODEL_25L_9A)&&(InfoModel1.ModelInfo <= MODEL_35LN_9A)))
+			{
+				//++, 230116 ysm, FSCU_BUG_FIX
+				if(RX_FSCU_DATA_65525.Current_Group != 5)
+				{
+					if(COUNT_FLAG.Count_FSCU_Invalid_Model++ > 5)
+					{
+						COUNT_FLAG.Count_FSCU_Invalid_Model = 10;
+						COUNT_FLAG.Flag_FSCU_Invalid_Model = 1;
+					}			
+				
+				}
+				else
+				{
+					COUNT_FLAG.Count_FSCU_Invalid_Model = 0;
+					COUNT_FLAG.Flag_FSCU_Invalid_Model = 0;
+				
+				}
+				//--, 230116 ysm, FSCU_BUG_FIX
+			
+			}
+			#endif
+
+			COUNT_FLAG.Comm_Error_FSCU = 0;
+			break;
+
+
+		case 0xFECA:		// Error Code
+			memcpy(&RX_FSCU_DATA_65226,RxData,sizeof(RX_FSCU_DATA_65226));	
+			
+			if (((RX_FSCU_DATA_65226.ErrorCode[0] != 0x00) || (RX_FSCU_DATA_65226.ErrorCode[1] != 0x00) || (RX_FSCU_DATA_65226.ErrorCode[2] != 0x00))
+				&& ((RX_FSCU_DATA_65226.ErrorCode[0] != 0xff) || (RX_FSCU_DATA_65226.ErrorCode[1] != 0xff) || (RX_FSCU_DATA_65226.ErrorCode[2] != 0xff)))
+				{
+					//++, 230127 ysm, FSCU
+					if(COUNT_FLAG.ECM_WarningCounter > DTC_WAIT_TIME)	
+					{
+						if(FSCU_EngineStartFlag== 1) //++,--, 230209 ysm, FSCU
+							AddFSCUFault(RX_FSCU_DATA_65226.ErrorCode, 0);
+					}
+					//--, 230127 ysm, FSCU
+					
+					memset(&RX_FSCU_MULTI_DATA_65226,0xff,sizeof(RX_FSCU_MULTI_DATA_65226));
+				}
+
+			break;
+
+		
+		case 0xECFF:		// Multi-Packet
+			memcpy(&RX_FSCU_MULTI_TP_CM,RxData,sizeof(RX_FSCU_MULTI_TP_CM));
+			memset(&gRecvMulti_FSCU[0], 0xff, sizeof(gRecvMulti_FSCU));
+			gRecvMulit_FSCU_Flag = gRecvMulit_FSCU_TotalPacket = 0;
+			break;
+			
+		case 0xEBFF:
+			memcpy((UCHAR*)(&gRecvMulti_FSCU[(RxData[0]-1)*7]),&RxData[1],7);
+		
+			switch(RX_FSCU_MULTI_TP_CM.pgn_low)
+			{
+
+				case 0xFECA:			// 65226			DTC
+					if(RxData[0] == RX_FSCU_MULTI_TP_CM.TotPacketNum)
+					{
+						memcpy(&RX_FSCU_MULTI_DATA_65226,&gRecvMulti_FSCU,sizeof(RX_FSCU_MULTI_DATA_65226));
+						gRecvMulit_FSCU_TotalPacket = (RX_FSCU_MULTI_TP_CM.TotMsgSize - 2)/4;
+						Check_FSCU_Error(gRecvMulit_FSCU_TotalPacket);
+						
+					}
+					break;
+
+				case 0xFF32:			// 65330			CID
+					if(RxData[0] == RX_FSCU_MULTI_TP_CM.TotPacketNum)
+					{
+						memcpy(&RX_FSCU_MULTI_DATA_65330,&gRecvMulti_FSCU,sizeof(RX_FSCU_MULTI_DATA_65330));
+		
+						_FSCU_SW_Version = RX_FSCU_MULTI_DATA_65330.Software_Version;
+												
+						for(i=0; i<20; i++)
+						{
+		
+							if(RX_FSCU_MULTI_DATA_65330.Data[i] == 0x2A)
+								break;
+		
+							_FSCU_Serial[i] = RX_FSCU_MULTI_DATA_65330.Data[i];
+						}
+		
+						for(j=0; j<20; j++)
+						{
+							if(RX_FSCU_MULTI_DATA_65330.Data[1+i+j] == 0x2A)
+								break;
+		
+							_FSCU_PartNumber[j] = RX_FSCU_MULTI_DATA_65330.Data[1+i+j];		
+		
+						}
+						
+						_FSCU_SW_Sub_Version = RX_FSCU_MULTI_DATA_65330.Data[2+i+j];		
+
+					}
+					break;
+		
+			}
+			break;			
+	}
+
+}
+//--, 220929 ysm, FSCU
+//--, 221226 ysm, FSCU
+
+
+//++, 221024 ysm, FSCU
+void CAN_Parsing_FLT_SUB(unsigned short PGN, unsigned char* RxData)
+{
+	
+	switch (PGN) 
+	{
+
+		case 0xFF0A:		//65290
+			memcpy(&RX_FLT_SUB_65290,RxData,sizeof(RX_FLT_SUB_65290));			
+			break;
+
+		case 0xFF0B:		//65291
+			memcpy(&RX_FLT_SUB_65291,RxData,sizeof(RX_FLT_SUB_65291));
+
+			if(RX_FLT_SUB_65291.FNR_STATUS < 3)
+			{
+				if(COUNT_FLAG.Comm_Error_FLT < 200) //++,--, 230111 ysm, FSCU
+					COUNT_FLAG.Comm_Error_FLT = 0;  //++,--, 221226 ysm, FSCU
+			}
+			break;
+		
+	}	
+    COUNT_FLAG.Flag_FLT_SUB = 1;
+	
+
+}
+//--, 221024 ysm, FSCU
+
+//++, 220217 ysm, FINGERTIP
+void CAN_Parsing_FLT(unsigned short PGN, unsigned char* RxData)
+{
+	
+	unsigned char i,j;
+	unsigned int TempInt;
+
+	switch (PGN) 
+	{
+
+		case 0xFFC2:		//65474			Lever Position Setting.
+			memcpy(&RX_FLT_DATA_65474_TEMP,RxData,sizeof(RX_FLT_DATA_65474_TEMP));	
+
+			if((RX_FLT_DATA_65474_TEMP.Command_Mode == 0x02)&&(RX_FLT_DATA_65474_TEMP.FTC_Lever_Select == TX_FLT_DATA_65474->FTC_Lever_Select))			
+			{
+				memcpy(&RX_FLT_DATA_65474, RxData, sizeof(RX_FLT_DATA_65474));
+			}			
+			break;
+
+		case 0xFFC4:		//65476			Lever Currnet Setting.
+			memcpy(&RX_FLT_DATA_65476,RxData,sizeof(RX_FLT_DATA_65476));
+			break;
+
+		case 0xFFC5:		//65477			Lever DeadZone Setting.
+			memcpy(&RX_FLT_DATA_65477_TEMP,RxData,sizeof(RX_FLT_DATA_65477_TEMP));
+
+			if((RX_FLT_DATA_65477_TEMP.Command_Mode == 0x02)&&(RX_FLT_DATA_65477_TEMP.FTC_Lever_Select == TX_FLT_DATA_65477->FTC_Lever_Select))
+			{
+				memcpy(&RX_FLT_DATA_65477,RxData,sizeof(RX_FLT_DATA_65477));
+			}
+			break;
+
+		case 0xFFC6:		//65478			Valve Setting.
+			memcpy(&RX_FLT_DATA_65478_TEMP,RxData,sizeof(RX_FLT_DATA_65478_TEMP));
+
+			if((RX_FLT_DATA_65478_TEMP.Command_Mode == 0x02)&&(RX_FLT_DATA_65478_TEMP.FTC_Lever_Select == TX_FLT_DATA_65478->FTC_Lever_Select))
+			{
+				memcpy(&RX_FLT_DATA_65478,RxData,sizeof(RX_FLT_DATA_65478));
+			}
+			break;
+
+	
+		case 0xFECA:		// 65226			DTC
+			memcpy(&RX_FLT_DATA_65226,RxData,sizeof(RX_FLT_DATA_65226));
+			
+			TempInt = RX_FLT_DATA_65226.ErrorCode[0] + ((unsigned short)(RX_FLT_DATA_65226.ErrorCode[1]))*256 + ((unsigned int)((RX_FLT_DATA_65226.ErrorCode[2] >> 5) & 0x07))*256*256;
+			if (((RX_FLT_DATA_65226.ErrorCode[0] != 0x00) || (RX_FLT_DATA_65226.ErrorCode[1] != 0x00) || (RX_FLT_DATA_65226.ErrorCode[2] != 0x00))
+				&& ((RX_FLT_DATA_65226.ErrorCode[0] != 0xff) || (RX_FLT_DATA_65226.ErrorCode[1] != 0xff) || (RX_FLT_DATA_65226.ErrorCode[2] != 0xff))
+			//	&& ((RX_FLT_DATA_65226.ErrorCode[0] != 0x7f) || (RX_FLT_DATA_65226.ErrorCode[1] != 0x02) || (RX_FLT_DATA_65226.ErrorCode[2] != 0x09))
+			//	&& ((RX_FLT_DATA_65226.ErrorCode[0] != 0x73) || (RX_FLT_DATA_65226.ErrorCode[1] != 0x02) || (RX_FLT_DATA_65226.ErrorCode[2] != 0x02))
+				&& (TempInt < 0x7ffff))
+				{
+					if(COUNT_FLAG.ECM_WarningCounter > DTC_WAIT_TIME)         
+						AddFLTFault(RX_FLT_DATA_65226.ErrorCode, 0);
+					
+					memset(&RX_FLT_MULTI_DATA_65226,0xff,sizeof(RX_FLT_MULTI_DATA_65226));
+				}
+			/*
+			else
+			{
+				HCESPN.H3510[0] = HCESPN.H3510[1] = HCESPN.H3510[2] = HCESPN.H3510[3] = HCESPN.H3510[4]  = 0;
+				//HCESPN.H1526=0;
+
+
+			}
+			*/
+			break;
+		
+		case 0xECFF:
+			memcpy(&RX_FLT_MULTI_TP_CM,RxData,sizeof(RX_FLT_MULTI_TP_CM));
+			memset(&gRecvMulti_FLT[0], 0xff, sizeof(gRecvMulti_FLT));
+			gRecvMulit_FLT_Flag	= gRecvMulit_FLT_TotalPacket = 0;
+			break;
+			
+		case 0xEBFF:
+			memcpy((UCHAR*)(&gRecvMulti_FLT[(RxData[0]-1)*7]),&RxData[1],7);
+
+			switch(RX_FLT_MULTI_TP_CM.pgn_low)
+			{
+				case 0xFECA:			// 65226			DTC
+					if(RxData[0] == RX_FLT_MULTI_TP_CM.TotPacketNum)
+					{
+						memcpy(&RX_FLT_MULTI_DATA_65226,&gRecvMulti_FLT,sizeof(RX_FLT_MULTI_DATA_65226));
+						gRecvMulit_FLT_TotalPacket = (RX_FLT_MULTI_TP_CM.TotMsgSize - 2)/4;
+						Check_FLT_Error(gRecvMulit_FLT_TotalPacket);
+						
+					}
+					break;
+					
+				case 0xFF32:			// 65330			CID
+					if(RxData[0] == RX_FLT_MULTI_TP_CM.TotPacketNum)
+					{
+						memcpy(&RX_FLT_MULTI_DATA_65330,&gRecvMulti_FLT,sizeof(RX_FLT_MULTI_DATA_65330));
+
+						_FLT_SW_Version = RX_FLT_MULTI_DATA_65330.Software_Version;
+												
+						for(i=0; i<20; i++)
+						{
+
+							if(RX_FLT_MULTI_DATA_65330.Data[i] == 0x2A)
+								break;
+	
+							_FLT_Serial[i] = RX_FLT_MULTI_DATA_65330.Data[i];
+						}
+
+						for(j=0; j<20; j++)
+						{
+							if(RX_FLT_MULTI_DATA_65330.Data[1+i+j] == 0x2A)
+								break;
+
+							_FLT_PartNumber[j] = RX_FLT_MULTI_DATA_65330.Data[1+i+j];		
+
+						}
+
+						_FLT_SW_Sub_Version = RX_FLT_MULTI_DATA_65330.Data[2+i+j];
+
+						COUNT_FLAG.Flag_FLT_Check = FINGERTIP_EQUIPMENT = 1;
+					}
+					break;
+					
+
+
+			}
+			break;
+	}
+
+}
+//--, 220217 ysm, FINGERTIP
+
+void CAN_Parsing_ECU(unsigned short PGN, unsigned char* RxData)
+{
+	
+	unsigned char i,j;
+	unsigned char TempIndex;
+	unsigned int TempInt;
+
+	Flag_Comm_ECM = 1;
+	switch (PGN) 
+	{
+	
+	case 0xF003:   //61444	 Electronic Engine Controller #2
+		memcpy(&RX_ECU_DATA_61443,RxData,sizeof(RX_ECU_DATA_61443));
+
+		HCESPN.Accel_Pedal1_Low_Idle_Sw = RX_ECU_DATA_61443.Accel_Pedal1_Low_Idle_Sw;
+		HCESPN.Accel_pedal_position_91 = RX_ECU_DATA_61443.AcceleratorPedalPosition_91;
+		break;
+	case 0xF004:   //61444	 Electronic Engine Controller #1
+		memcpy(&RX_ECU_DATA_61444,RxData,sizeof(RX_ECU_DATA_61444));
+		if(RX_ECU_DATA_61444.Engine_Speed_190 <= 0xfaff)
+		{
+			HCESPN.rpm_310 = RX_ECU_DATA_61444.Engine_Speed_190/8;
+		}
+		if((Engine_Type == LPG_TYPE)||((InfoModel1.ModelInfo >= MODEL_25D_9HDI)&&(InfoModel1.ModelInfo <= MODEL_50DN_9HDI)))
+		{
+			if(RX_ECU_DATA_61444.Actual_Engine_Percent_Torque_513 >= 125)			
+				HCESPN.Actual_Engine_Percent_Torque_513 = (unsigned short)(RX_ECU_DATA_61444.Actual_Engine_Percent_Torque_513 - 125);
+			else
+				HCESPN.Actual_Engine_Percent_Torque_513 = 0;
+
+		}
+		else
+			HCESPN.Actual_Engine_Percent_Torque_513 = ((unsigned short)(RX_ECU_DATA_61444.Actual_Engine_Percent_Torque_513)*2);
+		
+		break;
+
+	case 0xFD7A:		// 64890
+		memcpy(&RX_ECU_DATA_64890,RxData,sizeof(RX_ECU_DATA_64890));
+		break;
+
+	case 0xFECA:		// 65226			DTC
+		memcpy(&RX_ECU_DATA_65226,RxData,sizeof(RX_ECU_DATA_65226));
+		
+		TempInt = RX_ECU_DATA_65226.ErrorCode[0] + ((unsigned short)(RX_ECU_DATA_65226.ErrorCode[1]))*256 + ((unsigned int)((RX_ECU_DATA_65226.ErrorCode[2] >> 5) & 0x07))*256*256;
+		if (((RX_ECU_DATA_65226.ErrorCode[0] != 0x00) || (RX_ECU_DATA_65226.ErrorCode[1] != 0x00) || (RX_ECU_DATA_65226.ErrorCode[2] != 0x00))
+			&& ((RX_ECU_DATA_65226.ErrorCode[0] != 0xff) || (RX_ECU_DATA_65226.ErrorCode[1] != 0xff) || (RX_ECU_DATA_65226.ErrorCode[2] != 0xff))
+			&& ((RX_ECU_DATA_65226.ErrorCode[0] != 0x7f) || (RX_ECU_DATA_65226.ErrorCode[1] != 0x02) || (RX_ECU_DATA_65226.ErrorCode[2] != 0x09))
+			&& ((RX_ECU_DATA_65226.ErrorCode[0] != 0x73) || (RX_ECU_DATA_65226.ErrorCode[1] != 0x02) || (RX_ECU_DATA_65226.ErrorCode[2] != 0x02))
+			&& (TempInt < 0x7ffff))
+			{
+				if(COUNT_FLAG.ECM_WarningCounter > DTC_WAIT_TIME)
+				{	
+					AddECMFault(RX_ECU_DATA_65226.ErrorCode);
+				}
+				memset(&RX_ECU_MULTI_DATA_65226,0xff,sizeof(RX_ECU_MULTI_DATA_65226));
+			}
+		break;
+
+	case 0xFEE4:		// 65252
+		memcpy(&RX_ECU_DATA_65252,RxData,sizeof(RX_ECU_DATA_65252));
+		break;
+                
+		// ++, 200924 ctw LPG
+	case 0xFEE5:		// 65253
+		memcpy(&RX_ECU_DATA_65253,RxData,sizeof(RX_ECU_DATA_65253));
+		break;
+		// --, 200924 ctw LPG
+
+		// ++, 200924 ctw LPG
+	case 0xFEEF:		// 65263
+		memcpy(&RX_ECU_DATA_65263,RxData,sizeof(RX_ECU_DATA_65263));
+			//++, 201123 ysm, ENG_OIL
+		HCESPN.Engine_Oil_Pressure_LPG = (RX_ECU_DATA_65263.Engine_Oil_Pressure)*4;
+		//--, 201123 ysm, ENG_OIL
+		break;
+		// --, 200924 ctw LPG
+
+	case 0xFEF1: // LPG
+		memcpy(&RX_ECU_DATA_65265,RxData,sizeof(RX_ECU_DATA_65265));
+		break;
+
+	case 0xFEF2: // LPG
+		memcpy(&RX_ECU_DATA_65266,RxData,sizeof(RX_ECU_DATA_65266));
+
+		if(RX_ECU_DATA_65266.Fuel_Rate <= 0xFAFF)
+			HCESPN.Fuel_Rate_LPG = (RX_ECU_DATA_65266.Fuel_Rate)*0.05;
+		break;
+                
+	case 0xFEFF:		// 65279
+		memcpy(&RX_ECU_DATA_65279,RxData,sizeof(RX_ECU_DATA_65279));
+		break;
+
+	case 0xFEEE:		// 65262
+		memcpy(&RX_ECU_DATA_65262,RxData,sizeof(RX_ECU_DATA_65262));
+		break;
+		
+	case 0xECFF:		// Multi Packet Header
+		memcpy(&RX_ECU_MULTI_TP_CM,RxData,sizeof(RX_ECU_MULTI_TP_CM));
+		memset(&gRecvMulti_ECU[0], 0xff, sizeof(gRecvMulti_ECU));
+		gRecvMulit_ECU_Flag	= gRecvMulit_ECU_TotalPacket = 0;
+		break;
+	case 0xEBFF:		// Multi Packet 내용
+		memcpy((UCHAR*)(&gRecvMulti_ECU[(RxData[0]-1)*7]),&RxData[1],7);
+
+		switch(RX_ECU_MULTI_TP_CM.pgn_low)
+		{
+			case 0xFECA:			// 65226			DTC
+				if(RxData[0] == RX_ECU_MULTI_TP_CM.TotPacketNum)
+				{
+					memcpy(&RX_ECU_MULTI_DATA_65226,&gRecvMulti_ECU,sizeof(RX_ECU_MULTI_DATA_65226));
+					gRecvMulit_ECU_TotalPacket = (RX_ECU_MULTI_TP_CM.TotMsgSize - 2)/4;
+					if(RX_ECU_MULTI_DATA_65226.Amber_Warning_Lamp_Status_624 < 0x03)
+						RX_ECU_DATA_65226.Amber_Warning_Lamp_Status_624  = RX_ECU_MULTI_DATA_65226.Amber_Warning_Lamp_Status_624;
+
+					if(RX_ECU_MULTI_DATA_65226.Protect_Lamp_Status < 0x03)
+						RX_ECU_DATA_65226.Protect_Lamp_Status  = RX_ECU_MULTI_DATA_65226.Protect_Lamp_Status;
+
+					if(RX_ECU_MULTI_DATA_65226.Flash_Protect_Lamp < 0x03)
+						RX_ECU_DATA_65226.Flash_Protect_Lamp  = RX_ECU_MULTI_DATA_65226.Flash_Protect_Lamp;
+					
+					Check_ECM_Error(gRecvMulit_ECU_TotalPacket);
+					
+				}
+				break;
+				
+			case 0xFEDA:			// 65242			ECU Software Identification
+				if(RxData[0] == RX_ECU_MULTI_TP_CM.TotPacketNum)
+				{
+					memcpy(&RX_ECU_MULTI_DATA_65242,&gRecvMulti_ECU,sizeof(RX_ECU_MULTI_DATA_65242));
+					
+					for(i=0; i<20; i++)
+					{
+						if(RX_ECU_MULTI_DATA_65242.Software_Identification[i] == 0x2A)
+							break;
+
+						_ECM_SW_Version[i] = RX_ECU_MULTI_DATA_65242.Software_Identification[i];		
+
+					}				
+					ECM_65242_ReceiveFlag = 1;
+				}
+				break;
+				
+			case 0xFDC5:			// 64965			ECU Part Number, Serial Number
+				if(RxData[0] == RX_ECU_MULTI_TP_CM.TotPacketNum)
+				{
+					memcpy(&RX_ECU_MULTI_DATA_64965,&gRecvMulti_ECU,sizeof(RX_ECU_MULTI_DATA_64965));
+
+					for(i=0; i<20; i++)
+					{
+
+						TempIndex = i;
+						if(RX_ECU_MULTI_DATA_64965.ECM_Data[i] == 0x2A)
+						{							
+							break;
+						}
+						_ECM_PartNumber[i] = RX_ECU_MULTI_DATA_64965.ECM_Data[i];		
+
+					}					
+
+					for(j=1; j<20; j++)
+					{
+						if(RX_ECU_MULTI_DATA_64965.ECM_Data[j+TempIndex] == 0x2A)
+							break;
+
+						_ECM_Serial[j-1] = RX_ECU_MULTI_DATA_64965.ECM_Data[j+TempIndex];		
+
+					}		
+					
+					ECM_64965_ReceiveFlag = 1;
+				}
+				break;
+
+		}
+		break;
+	}	
+
+	#if 0
+	if((InfoModel1.ModelInfo >= MODEL_25D_9HDI)&&(InfoModel1.ModelInfo <= MODEL_35DN_9HDI))
+	{
+		ECM_64965_ReceiveFlag = 1;
+	}
+	else if((InfoModel1.ModelInfo >= MODEL_25LC_9)&&(InfoModel1.ModelInfo <= MODEL_33LC_9)) // TEST 임
+	{
+		ECM_64965_ReceiveFlag = 1;		
+	}
+	#endif
+
+	if((ECM_65242_ReceiveFlag == 1)||(ECM_64965_ReceiveFlag == 1))
+	{
+		COUNT_FLAG.Flag_ECM_Check = 1;
+		if(((InfoModel1.ModelInfo >= MODEL_25LC_9)&&(InfoModel1.ModelInfo <= MODEL_33LC_9))||
+		((InfoModel1.ModelInfo >= MODEL_25L_9A)&&(InfoModel1.ModelInfo <= MODEL_35LN_9A)))
+		{
+			COUNT_FLAG.Flag_ECM_ECON = 1;
+		}
+		else
+			COUNT_FLAG.Flag_ECM_ECON = 0;
+		
+	}
+	
+	COUNT_FLAG.Comm_Error_ECU=0;
+	COUNT_FLAG.Flag_ECU_Comm_error=0;
+	//InitECU_Comm_error = 0; //++,--, 221226 ysm, FSCU
+}
+
+
+void CAN_Parsing_JIG(unsigned short PGN, unsigned char* RxData)
+{
+	switch (PGN) 
+	{
+        // ++, 210225 ctw Auto JIG Final Test   //void CAN_Parsing_MMI 함수로 이동
+//	case 0xFF0C:   //65292
+//		memcpy(&RX_JIG_DATA_65292,RxData,sizeof(RX_JIG_DATA_65292));
+//		break;
+        // --, 210225 ctw Auto JIG Final Test   //void CAN_Parsing_MMI 함수로 이동
+          
+	#if MENU_SHOW_SPEEDLIMIT
+	case 0xffac:		// 65452
+		memcpy(&RX_SPEED_LIMIT_SET_STATUS_65452,RxData,sizeof(RX_SPEED_LIMIT_SET_STATUS_65452));
+		Speed_Limit_Test_Flag = 1;
+		break;
+	#endif
+
+	}	
+}
+
+// ++, 210225 ctw Auto JIG Final Test
+void CAN_Parsing_MMI(unsigned short PGN, unsigned char* RxData)
+{
+        switch (PGN) 
+	{
+                case 0xFFBF:   //65471
+                  if(CAN_DATA_0xABAB_Flag == 1)
+                  {
+                        memcpy(&RX_MMI_DATA_65471,RxData,sizeof(RX_MMI_DATA_65471));
+                        CheckMMIData();
+                  }
+//                        TransRTCData();
+                        break;
+        
+                case 0xF62F:
+                  if(CAN_DATA_0xABAB_Flag == 1)
+                  {
+                        memcpy(&RX_MMI_DATA_63023,RxData,sizeof(RX_MMI_DATA_63023));
+                        ResetEEPROM();
+                  }
+                        break;
+				case 0xF52F:    //62767
+                  if(CAN_DATA_0xABAB_Flag == 1)
+                  {
+						memcpy(&RX_MMI_DATA_62767,RxData,sizeof(RX_MMI_DATA_62767));
+						Tab_Classification();
+                  }
+						break;
+                
+                case 0xFF0C:   //65292
+                  if(CAN_DATA_0xABAB_Flag == 1)
+                  {
+                    memcpy(&RX_JIG_DATA_65292,RxData,sizeof(RX_JIG_DATA_65292));
+                  }
+					break;
+                
+                
+                case 0xABAB:   //43947
+                  CAN_DATA_0xABAB_Flag = 1;
+					break;
+                
+        }
+}
+// --, 210225 ctw Auto JIG Final Test
+
+// ++, 210629 ctw Auto JIG CID
+//unsigned char _ADDRESS_EEPROM_Final_TEST_YEAR_0x00 = 0x00;
+//unsigned char _ADDRESS_EEPROM_Final_TEST_YEAR_2 = 0x77;
+//unsigned char _ADDRESS_EEPROM_Final_TEST_YEAR_3 = 0x88;
+// --, 210629 ctw Auto JIG CID
+
+void CAN_Parsing_CID(unsigned short PGN, unsigned char* RxData)
+{
+	unsigned char i;
+	unsigned char length;
+	unsigned char find_serial = 0;
+
+	switch (PGN) 
+	{
+		case 0xabcd:
+			memcpy(&RX_MMI_DATA_43981,RxData,sizeof(RX_MMI_DATA_43981));
+			ResetEEPROM();
+		break;
+		case 0xffbf:
+			memcpy(&RX_MMI_DATA_65471,RxData,sizeof(RX_MMI_DATA_65471));
+			CheckMMIData();
+		break;
+		
+		case 0xEC2F:		// Multi Packet Header
+			memcpy(&RX_CID_MULTI_TP_CM,RxData,sizeof(RX_CID_MULTI_TP_CM));
+			memset(&gRecvMulti_CID[0], 0xff, sizeof(gRecvMulti_CID));
+			memset(&Cluster_Serial[0], 0xff, sizeof(Cluster_Serial));
+			break;
+		case 0xEB2F:		// Multi Packet 내용
+			memcpy((UCHAR*)(&gRecvMulti_CID[(RxData[0]-1)*7]),&RxData[1],7);        //Multi Packet 내용 Data를 gRecvMulti_CID에 순서대로 모두 저장
+
+			switch(RX_CID_MULTI_TP_CM.pgn_low)
+			{
+				case 0xefef:			// 61423 CID Write
+					if(RxData[0] == RX_CID_MULTI_TP_CM.TotPacketNum)
+					{
+					    // ++, 210629 ctw Auto JIG CID                         
+						EepromWrite(ADDRESS_EEPROM_Final_TEST_YEAR, (unsigned char *)(&gRecvMulti_CID[2]),1);
+						EepromWrite(ADDRESS_EEPROM_Final_TEST_MONTH, (unsigned char *)(&gRecvMulti_CID[3]),1);
+						EepromWrite(ADDRESS_EEPROM_Final_TEST_DAY, (unsigned char *)(&gRecvMulti_CID[4]),1);
+                        // --, 210629 ctw Auto JIG CID					
+									
+						HCESPN.H971 = gRecvMulti_CID[2];	
+						EepromWrite(ADDRESS_MANUFACTURE_YEAR, (unsigned char *)(&gRecvMulti_CID[2]),1);						
+						
+						HCESPN.H972 = gRecvMulti_CID[3];
+						EepromWrite(ADDRESS_MANUFACTURE_MONTH, (unsigned char *)(&gRecvMulti_CID[3]),1);
+						
+						HCESPN.H973 = gRecvMulti_CID[4];
+						EepromWrite(ADDRESS_MANUFACTURE_DATE, (unsigned char *)(&gRecvMulti_CID[4]),1);
+					
+						for(i=6;i<38;i++)
+						{
+							if(gRecvMulti_CID[i] != 0x2a)
+							{
+								if(find_serial == 0)
+									Cluster_Serial[i-6] = gRecvMulti_CID[i];
+								else
+									Cluster_Model[i-length] = gRecvMulti_CID[i];
+							}
+							else
+							{
+								if(find_serial == 0)
+								{
+									length = i+1;
+									find_serial = 1;
+									EepromWrite(ADDRESS_CID, (unsigned char *)(&Cluster_Serial),20);
+									EepromRead(ADDRESS_CID, &_Cluster_Serial[0], 20);
+								}
+								else
+								{
+									EepromWrite(ADDRESS_MODEL, (unsigned char *)(&Cluster_Model),20);
+									EepromRead(ADDRESS_MODEL, &_Cluster_Model[0], 20);
+									break;
+								}
+                                Flag_Send_HW_Test = 1;
+							}
+						}	
+                        // ++, 210629 ctw Auto JIG Final Test
+                        Flag_Send_Final_Test = 1;
+                        // --, 210629 ctw Auto JIG Final Test
+					}
+
+					break;
+			}
+			break;
+	}	
+}
+
+// ++, 210629 ctw Auto JIG Final Test
+#if 0
+void CAN_TX_HW_Final_Test(void)
+{
+	if((Flag_Send_Final_Test) && (Total_data_Final_Test > 19))
+	{
+		if(TotalPacketNum_Final_Test == 0)
+		{
+			SendTP_CM_BAM_MultiPacket_97();
+			TotalPacketNum_Final_Test += 1;
+		}
+		else if(TotalPacketNum_Final_Test != 0)
+		{
+			SendMultiPacketData_97_Final(TotalPacketNum_Final_Test);
+			TotalPacketNum_Final_Test += 1;
+
+			if(TotalPacketNum_Final_Test > Total_Packet_Final_Test)
+			{
+				Flag_Send_Final_Test = 0;
+				TotalPacketNum_Final_Test = 0;
+			}
+		}
+	}
+	else
+	{
+		Flag_Send_Final_Test = 0;
+		TotalPacketNum_Final_Test = 0;
+	}
+}
+#else
+void CAN_TX_HW_2nd_Test(void)
+{
+	if((Flag_Send_HW_Test) && (Total_data_HW_Test > 19))
+	{
+		if(TotalPacketNum_HW_Test == 0)
+		{
+			SendTP_CM_BAM_MultiPacket_97();
+			TotalPacketNum_HW_Test += 1;
+		}
+		else if(TotalPacketNum_HW_Test != 0)
+		{
+			SendMultiPacketData_97_2nd(TotalPacketNum_HW_Test);
+			TotalPacketNum_HW_Test += 1;
+
+			if(TotalPacketNum_HW_Test > Total_Packet_HW_Test)
+			{
+
+				TotalPacketNum_HW_Test = 0;
+                Flag_Send_HW_Test = 0;
+
+			}
+		}
+	}
+	else
+	{
+		Flag_Send_HW_Test = 0;
+		TotalPacketNum_HW_Test = 0;
+	}
+}
+#endif
+// --, 210629 ctw Auto JIG Final Test
+
+// ++, 210225 ctw Auto JIG Final Test
+void CAN_Parsing_HW_Test(unsigned short PGN, unsigned char* RxData)
+{
+	unsigned char i;
+        
+	switch (PGN) 
+	{		
+		case 0xEC2F:		// Multi Packet Header
+			memcpy(&RX_HW_Test_MULTI_TP_CM,RxData,sizeof(RX_HW_Test_MULTI_TP_CM));
+			memset(&gRecvMulti_HW_Test[0], 0xff, sizeof(gRecvMulti_HW_Test));
+			memset(&Cluster_Lot[0], 0xff, sizeof(Cluster_Lot));
+                        
+            Flag_Send_HW_Test = 1;
+                        
+			break;
+		case 0xEB2F:		// Multi Packet 내용
+			memcpy((UCHAR*)(&gRecvMulti_HW_Test[(RxData[0]-1)*7]),&RxData[1],7);
+                        
+			switch(RX_HW_Test_MULTI_TP_CM.pgn_low)
+			{
+				case 0xf72f:			// 63279 HW Test Write
+					if(RxData[0] == RX_HW_Test_MULTI_TP_CM.TotPacketNum)
+					{
+						for(i=7;i<28;i++)
+						{
+							if(gRecvMulti_HW_Test[i] != 0x2a)
+							{
+								Cluster_Lot[i-7] = gRecvMulti_HW_Test[i];
+							}
+							else
+							{
+								break;
+							}
+						}	
+						EepromWrite(ADDRESS_EEPROM_TEST_YEAR, (unsigned char *)(&gRecvMulti_HW_Test[0]),1);
+						EepromWrite(ADDRESS_EEPROM_TEST_MONTH, (unsigned char *)(&gRecvMulti_HW_Test[1]),1);
+						EepromWrite(ADDRESS_EEPROM_TEST_DAY, (unsigned char *)(&gRecvMulti_HW_Test[2]),1);
+						
+                        TimeDelay_msec(5);
+                                                
+						EepromWrite(ADDRESS_EEPROM_TESTER, (unsigned char *)(&gRecvMulti_HW_Test[3]),3);
+						EepromWrite(ADDRESS_EEPROM_TEST_COUNT, (unsigned char *)(&gRecvMulti_HW_Test[6]),1);
+                                                
+                        TimeDelay_msec(5);
+                        TimeDelay_msec(20);                                                
+                                                
+                        for(i=0; i<18; i++)
+                        {
+                            EepromWrite(ADDRESS_EEPROM_TEST_LOT_NUMBER+i, (unsigned char *)(&gRecvMulti_HW_Test[7+i]),1);
+                            TimeDelay_msec(11);
+                        }
+                        
+                        TimeDelay_msec(100);
+                        
+                        if((gRecvMulti_HW_Test[25] == 0) || (gRecvMulti_HW_Test[25] == 1) || (gRecvMulti_HW_Test[25] == 2))
+                        {
+                            EepromWrite(ADDRESS_EEPROM_TEST_NUM, (unsigned char *)(&gRecvMulti_HW_Test[25]),1);
+                        }
+                        else
+                        {
+                            gRecvMulti_HW_Test[25] = 0;
+                            EepromWrite(ADDRESS_EEPROM_TEST_NUM, (unsigned char *)(&gRecvMulti_HW_Test[25]),1);
+                        }
+						
+						EepromWrite(ADDRESS_EEPROM_RESULT, (unsigned char *)(&gRecvMulti_HW_Test[26]),1);
+						
+                        TimeDelay_msec(5);
+                        TimeDelay_msec(20);
+                                                
+
+					}
+					break;
+                                
+                case 0x2F97:  
+                    if(RxData[0] == RX_HW_Test_MULTI_TP_CM.TotPacketNum)    //Multi Packet 내용 마지막 전송일 때,
+					{
+						//++, 211215 ysm
+						EepromWrite(ADDRESS_EEPROM_Final_TEST_YEAR, (unsigned char *)(&gRecvMulti_HW_Test[0]),1);
+						EepromRead(ADDRESS_EEPROM_Final_TEST_YEAR, (unsigned char *)(&TX_CANDATA_HCEPGN_63279.TestYear), 1);
+						
+						EepromWrite(ADDRESS_EEPROM_Final_TEST_MONTH, (unsigned char *)(&gRecvMulti_HW_Test[1]),1);
+						EepromRead(ADDRESS_EEPROM_Final_TEST_MONTH, (unsigned char *)(&TX_CANDATA_HCEPGN_63279.TestMonth), 1);
+						
+						EepromWrite(ADDRESS_EEPROM_Final_TEST_DAY, (unsigned char *)(&gRecvMulti_HW_Test[2]),1);
+						EepromRead(ADDRESS_EEPROM_Final_TEST_DAY, (unsigned char *)(&TX_CANDATA_HCEPGN_63279.TestDay), 1);
+						//--, 211215 ysm
+
+					
+						EepromWrite(ADDRESS_EEPROM_Final_TESTER, (unsigned char *)(&gRecvMulti_HW_Test[3]),3);
+                        EepromRead(ADDRESS_EEPROM_Final_TESTER, (unsigned char *)(&TX_CANDATA_HCEPGN_63279.TestName[0]), 3);
+                    }
+					break;
+			}
+			break;
+	}	
+}
+// --, 210225 ctw Auto JIG Final Test
+
+// ++, 210225 ctw Auto JIG Final Test
+
+void TransRTCData(void)
+{
+	#if 0
+	RTC_TimeTypeDef sSetTime;
+	RTC_DateTypeDef sSetDate;
+	HAL_RTC_GetTime(&hrtc, &sSetTime, FORMAT_BIN);
+	HAL_RTC_GetDate(&hrtc, &sSetDate, FORMAT_BIN);
+	#endif
+        
+	CAN_TxHeaderTypeDef TxHeader1;
+	uint8_t TxData1[8] = {0,};
+	unsigned int TxMailBox;
+
+	TxHeader1.ExtId = 0x18F4972F;
+	TxHeader1.IDE = CAN_ID_EXT;
+	TxHeader1.RTR = CAN_RTR_DATA;
+	TxHeader1.DLC = 8;
+
+	TxData1[0] = HCESPN.H941[0];
+	TxData1[1] = HCESPN.H941[1];
+	TxData1[2] = HCESPN.H941[2];
+
+	TxData1[3] = HCESPN.H941[3];
+	
+	TxData1[4] = HCESPN.H941[4];
+	TxData1[5] = HCESPN.H941[5];
+
+	TxMailBox = HAL_CAN_GetTxMailboxesFreeLevel(&hcan1);
+	HAL_CAN_AddTxMessage (&hcan1, &TxHeader1, TxData1, &TxMailBox);
+}
+// --, 210225 ctw Auto JIG Final Test
+
+void DeInitialize_CANSystem(unsigned char ch)
+{
+    if(ch == 1)
+    {
+        HAL_CAN_DeactivateNotification(&hcan1, CAN_IT_RX_FIFO0_MSG_PENDING);
+        HAL_CAN_Stop(&hcan1);
+    }
+    else if(ch == 2)
+    {
+        HAL_CAN_DeactivateNotification(&hcan2, CAN_IT_RX_FIFO0_MSG_PENDING);
+        HAL_CAN_Stop(&hcan2);
+    }
+}
+
+void CAN1_RX(CAN_RxHeaderTypeDef RxHeader, unsigned char* RxData )
+{
+	//   	CanRxMsg RxMsg;
+	unsigned short SA, PGN, DP;     // ++, --, 210225 ctw Auto JIG Final Test       //unsigned short SA, PGN;
+
+	SA= (RxHeader.ExtId & 0x000000ff) >> 0;
+	//	PS = (RxHeader.ExtId  & 0x0000ff00) >> 8;
+	//	PF =((RxHeader.ExtId & 0x00ff0000) >> 16);   	
+        DP= (RxHeader.ExtId & 0xff000000) >> 24;        // ++, --, 210225 ctw Auto JIG Final Test
+
+	PGN = (RxHeader.ExtId  & 0x00ffff00) >> 8;
+
+	switch(SA)
+	{
+		case SA_ECU:
+			CAN_Parsing_ECU(PGN, RxData);	
+			break;
+
+		//++, 220901 ysm
+		#if 0	
+		case SA_JIG:
+			CAN_Parsing_JIG(PGN, RxData);	
+			break;
+        #endif                
+		//--, 220901 ysm
+		
+		case SA_MMI:
+			CAN_Parsing_MMI(PGN, RxData);
+                        
+            if(DP == 0x1C)
+            {
+               CAN_Parsing_HW_Test(PGN, RxData);
+            }
+			break;
+
+
+		case SA_FLT:
+			CAN_Parsing_FLT(PGN, RxData);
+             break;           
+
+		//++, 220929 ysm, FSCU
+		case SA_FLT_SUB:
+			CAN_Parsing_FLT_SUB(PGN, RxData);
+			break;
+		case SA_FSCU:
+			CAN_Parsing_FSCU(PGN, RxData, RxHeader);
+			break;
+		//--, 220929 ysm, FSCU
+			 
+		case SA_CIDWRITE:
+			CAN_Parsing_CID(PGN, RxData);	
+			break;	
+	}
+
+	//	RxMsg.StdId = RxHeader.StdId;
+	//	RxMsg.ExtId= RxHeader.ExtId;   	
+	//	memcpy(&RxMsg.Data, (unsigned char*)&RxData[0], 8);    
+
+}
+
+void CAN2_RX(CAN_RxHeaderTypeDef RxHeader, unsigned char* RxData )
+{
+	CanRxMsg RxMsg;
+	unsigned int TempData;
+	unsigned int SA;
+	unsigned short PGN;
+	unsigned char Data[8]; 
+
+	unsigned int i; 
+	unsigned char j, k;
+	unsigned char RMCU_CID_TempData[5];
+	char RMCU_CID_TempCharData1[15 + 1];
+	char RMCU_CID_TempCharData2[10 + 1];	
+
+	struct st_CAN_Message1 Message;
+	
+	SA= (RxHeader.ExtId & 0x000000ff) >> 0;
+	
+	RxMsg.StdId = RxHeader.StdId;
+	RxMsg.ExtId= RxHeader.ExtId;    	
+	memcpy(&RxMsg.Data, (unsigned char*)&RxData[0], 8);
+
+	if(SA == SA_CANUPDATE) //FOTA_For_PC_Test
+	{
+		//++, 191007 jsy1993    CAN UPDATE시 CAN1 기능 끄고 CAN2 다시 시작
+		if(CAN_Update_flag == 0)
+		{
+			CAN_Update_flag = 1;
+			DeInitialize_CANSystem(1);
+			//HAL_CAN_DeInit(&hcan1);
+			HAL_CAN_DeInit(&hcan2);
+			HAL_CAN_Init(&hcan2);
+			Initialize_CanSystem(2);
+
+			ScreenIndex = SCREEN_STATE_SWUPDATE; //++,--, 221226 ysm, FSCU
+		}
+		//--, 191007 jsy1993    CAN UPDATE시 CAN1 기능 끄고 CAN2 다시 시작
+		CAN_Parsing_CANUpdate(&RxMsg);
+	}
+	else if(SA == SA_GSENSOR)
+	{
+		
+		PGN = (RxHeader.ExtId  & 0x00ffff00) >> 8;
+		if(PGN == 0xF013)
+		{
+			MAST_EQUIPMENT = 1;
+			temp_mast_angle[0] = RxData[0] + (RxData[1]<<8);
+			COUNT_FLAG.Count_MAST_CAN_Err = 0;
+		}
+		else if(PGN == 0xFF33)
+		{
+			if((InfoModel1.ModelInfo >= MODEL_35D_9S)&&(InfoModel1.ModelInfo <= MODEL_50D_9S))
+			{
+				ANGLE_EQUIPMENT = 0;
+			}
+			else if((InfoModel1.ModelInfo >= MODEL_25D_9VS)&&(InfoModel1.ModelInfo <= MODEL_35DN_9VS))
+			{
+				ANGLE_EQUIPMENT = 0;
+			}
+			else if(InfoModel1.ModelInfo <= MODEL_35DN_9VB)
+			{
+				ANGLE_EQUIPMENT = 0;
+			}
+			else
+				ANGLE_EQUIPMENT = 1;
+
+			Pitch_buffer[0] = RxData[0] + (RxData[1]<<8);
+			Roll_buffer[0] = RxData[2] + (RxData[3]<<8);
+			COUNT_FLAG.Count_ANGLE_CAN_Err = 0;
+		}
+	
+	}
+	else if(SA == SA_RMCU)
+	{
+		PGN = (RxHeader.ExtId  & 0x00ffff00) >> 8;		
+		if(PGN == 0xEF47) //	61184	RMCU_SA
+		{
+			COUNT_FLAG.Comm_Error_RMCU = 0;
+			COUNT_FLAG.Flag_RMCUCommError = 0;
+
+			for (i = 0; i < 8; i++)
+			{
+				Data[i] = RxData[i];
+			}
+
+			if (Data[0] == 250)
+			{
+				check_Comm_Remote_Frame3(7, &(Data[1]));
+			}	
+
+		}
+		else if(PGN == 0xFF2E) //65326	Vehicle Position(RMCU)
+		{
+			COUNT_FLAG.Comm_Error_RMCU = 0;
+			COUNT_FLAG.Flag_RMCUCommError = 0;
+
+
+			for (i = 0; i < 8; i++)
+			{
+				Data[i] = RxData[i];
+			}
+
+			TempData = Data[0];
+
+			if( HCESPN.H852 == 1)
+			{
+				if (TempData != 0xff)
+				{
+					HCESPN.H854[0] = (unsigned char)(TempData);
+				}
+
+				TempData = Data[1];
+
+				if (TempData != 0xff)
+				{
+					HCESPN.H854[1] = (unsigned char)(TempData);
+				}
+
+				TempData = Data[2];
+
+				if (TempData != 0xff)
+				{
+					HCESPN.H854[2] = (unsigned char)(TempData);
+				}
+
+				TempData = Data[3];
+
+				if (TempData != 0xff)
+				{
+					HCESPN.H854[3] = (unsigned char)(TempData);
+				}
+
+				TempData = Data[4];
+
+				if (TempData != 0xff)
+				{
+					HCESPN.H854[4] = (unsigned char)(TempData);
+				}
+
+				TempData = Data[5];
+
+				if (TempData != 0xff)
+				{
+					HCESPN.H854[5] = (unsigned char)(TempData);
+				}
+
+				TempData = Data[6];
+
+				if (TempData != 0xff)
+				{
+					HCESPN.H854[6] = (unsigned char)(TempData);
+				}
+
+				TempData = Data[7];
+
+				if (TempData != 0xff)
+				{
+					HCESPN.H854[7] = (unsigned char)(TempData);
+				}
+			}
+
+			#if 0
+			check_RMCU_Time(1);	//	20150410
+			#endif
+
+		}
+		else if(PGN == 0xFF30) //	65328	GPS Status
+		{
+			COUNT_FLAG.Comm_Error_RMCU = 0;
+			COUNT_FLAG.Flag_RMCUCommError = 0;
+
+			for (i = 0; i < 8; i++)
+			{
+				Data[i] = RxData[i];
+			}
+
+			TempData = 0;
+			TempData += ((unsigned int)(Data[0]) << 0);
+			TempData += ((unsigned int)(Data[1]) << 8);
+
+			if (TempData != 0xffff)
+			{
+				HCESPN.H862 = (unsigned short)(TempData);
+			}
+
+			TempData = Data[2];
+
+			if (TempData != 0xff)
+			{
+				HCESPN.H863 = (unsigned char)(TempData);
+			}
+
+			TempData = Data[3];
+
+			if (TempData != 0xff)
+			{
+				HCESPN.H1568 = (unsigned char)(TempData);
+			}
+
+			TempData = Data[4];
+
+			if (TempData != 0xff)
+			{
+				HCESPN.H1569 = (unsigned char)(TempData);
+			}
+
+		}
+		else if(PGN == 0xFF31) //	65329	RMCU Status
+		{
+			COUNT_FLAG.Comm_Error_RMCU = 0;
+			COUNT_FLAG.Flag_RMCUCommError = 0;
+
+			for (i = 0; i < 8; i++)
+			{
+				Data[i] = RxData[i];
+			}
+
+			TempData = Data[0];
+
+			if (TempData != 0xff)
+			{
+				HCESPN.H1621 = (unsigned char)(TempData);  // 3 = 4G, 4 = Satelite
+			}
+
+			TempData = Data[1];
+
+			if (TempData != 0xff)
+			{
+				HCESPN.H1590 = (unsigned char)(TempData);
+			}
+
+			TempData = (((unsigned int)(Data[2])) >> 0) & 0x03;
+
+			if (TempData != 0x03)
+			{
+				HCESPN.H1594 = (unsigned char)(TempData);
+			}
+
+			TempData = (((unsigned int)(Data[2])) >> 2) & 0x03;
+
+			if (TempData != 0x03)
+			{
+				HCESPN.H1592 = (unsigned char)(TempData);
+			}
+
+			TempData = (((unsigned int)(Data[2])) >> 4) & 0x03;
+
+			if (TempData != 0x03)
+			{
+				HCESPN.H1622 = (unsigned char)(TempData);
+			}
+
+			TempData = (((unsigned int)(Data[3])) >> 0) & 0x03;
+			
+			HCESPN.H852 = (unsigned char)(TempData);
+
+			TempData = (((unsigned int)(Data[3])) >> 2) & 0x03;
+
+			if (TempData != 0x03)
+			{
+				HCESPN.H1593 = (unsigned char)(TempData);
+			}
+
+			TempData = (((unsigned int)(Data[3])) >> 4) & 0x03;
+
+			if (TempData != 0x03)
+			{
+				HCESPN.H1595 = (unsigned char)(TempData);
+			}
+
+			TempData = Data[4];
+
+			if (TempData != 0xff)
+			{
+				HCESPN.H1623 = (unsigned char)(TempData);
+			}
+
+			TempData = Data[5];
+
+			if (TempData != 0xff)
+			{
+				HCESPN.H1624 = (unsigned char)(TempData);
+			}
+
+			TempData = Data[6];
+
+			if (TempData != 0xff)
+			{
+				HCESPN.H1625 = (unsigned char)(TempData);
+			}
+
+			TempData = Data[7];
+
+			if (TempData != 0xff)
+			{
+				HCESPN.H855 = (unsigned char)(TempData);
+			}
+
+			if (++BD_Receive_Count3 >= 180)	//	20141120	BD_Receive_Count3
+			{
+				BD_Receive_Count3 = 200;
+			}
+
+			check_RMCU_Time(0);
+
+
+		}
+		else if(PGN == 0xFF42) //	65346	Date & Time
+		{
+			COUNT_FLAG.Comm_Error_RMCU = 0;
+			COUNT_FLAG.Flag_RMCUCommError = 0;
+
+			for (i = 0; i < 8; i++)
+			{
+				Data[i] = RxData[i];
+			}
+
+			TempData = Data[0];
+
+			if (TempData != 0xff)
+			{
+				HCESPN.H853[0] = (unsigned char)(TempData);
+			}
+
+			TempData = Data[1];
+
+			if (TempData != 0xff)
+			{
+				HCESPN.H853[1] = (unsigned char)(TempData);
+			}
+
+			TempData = Data[2];
+
+			if (TempData != 0xff)
+			{
+				HCESPN.H853[2] = (unsigned char)(TempData);
+			}
+
+			TempData = Data[3];
+
+			if (TempData != 0xff)
+			{
+				HCESPN.H853[3] = (unsigned char)(TempData);
+			}
+
+			TempData = Data[4];
+
+			if (TempData != 0xff)
+			{
+				HCESPN.H853[4] = (unsigned char)(TempData);
+			}
+
+			TempData = Data[5];
+
+			if (TempData != 0xff)
+			{
+				HCESPN.H853[5] = (unsigned char)(TempData);
+			}
+
+			TempData = (((unsigned int)(Data[6])) >> 0) & 0x0f;
+
+			TempData = Data[7];
+
+			if (TempData != 0xff)
+			{
+				HCESPN.H864 = (unsigned char)(TempData);
+			}
+
+			check_RMCU_Time(2);
+
+		}
+		else if((PGN == 0xEBFF)||(PGN == 0xEB47))
+		{
+			COUNT_FLAG.Comm_Error_RMCU = 0;
+			COUNT_FLAG.Flag_RMCUCommError = 0;
+
+			for (i = 0; i < 8; i++)
+			{
+				Data[i] = RxData[i];
+			}
+
+			if (MultiPacket_RMCU_ReceiveFlag == 1)
+			{
+				if (Data[0] != 0)
+				{
+					if (Data[0] <= MultiPacket_RMCU_RX_LineCount)
+					{
+						for (i = 0; i < 7; i++)
+						{
+							MultiPacket_RMCU_RX_Data[(unsigned short)(Data[0]) * 7 - 7 + i] = Data[1 + i];
+						}
+
+						MultiPacket_RMCU_RX_Line_CheckFlag[(Data[0] - 1) / 8] |= (1 << ((Data[0] - 1) % 8));
+					}
+				}
+
+				for (i = 0; i < MultiPacket_RMCU_RX_LineCount; i++)
+				{
+					if ((MultiPacket_RMCU_RX_Line_CheckFlag[i / 8] & (1 << (i % 8))) == 0)
+					{
+						break;
+					}
+				}
+
+				if (i == MultiPacket_RMCU_RX_LineCount)
+				{
+					MultiPacket_RMCU_ReceiveFlag = 0;
+
+					if (MultiPacket_RMCU_RX_PGN == 65330)
+					{
+						if (MultiPacket_RMCU_RX_Data[0] == 31)
+						{
+							//if (MultiPacket_RMCU_RX_Data[1] == 25)
+							{
+																
+								RMCU_CID_TempData[0] = MultiPacket_RMCU_RX_Data[2];
+								RMCU_CID_TempData[1] = MultiPacket_RMCU_RX_Data[3];
+								RMCU_CID_TempData[2] = MultiPacket_RMCU_RX_Data[4];
+								RMCU_CID_TempData[3] = MultiPacket_RMCU_RX_Data[5];
+
+								for (j = 0; j < 16; j++)
+								{
+									if (MultiPacket_RMCU_RX_Data[6 + j] == '*')
+									{
+										RMCU_CID_TempCharData1[j] = '\0';
+										break;
+									}
+
+									RMCU_CID_TempCharData1[j] = MultiPacket_RMCU_RX_Data[6 + j];
+								}
+
+								if (j != 16)
+								{
+									for (k = 0; k < 10; k++)
+									{
+										if (MultiPacket_RMCU_RX_Data[7 + j + k] == '*')
+										{
+											RMCU_CID_TempCharData2[k] = '\0';
+											break;
+										}
+
+										RMCU_CID_TempCharData2[k] = MultiPacket_RMCU_RX_Data[7 + j + k];
+									}
+
+									if (k != 10)
+									{
+										HCESPN.H1580 = RMCU_CID_TempData[0]; //RMCU Manufacture Year
+										HCESPN.H1581 = RMCU_CID_TempData[1]; //RMCU Manufacture Month
+										HCESPN.H1582 = RMCU_CID_TempData[2]; //RMCU Manufacture Day
+										HCESPN.H1583 = RMCU_CID_TempData[3]; //RMCU Program Version
+										strcpy(HCESPN.H1586, RMCU_CID_TempCharData1); //RMCU Serial Number
+										strcpy(HCESPN.H1585, RMCU_CID_TempCharData2); // RMCU Model
+										HCESPN.H1583_sub = RMCU_CID_TempData[4] = MultiPacket_RMCU_RX_Data[7 + j + k + 1];	//	20151026	RMCU Sub version 추가.
+
+										RMCU_CID_OK = 1;
+										COUNT_FLAG.Flag_RMCU_Check = 1;										
+
+										Event_RMCU_Change();
+									}
+								}
+							}
+						}
+					}
+					else if (MultiPacket_RMCU_RX_PGN == 61184)
+					{
+						if(MultiPacket_RMCU_RX_Data[0] == 250)	//	RMS_MSG_Type
+						{
+							check_Comm_Remote_Frame3(MultiPacket_RMCU_RX_DataCount - 1, &(MultiPacket_RMCU_RX_Data[1]));
+						}
+					}
+
+					Message.Priority = 7;
+					Message.Data_Page = 0;
+					Message.PDU_Format =0xEC;		
+					Message.PDU_Specific = 0x4A;
+					Message.Source_Address = 0x47;
+					
+					for (i = 0; i < 8; i++)
+					{
+						Message.Data[i] = 0xff;
+					}
+
+					Message.Data[0] = 19;
+					Message.Data[1] = (MultiPacket_RMCU_RX_DataCount >> 0) & 0xff;
+					Message.Data[2] = (MultiPacket_RMCU_RX_DataCount >> 8) & 0xff;
+					Message.Data[3] = MultiPacket_RMCU_RX_LineCount;
+					Message.Data[4] = 0xff;
+					Message.Data[5] = (MultiPacket_RMCU_RX_PGN >> 0) & 0xff;
+					Message.Data[6] = (MultiPacket_RMCU_RX_PGN >> 8) & 0xff;
+					Message.Data[7] = (MultiPacket_RMCU_RX_PGN >> 16) & 0xff;
+
+					CAN2_OperateRingBuffer(Message);
+					
+				}
+			}
+
+
+		}
+		else if((PGN == 0xECFF)||(PGN == 0xEC47))
+		{
+			COUNT_FLAG.Comm_Error_RMCU = 0;
+			COUNT_FLAG.Flag_RMCUCommError = 0;
+
+			for (i = 0; i < 8; i++)
+			{
+				Data[i] = RxData[i];
+			}
+
+			switch (Data[0])
+			{
+				case 16 :
+					MultiPacket_RMCU_ReceiveFlag = 1;
+	
+					MultiPacket_RMCU_RX_PGN = 0;
+					MultiPacket_RMCU_RX_PGN += (unsigned int)(Data[5]) << 0;
+					MultiPacket_RMCU_RX_PGN += (unsigned int)(Data[6]) << 8;
+					MultiPacket_RMCU_RX_PGN += (unsigned int)(Data[7]) << 16;
+	
+					for (i = 0; i < 1785; i++)
+					{
+						MultiPacket_RMCU_RX_Data[i] = 0xff;
+					}
+	
+					for (i = 0; i < 32; i++)
+					{
+						MultiPacket_RMCU_RX_Line_CheckFlag[i] = 0;
+					}
+	
+					MultiPacket_RMCU_RX_DataCount = ((unsigned short)(Data[1]) << 0) + ((unsigned short)(Data[2]) << 8);
+	
+					MultiPacket_RMCU_RX_LineCount = Data[3];
+
+					Message.Priority = 7;
+					Message.Data_Page = 0;
+					Message.PDU_Format =0xEC;		
+					Message.PDU_Specific = 0x4A;
+					Message.Source_Address = 0x47;	
+	
+					for (i = 0; i < 8; i++)
+					{
+						Message.Data[i] = 0xff;
+					}
+					Message.Data[0] = 17;
+					Message.Data[1] = MultiPacket_RMCU_RX_LineCount;
+					Message.Data[2] = 1;
+					Message.Data[3] = 0xff;
+					Message.Data[4] = 0xff;
+					Message.Data[5] = (MultiPacket_RMCU_RX_PGN >> 0) & 0xff;
+					Message.Data[6] = (MultiPacket_RMCU_RX_PGN >> 8) & 0xff;
+					Message.Data[7] = (MultiPacket_RMCU_RX_PGN >> 16) & 0xff;
+	
+					CAN2_OperateRingBuffer(Message);
+	
+					break;
+	
+				case 17 :				//CM_CTS
+					
+					TempData = 0;
+					TempData += ((unsigned int)(Data[5]) << 0);
+					TempData += ((unsigned int)(Data[6]) << 8);
+					TempData += ((unsigned int)(Data[7]) << 16);
+					
+					if(TempData == 61184)
+					{
+						RMS3_CTS_Receive_Flag = 1;
+					}					
+					break;
+	
+				case 19 :
+					if(HCESPN.H1598 == 0)
+					{
+						check_Comm_Remote_Frame3_CAN_Ack();
+					}
+	
+					break;
+	
+				case 32 :
+					MultiPacket_RMCU_ReceiveFlag = 1;
+	
+					MultiPacket_RMCU_RX_PGN = 0;
+					MultiPacket_RMCU_RX_PGN += (unsigned int)(Data[5]) << 0;
+					MultiPacket_RMCU_RX_PGN += (unsigned int)(Data[6]) << 8;
+					MultiPacket_RMCU_RX_PGN += (unsigned int)(Data[7]) << 16;
+	
+					for (i = 0; i < 1785; i++)
+					{
+						MultiPacket_RMCU_RX_Data[i] = 0xff;
+					}
+	
+					for (i = 0; i < 32; i++)
+					{
+						MultiPacket_RMCU_RX_Line_CheckFlag[i] = 0;
+					}
+	
+					MultiPacket_RMCU_RX_DataCount = ((unsigned short)(Data[1]) << 0)
+													+ ((unsigned short)(Data[2]) << 8);
+	
+					MultiPacket_RMCU_RX_LineCount = Data[3];
+	
+					break;
+			}
+
+
+		}
+		else if(PGN == 0xE8FF)//  20141106 RMS_CAN
+		{
+			COUNT_FLAG.Comm_Error_RMCU = 0;
+			COUNT_FLAG.Flag_RMCUCommError = 0;
+
+			for (i = 0; i < 8; i++)
+			{
+				Data[i] = RxData[i];
+			}
+
+			if ((Data[0] == 0) && (Data[1] == 250) && (Data[5] == 0) && (Data[6] == 239) && (Data[7] == 0))
+			{
+				check_Comm_Remote_Frame3_CAN_Ack();
+			}
+
+		}
+
+	}
+	else if(SA == SA_MMS) // Authentication Device, Machine Security Status	
+	{
+		PGN = (RxHeader.ExtId  & 0x00ffff00) >> 8;
+		if(PGN == 0xFF44)
+		{		
+			for (i = 0; i < 8; i++)
+			{
+				Data[i] = RxData[i];
+			}
+			MSS_ESL_Flag = (Data[0] & 0x03);
+		}
+	}
+	else if(SA == SA_ACCTUNE) //++,--, 220818 ysm, ACC_TEST2
+	{
+		PGN = (RxHeader.ExtId  & 0x00ffff00) >> 8;
+		if(PGN == 0xFF89)
+		{		
+			for (i = 0; i < 8; i++)
+			{
+				Data[i] = RxData[i];
+			}
+			
+			ACCS.HACX_Filter_Value	= RxData[0];
+			ACCS.DISPX_Filter_Value = RxData[1];
+			ACCS.DISPY_Filter_Value = RxData[2];
+			ACCS.HAC_Count_Value 	= RxData[3];
+
+			ACCS.TUNE_Enable = 1;
+		}
+	}
+	else if(SA ==SA_JIG)
+	{
+		PGN = (RxHeader.ExtId  & 0x00ffff00) >> 8;
+		if(PGN == 0xFFAC)
+		{		
+			for (i = 0; i < 8; i++)
+			{
+				Data[i] = RxData[i];
+			}
+
+			if((Data[0] == 0)&&(Data[1] == 0)&&(Data[2] == 0)&&(Data[3] == 0)&&(Data[4] == 0)&&(Data[5] == 0)&&(Data[6] == 0)&&(Data[7] == 0))
+			{
+				Speed_Limit_Test_Flag = 0;
+			}
+			else
+			{
+
+				RX_SPEED_LIMIT_SET_STATUS_65452.SpeedLimit_P = Data[0];
+				RX_SPEED_LIMIT_SET_STATUS_65452.SpeedLimit_I = Data[1];
+
+				RX_SPEED_LIMIT_SET_STATUS_65452.SpeedLimit_D = ((unsigned short)(Data[2]) << 0)
+																+ ((unsigned short)(Data[3]) << 8);			
+				
+				RX_SPEED_LIMIT_SET_STATUS_65452.SpeedLimit_LowTq = Data[4];
+
+				Speed_Limit_Test_Flag = 1;
+			}			
+
+		}			  
+
+	}
+}
+
+// ++, 210225 ctw Auto JIG Final Test
+void TX_CAN2_CHECK(void)
+{
+	CAN_TxHeaderTypeDef TxHeader2;
+	uint8_t TxData2[8] = {0,};
+	unsigned int TxMailBox;
+
+	TxHeader2.ExtId = 0x18F0972F;
+	TxHeader2.IDE = CAN_ID_EXT;
+	TxHeader2.RTR = CAN_RTR_DATA;
+	TxHeader2.DLC = 8;
+	TxData2[0] = 0x01;
+	TxData2[1] = 0x02;
+	TxData2[2] = 0x03;
+	TxData2[3] = 0x04;
+	TxData2[4] = 0x05;
+	TxData2[5] = 0x06;
+	TxData2[6] = 0x07;
+	TxData2[7] = 0x08;
+	TxMailBox = HAL_CAN_GetTxMailboxesFreeLevel(&hcan2);
+	HAL_CAN_AddTxMessage (&hcan2, &TxHeader2, TxData2, &TxMailBox);
+}
+// --, 210225 ctw Auto JIG Final Test
+
+void CAN1_OperateRingBuffer(struct st_CAN_Message1 Message)
+{
+	CAN1_RingBufferFlag = 1;
+
+	memcpy(&CAN1_Message_Ring_Buffer_Tx_Single.Message[CAN1_Message_Ring_Buffer_Tx_Single.Head],&Message,12);
+
+	if (++(CAN1_Message_Ring_Buffer_Tx_Single.Head) >= MAX_CAN_TX_DATA_SINGLE)
+	{
+		CAN1_Message_Ring_Buffer_Tx_Single.Head = 0;
+	}
+
+	CAN1_RingBufferFlag = 0;
+}
+
+
+
+void CAN2_OperateRingBuffer(struct st_CAN_Message1 Message)
+{
+	CAN2_RingBufferFlag = 1;
+
+	memcpy(&CAN2_Message_Ring_Buffer_Tx_Single.Message[CAN2_Message_Ring_Buffer_Tx_Single.Head],&Message,12);
+
+	if (++(CAN2_Message_Ring_Buffer_Tx_Single.Head) >= MAX_CAN_TX_DATA_SINGLE)
+	{
+		CAN2_Message_Ring_Buffer_Tx_Single.Head = 0;
+	}
+
+	CAN2_RingBufferFlag = 0;//CAN1 Alternate Function mapping ( dlwjsvnaqjs CAN1 Alternate Function mapping )
+}
+
+
+void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef* hcan) // 인터럽트 함수입니다
+{
+	unsigned char SA;
+	CAN_RxHeaderTypeDef rxHeader;     
+	unsigned char rxData[8];
+
+	if (hcan->Instance == CAN1) 
+	{ 		
+			
+		HAL_CAN_GetRxMessage (&hcan1, CAN_RX_FIFO0, &rxHeader, &rxData[0]);
+
+		SA = (rxHeader.ExtId & 0x000000ff);
+
+		//++,--, 220929 ysm, FSCU
+		if((SA  == SA_ECU) || (SA  == SA_JIG) || (SA  == SA_CIDWRITE) || (SA  == SA_MMI) || (SA == SA_FLT) || (SA == SA_FLT_SUB) ||(SA == SA_FSCU))       // ++, --, 210225 ctw Auto JIG Final Test       if((SA  == SA_ECU) || (SA  == SA_JIG) || (SA  == SA_CIDWRITE))
+			CAN1_RX(rxHeader,rxData);
+
+	}
+
+	if (hcan->Instance == CAN2) 
+	{ 
+
+		HAL_CAN_GetRxMessage (&hcan2, CAN_RX_FIFO0, &rxHeader, &rxData[0]);
+
+		CAN2_RX(rxHeader,rxData);
+	}
+}
+
+// ++, 210818 ctw Auto JIG Final Test
+void prepare_HW_Test_Data_2nd(void)
+{
+	UCHAR index;        
+	unsigned char cluster_model[20];
+        
+	memset(&gSendMulti_Cluster_Info_HW_2nd_Test[0], 0xff, sizeof(gSendMulti_Cluster_Info_HW_2nd_Test));
+
+	//++, 211215 ysm
+#if 0
+	EepromRead(ADDRESS_EEPROM_2nd_TEST_YEAR, (unsigned char *)(&TX_CANDATA_HCEPGN_63279.TestYear), 1);
+	memcpy((unsigned char *)(&gSendMulti_Cluster_Info_HW_2nd_Test[0]),(unsigned char *)(&TX_CANDATA_HCEPGN_63279.TestYear),1);
+        
+	EepromRead(ADDRESS_EEPROM_2nd_TEST_MONTH, (unsigned char *)(&TX_CANDATA_HCEPGN_63279.TestMonth), 1);
+	memcpy((unsigned char *)(&gSendMulti_Cluster_Info_HW_2nd_Test[1]),(unsigned char *)(&TX_CANDATA_HCEPGN_63279.TestMonth),1);
+        
+	EepromRead(ADDRESS_EEPROM_2nd_TEST_DAY, (unsigned char *)(&TX_CANDATA_HCEPGN_63279.TestDay), 1);
+	memcpy((unsigned char *)(&gSendMulti_Cluster_Info_HW_2nd_Test[2]),(unsigned char *)(&TX_CANDATA_HCEPGN_63279.TestDay),1);
+#else
+	EepromRead(ADDRESS_EEPROM_Final_TEST_YEAR, (unsigned char *)(&TX_CANDATA_HCEPGN_63279.TestYear), 1);
+	memcpy((unsigned char *)(&gSendMulti_Cluster_Info_HW_2nd_Test[0]),(unsigned char *)(&TX_CANDATA_HCEPGN_63279.TestYear),1);
+        
+	EepromRead(ADDRESS_EEPROM_Final_TEST_MONTH, (unsigned char *)(&TX_CANDATA_HCEPGN_63279.TestMonth), 1);
+	memcpy((unsigned char *)(&gSendMulti_Cluster_Info_HW_2nd_Test[1]),(unsigned char *)(&TX_CANDATA_HCEPGN_63279.TestMonth),1);
+        
+	EepromRead(ADDRESS_EEPROM_Final_TEST_DAY, (unsigned char *)(&TX_CANDATA_HCEPGN_63279.TestDay), 1);
+	memcpy((unsigned char *)(&gSendMulti_Cluster_Info_HW_2nd_Test[2]),(unsigned char *)(&TX_CANDATA_HCEPGN_63279.TestDay),1);
+
+#endif
+	//--, 211215 ysm
+
+	//++, 211217 ysm
+	#if 0
+	EepromRead(ADDRESS_EEPROM_2nd_TESTER, (unsigned char *)(&TX_CANDATA_HCEPGN_63279.TestName[0]), 3);
+	memcpy((unsigned char *)(&gSendMulti_Cluster_Info_HW_2nd_Test[3]),(unsigned char *)(&TX_CANDATA_HCEPGN_63279.TestName[0]),3);
+	#else
+	EepromRead(ADDRESS_EEPROM_Final_TESTER, (unsigned char *)(&TX_CANDATA_HCEPGN_63279.TestName[0]), 3);
+	memcpy((unsigned char *)(&gSendMulti_Cluster_Info_HW_2nd_Test[3]),(unsigned char *)(&TX_CANDATA_HCEPGN_63279.TestName[0]),3);
+	#endif
+	//--, 211217 ysm
+	
+	EepromRead(ADDRESS_EEPROM_2nd_TEST_COUNT, (unsigned char *)(&TX_CANDATA_HCEPGN_63279.TestCount), 1);
+	memcpy((unsigned char *)(&gSendMulti_Cluster_Info_HW_2nd_Test[6]),(unsigned char *)(&TX_CANDATA_HCEPGN_63279.TestCount),1);
+	
+                                                TimeDelay_msec(20);
+	EepromRead(ADDRESS_EEPROM_2nd_TEST_LOT_NUMBER, (unsigned char *)(&TX_CANDATA_HCEPGN_63279.DATA[0]), 17);
+	memcpy((unsigned char *)(&gSendMulti_Cluster_Info_HW_2nd_Test[7]),(unsigned char *)(&TX_CANDATA_HCEPGN_63279.DATA[0]),43);
+    memset(&gSendMulti_Cluster_Info_HW_2nd_Test[24], 0xff, 1);      // ' '
+    memset(&gSendMulti_Cluster_Info_HW_2nd_Test[25], 0x2a, 1);      // '*'
+    
+    memcpy((unsigned char *)(&gSendMulti_Cluster_Info_HW_2nd_Test[26]),(unsigned char *)(&_Cluster_Serial[0]),14);     
+  
+    memset(&gSendMulti_Cluster_Info_HW_2nd_Test[40], 0x2a, 1);      // '*'	
+
+	//++, 230726 ysm, TILT_ALARM
+	#if 0
+    memset(&gSendMulti_Cluster_Info_HW_2nd_Test[41], 0x32, 1);      // '2'
+    memset(&gSendMulti_Cluster_Info_HW_2nd_Test[42], 0x59, 1);      // 'Y'
+    memset(&gSendMulti_Cluster_Info_HW_2nd_Test[43], 0x46, 1);      // 'F'
+    memset(&gSendMulti_Cluster_Info_HW_2nd_Test[44], 0x47, 1);      // 'G'
+    memset(&gSendMulti_Cluster_Info_HW_2nd_Test[45], 0x2D, 1);      // '-'
+    memset(&gSendMulti_Cluster_Info_HW_2nd_Test[46], 0x31, 1);      // '1'
+    memset(&gSendMulti_Cluster_Info_HW_2nd_Test[47], 0x35, 1);      // '5'
+    memset(&gSendMulti_Cluster_Info_HW_2nd_Test[48], 0x33, 1);      // '3'
+    memset(&gSendMulti_Cluster_Info_HW_2nd_Test[49], 0x31, 1);      // '1'
+    memset(&gSendMulti_Cluster_Info_HW_2nd_Test[50], 0x31, 1);      // '1'
+    #else
+	EepromRead(ADDRESS_MODEL, (unsigned char *)(&cluster_model[0]), 20);
+	
+	if((cluster_model[0] == 0x00)||(cluster_model[0] == 0xFF))
+	{
+		memset(&gSendMulti_Cluster_Info_HW_2nd_Test[41], 0x32, 1);		// '2'
+		memset(&gSendMulti_Cluster_Info_HW_2nd_Test[42], 0x59, 1);		// 'Y'
+		memset(&gSendMulti_Cluster_Info_HW_2nd_Test[43], 0x46, 1);		// 'F'
+		memset(&gSendMulti_Cluster_Info_HW_2nd_Test[44], 0x47, 1);		// 'G'
+		memset(&gSendMulti_Cluster_Info_HW_2nd_Test[45], 0x2D, 1);		// '-'
+		memset(&gSendMulti_Cluster_Info_HW_2nd_Test[46], 0x31, 1);		// '1'
+		memset(&gSendMulti_Cluster_Info_HW_2nd_Test[47], 0x35, 1);		// '5'
+		memset(&gSendMulti_Cluster_Info_HW_2nd_Test[48], 0x33, 1);		// '3'
+		memset(&gSendMulti_Cluster_Info_HW_2nd_Test[49], 0x31, 1);		// '1'
+		memset(&gSendMulti_Cluster_Info_HW_2nd_Test[50], 0x31, 1);		// '1'
+
+	}
+	else
+	{
+	    memset(&gSendMulti_Cluster_Info_HW_2nd_Test[41], cluster_model[0], 1);
+	    memset(&gSendMulti_Cluster_Info_HW_2nd_Test[42], cluster_model[1], 1);
+	    memset(&gSendMulti_Cluster_Info_HW_2nd_Test[43], cluster_model[2], 1);
+	    memset(&gSendMulti_Cluster_Info_HW_2nd_Test[44], cluster_model[3], 1);
+	    memset(&gSendMulti_Cluster_Info_HW_2nd_Test[45], cluster_model[4], 1);
+	    memset(&gSendMulti_Cluster_Info_HW_2nd_Test[46], cluster_model[5], 1);
+	    memset(&gSendMulti_Cluster_Info_HW_2nd_Test[47], cluster_model[6], 1);
+	    memset(&gSendMulti_Cluster_Info_HW_2nd_Test[48], cluster_model[7], 1);
+	    memset(&gSendMulti_Cluster_Info_HW_2nd_Test[49], cluster_model[8], 1);
+	    memset(&gSendMulti_Cluster_Info_HW_2nd_Test[50], cluster_model[9], 1);
+	}
+	#endif
+	//--, 230726 ysm, TILT_ALARM
+    memset(&gSendMulti_Cluster_Info_HW_2nd_Test[51], 0x2a, 1);      // '*'     
+     
+    TimeDelay_msec(20);
+                                        
+	EepromRead(ADDRESS_EEPROM_2nd_TEST_NUM, (unsigned char *)(&TX_CANDATA_HCEPGN_63279.TEST_NUM), 1);
+	memcpy((unsigned char *)(&gSendMulti_Cluster_Info_HW_2nd_Test[52]),(unsigned char *)(&TX_CANDATA_HCEPGN_63279.TEST_NUM),1);     //25-->52
+                                        
+	EepromRead(ADDRESS_EEPROM_2nd_RESULT, (unsigned char *)(&TX_CANDATA_HCEPGN_63279.RESULT), 1);
+	memcpy((unsigned char *)(&gSendMulti_Cluster_Info_HW_2nd_Test[53]),(unsigned char *)(&TX_CANDATA_HCEPGN_63279.RESULT),1);       //26-->53
+
+                                      
+	for(index=0;index<46;index++)
+	{
+       if(gSendMulti_Cluster_Info_HW_2nd_Test[7+index] == 0xff)
+		{
+			break;
+		}
+	}      
+
+    Total_data_HW_Test = 54;                 // ++, --, 210217 ctw 8+index
+	Total_Packet_HW_Test = Total_data_HW_Test/7;
+	if((Total_data_HW_Test%7)!=0)	Total_Packet_HW_Test++;
+}
+// --, 210818 ctw Auto JIG Final Test

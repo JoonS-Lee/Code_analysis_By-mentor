@@ -1,0 +1,559 @@
+#include "FLV_Cluster_APP.h"
+
+UINT32 Cnt_SCR_Display = 0;
+UINT32 Cnt_SCR_Lamp = 0;
+UCHAR SCR_Popup_Off = 0;
+UCHAR OldSCRStatus=0xff;
+
+UINT32 Cnt_Minute=0;
+UCHAR Curr_Minute=25;		// ++, --, 200910 25 -> 30
+UCHAR Old_Minute=0;
+
+UCHAR OldDPFGearN;
+UCHAR OldDPFParking;
+UCHAR OldDPFBrake;
+UCHAR OldCoolant;
+
+extern st_HCESPN 		HCESPN;
+extern unsigned char Flag_DIN[];
+extern CAN_ECU_DATA_64890	RX_ECU_DATA_64890;
+extern CAN_ECU_DATA_65262	RX_ECU_DATA_65262;
+
+extern unsigned char RCM_Test_Step_Status;
+//++, 211124 ysm
+extern unsigned char MSS_ESL_Flag;
+//--, 211124 ysm
+//++, 220627 ysm, DPF_ALARM
+extern st_BUZZER	BUZZER_FLAG;
+extern unsigned char EngineStartFlag;
+//--, 220627 ysm, DPF_ALARM
+
+void SetMarqueeTextViewDPF(UCHAR StringIndex)
+{
+	m_MarInfo.cntMarText = 0;
+	m_MarInfo.SetInfo = 0;
+
+	if(StringIndex == 183)
+	{
+		m_MarText[1].PictureX = 12;
+		m_MarText[1].PictureY = 48;
+		m_MarText[1].PictureWidth = 200;
+		m_MarText[1].PictureHeight = 23;
+		m_MarText[1].uwStartAddress = COLOR_BLACK;
+
+		m_MarText[1].StringX= 12;
+		m_MarText[1].StringY= 48;
+		m_MarText[1].StringWidth = 200;
+		m_MarText[1].FontSize = 23;
+		m_MarText[1].StringColor = COLOR_MENU_ORANGE;
+		m_MarText[1].StringIndex = StringIndex;
+
+		GetStringLength((USHORT*)*StringSentence[StringIndex], gui_font23, m_MarText[1].StringWidth, &m_MarText[1].WidthLength, &m_MarText[1].MaxLength);
+
+		m_MarInfo.cntMarText  = 2;	
+		m_MarInfo.SetInfo = 1;
+
+	}
+	else
+	{
+		m_MarText[0].PictureX = 7;
+		m_MarText[0].PictureY = 13;
+		m_MarText[0].PictureWidth = 206;
+		m_MarText[0].PictureHeight = 23;
+		m_MarText[0].uwStartAddress = COLOR_BLACK;
+
+		m_MarText[0].StringX= 7;
+		m_MarText[0].StringY= 13;
+		m_MarText[0].StringWidth = 206;
+		m_MarText[0].FontSize = 23;
+		m_MarText[0].StringColor = COLOR_WHITE;
+		m_MarText[0].StringIndex = StringIndex;
+
+		GetStringLength((USHORT*)*StringSentence[StringIndex], gui_font23, m_MarText[0].StringWidth, &m_MarText[0].WidthLength, &m_MarText[0].MaxLength);
+
+		m_MarInfo.cntMarText  = 1;	
+		m_MarInfo.SetInfo = 1;
+
+	}
+
+	
+	
+
+}
+
+void DisplayDPFRunningMin()
+{
+	if(OldScreenIndex != ScreenIndex)
+	{
+		LCD_Draw_Color(6, 104, 200, 66, COLOR_MENU_GRAY);
+		GUI_DisplayLeftStringAt((USHORT*)*StringSentence[179], 12, 110, 188, COLOR_WHITE, FONTSIZE_2);
+		GUI_DisplayLeftStringAt((USHORT*)*StringSentence[187], 162, 142, 58, COLOR_WHITE, FONTSIZE_2);
+	}
+	UCHAR buf[30]={0,};
+	USHORT covbuf[30]={0,};
+
+	sprintf ( (char*)buf, "%02d ",Old_Minute) ; 	
+	
+	String_Func(&covbuf[0], buf);
+
+	LCD_Draw_Color( 101, 142, 58, 23, COLOR_MENU_GRAY);
+	GUI_DisplayRightStringAt(&covbuf[0], 101, 142, 58, COLOR_MAIN_ORANGE, FONTSIZE_2);
+  	
+}
+
+void DisplayClickButton()
+{
+	LCD_Draw_Color(6, 139, 200, 31, COLOR_MENU_GRAY);
+	if(InfoDisplaySetting.Language == STATE_DISPLAY_LANGUAGE_KOREAN)
+	{
+		PCXtoBMP_16bit(10, 145, 24, 21, FL_Image.dpf_icon_enter);
+		GUI_DisplayLeftStringAt((USHORT*)*StringSentence[182], 40, 145, 166, COLOR_WHITE, FONTSIZE_2);
+	}
+	else
+	{
+		GUI_DisplayLeftStringAt((USHORT*)*StringSentence[182], 12, 145, 188, COLOR_WHITE, FONTSIZE_2);
+		PCXtoBMP_16bit(80, 145, 24, 21, FL_Image.dpf_icon_enter);
+	}
+}
+
+void DisplayDPFInfoStep()
+{
+	if(OldScreenIndex != ScreenIndex)
+	{
+		DisplayBackground();
+		
+		unsigned short String_Step[]={'S','T','E','P',((ScreenIndex&0x0F000000)>>24)+0x30,0};
+		unsigned short String_Step3[]={'S','T','E','P','3',0};
+		unsigned short String_Step4[]={'S','T','E','P','4',0};
+		unsigned char SetMarquee;
+		
+		SetMarquee = GUI_DisplayLeftStringAt((USHORT*)*StringSentence[176], 7, 13, 206, COLOR_WHITE, FONTSIZE_2);	
+		if(SetMarquee)
+			SetMarqueeTextViewDPF(176);
+		
+		if(ScreenIndex != SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_CALL)
+		{			
+			if(ScreenIndex == SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_NOT_COMPLETE)
+			{
+				if(COUNT_FLAG.Count_DPF_Info_Step3 >= 20)
+					GUI_DisplayLeftStringAt(&String_Step4[0], 12, 48, 200, COLOR_MENU_ORANGE, FONTSIZE_3);
+				else
+					GUI_DisplayLeftStringAt(&String_Step3[0], 12, 48, 200, COLOR_MENU_ORANGE, FONTSIZE_3);
+			}
+			else
+				GUI_DisplayLeftStringAt(&String_Step[0], 12, 48, 200, COLOR_MENU_ORANGE, FONTSIZE_3);
+			
+		}
+		
+		switch(ScreenIndex)
+		{
+			case SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_STEP1:
+				PCXtoBMP_16bit(33, 69, 154, 59, FL_Image.dpf_icon_safe);
+				OldDPFParking = OldDPFGearN = OldDPFBrake = OldCoolant = 0xff;
+				break;
+			case SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_STEP2:
+				PCXtoBMP_16bit(24, 84, 51, 76, FL_Image.dpf_icon_tap);
+				DisplayMultiLineStringAt((USHORT*)*StringSentence[177], 98, 75,  120, 100, gui_font23, COLOR_WHITE);
+				break;
+			case SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_STEP3:
+				//Curr_Minute = 25;
+				Old_Minute = Curr_Minute;
+				GUI_DisplayLeftStringAt((USHORT*)*StringSentence[178], 12, 75, 208, COLOR_WHITE, FONTSIZE_3);
+				break;
+			case SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_STEP4:
+			case SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_COMPLETE:				
+				DisplayMultiLineStringAt((USHORT*)*StringSentence[180], 12, 75,  109, 55, gui_font23, COLOR_WHITE);
+				PCXtoBMP_16bit(133, 75, 61, 46, FL_Image.dpf_icon_success);
+				DisplayClickButton();
+				break;
+			case SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_NOT_COMPLETE:	
+				DisplayMultiLineStringAt((USHORT*)*StringSentence[181], 12, 75,  109, 55, gui_font23, COLOR_WHITE);
+				PCXtoBMP_16bit(133, 75, 61, 46, FL_Image.dpf_icon_failed);
+				DisplayClickButton();
+				break;
+				
+			case SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_CALL:
+				#if 0
+				GUI_DisplayLeftStringAt((USHORT*)*StringSentence[183], 12, 48, 200, COLOR_MENU_ORANGE, FONTSIZE_2);
+				#else
+				SetMarquee = GUI_DisplayLeftStringAt((USHORT*)*StringSentence[183], 12, 48, 200, COLOR_MENU_ORANGE, FONTSIZE_2);
+				if(SetMarquee)
+					SetMarqueeTextViewDPF(183);
+				#endif
+				DisplayMultiLineStringAt((USHORT*)*StringSentence[184], 12, 75,  119, 101, gui_font23, COLOR_WHITE);
+				PCXtoBMP_16bit(143, 103, 57, 57, FL_Image.dpf_icon_call);				
+				break;
+		}
+        
+		if(ScreenIndex == SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_STEP3)
+		{
+			//Cnt_Minute = 0;
+			Old_Minute = Curr_Minute;
+			// 남은시간 표시 
+			DisplayDPFRunningMin();
+		}
+        
+		DrawMenuFull();
+	}
+	
+
+	if(ScreenIndex == SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_STEP1)
+	{
+		if(OldDPFParking != Flag_DIN[INDEX_PARKING_PRESSURE_SW] ) 
+		{
+			OldDPFParking = Flag_DIN[INDEX_PARKING_PRESSURE_SW] ;
+			PCXtoBMP_16bit(20, 133, 39, 38, (OldDPFParking == 1)?FL_Image.dpf_icon_parking_on:FL_Image.dpf_icon_parking_default);
+		}
+		if(OldDPFGearN != HCESPN.Gear_542) 
+		{
+			OldDPFGearN = HCESPN.Gear_542;
+			PCXtoBMP_16bit(67, 133, 39, 38, (OldDPFGearN == GEAR_NEUTRAL)?FL_Image.dpf_icon_neutral_on:FL_Image.dpf_icon_neutral_default);
+		}
+		if(OldDPFBrake != HCESPN.Accel_pedal_position_91) 
+		{
+			OldDPFBrake = HCESPN.Accel_pedal_position_91;
+			PCXtoBMP_16bit(113, 133, 39, 38, (OldDPFBrake == 0)?FL_Image.dpf_icon_brake_on:FL_Image.dpf_icon_brake_default);
+		}
+		if(OldCoolant != RX_ECU_DATA_65262.CoolantTemp_110) 
+		{
+			OldCoolant = RX_ECU_DATA_65262.CoolantTemp_110;
+			PCXtoBMP_16bit(160, 133, 39, 38, (OldCoolant >= (60+40))?FL_Image.dpf_icon_temp_on:FL_Image.dpf_icon_temp_default);
+		}
+	}
+	else if(ScreenIndex == SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_STEP3)
+	{
+		if(Old_Minute != Curr_Minute)
+		{
+			Old_Minute = Curr_Minute;
+			DisplayDPFRunningMin();
+		}
+
+		// 수행 실패 또는 취소 조건 
+		// 1. DPF Regen.Level 0이 아닐 때 
+		// 2. 기어상태 = F, R
+		// 3. Parking 상태 OFF
+		// 4.액셀 페달 작동 상태(0% 초과)
+		// 5. 자동재생금지 = on(자동재생=off)
+		// 6. DPF Inhibit SW = on (220428 추가)
+		// 7. 냉각수60도 미만  (220428 추가)
+		if((HCESPN.Gear_542 == GEAR_FORWARD) || (HCESPN.Gear_542 == GEAR_REVERSE) 
+			|| (Flag_DIN[INDEX_PARKING_PRESSURE_SW] == 0)||(RX_ECU_DATA_65262.CoolantTemp_110 < (60+40))
+			|| (HCESPN.Accel_pedal_position_91 > 0)||(Flag_DIN[INDEX_INHIBIT_REGENERATION_SIG] == 1))
+		{
+			COUNT_FLAG.Flag_DPF_Info = 4;
+			SetScreenIndex(SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_NOT_COMPLETE);
+		}
+	}
+    
+}
+
+void DisplayDPFInfo()
+{
+	switch(ScreenIndex)
+	{
+		case SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_TOP:								
+		case SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_STEP1:					
+		case SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_STEP2:					
+		case SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_STEP3:					
+		case SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_STEP4:			
+		case SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_COMPLETE:				
+		case SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_NOT_COMPLETE:			
+		case SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_CALL:
+		case SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_END:				
+       		DisplayDPFInfoStep();
+			break;
+	}
+}
+
+
+void Check_RMCUSet()		// 100ms
+{
+	if((ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_0)||(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_1)||
+		(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_2)||(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_3)||
+		(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_4)||(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_5)||
+		(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_A))
+	{
+		if(RCM_Test_Step_Status == '0')	
+			SetScreenIndex(SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_0);
+		else if(RCM_Test_Step_Status == '1')
+			SetScreenIndex(SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_1);
+		else if(RCM_Test_Step_Status == '2')
+			SetScreenIndex(SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_2);
+		else if(RCM_Test_Step_Status == '3')
+			SetScreenIndex(SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_3);
+		else if(RCM_Test_Step_Status == '4')
+			SetScreenIndex(SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_4);
+		else if(RCM_Test_Step_Status == '5')
+			SetScreenIndex(SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_5);
+		else
+			SetScreenIndex(SCREEN_STATE_MENU_EQUIPMENT_RMCU_STEP_A);										
+
+	}
+}
+
+//++, 211124 ysm
+void Check_MSS()
+{
+	if(MSS_ESL_Flag == ESL_ENABLE)
+	{
+		SetScreenIndex(SCREEN_STATE_MSS_TOP);
+	}
+	else
+	{
+		if(OldScreenIndex == SCREEN_STATE_MSS_TOP)
+		{			
+			SetScreenIndex(SCREEN_STATE_MAIN_TOP);
+		}		
+	}
+}
+
+//--, 211124 ysm
+
+
+void Check_DPFInfo()		// 100ms
+{
+
+	if(ScreenIndex <= SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_TOP)
+	{
+		if(((RX_ECU_DATA_64890.DPF_Regen_Level_3800 == 2) || (RX_ECU_DATA_64890.DPF_Regen_Level_3800 == 3))
+			&& ((RX_ECU_DATA_64890.DPF_Regen_Operating_Status_3802 == 3) || (RX_ECU_DATA_64890.DPF_Regen_Operating_Status_3802 == 5))
+         		&& (COUNT_FLAG.Flag_DPF_Info == 0) && (RX_ECU_DATA_65262.CoolantTemp_110 >= (60+40)))
+		{
+			COUNT_FLAG.Flag_DPF_Info = 1;
+		}
+		else if((RX_ECU_DATA_64890.DPF_Regen_Status_3801 == 2) && (COUNT_FLAG.Flag_DPF_Info == 0))
+		{
+			COUNT_FLAG.Flag_DPF_Info = 3;
+		}
+
+	}
+
+ 
+	// 메인화면 - 경고화면 
+	if((COUNT_FLAG.Flag_DPF_Info > 0)&&(COUNT_FLAG.Flag_DPF_Info_ESC_Alarm == 0))
+	{
+		if((COUNT_FLAG.Flag_DPF_Info == 1) && ((ScreenIndex&0xF0000000) == SCREEN_STATE_MAIN_TOP))
+		{
+			SetScreenIndex(SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_STEP1);
+		}
+		else if((COUNT_FLAG.Flag_DPF_Info == 2) && ((ScreenIndex&0xF0000000) == SCREEN_STATE_MAIN_TOP))
+		{
+			SetScreenIndex(SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_STEP2);
+		}
+		else if((COUNT_FLAG.Flag_DPF_Info == 3) && ((ScreenIndex&0xF0000000) == SCREEN_STATE_MAIN_TOP))
+		{
+			SetScreenIndex(SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_STEP3);
+		}
+		else if((ScreenIndex&0xF0000000) == SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_TOP)
+		{
+			if((RX_ECU_DATA_64890.DPF_Regen_Operating_Status_3802 == 7)
+				|| (RX_ECU_DATA_64890.DPF_Regen_Level_3800 == 4))
+			{
+				//++, 220428 ysm, 9V_DPF
+				if(ScreenIndex != SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_CALL)
+					SetScreenIndex(SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_CALL);
+				//--, 220428 ysm, 9V_DPF
+			}
+			
+			// 차량 정차 상태(기어 중립, 엑셀페달 0, Parking 상태 1)일 경우 step 2로 이동
+			if((ScreenIndex == SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_STEP1)
+				&& (COUNT_FLAG.Flag_DPF_Info == 1) && (HCESPN.Gear_542 == GEAR_NEUTRAL)
+				&& (Flag_DIN[INDEX_PARKING_PRESSURE_SW] == 1)
+				&& (HCESPN.Accel_pedal_position_91 == 0)
+				&& (RX_ECU_DATA_65262.CoolantTemp_110 >= (60+40)))		// ++, --, 200910 bwk
+			{
+				COUNT_FLAG.Flag_DPF_Info = 2;
+				SetScreenIndex(SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_STEP2);
+			}
+			else if((ScreenIndex == SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_STEP2) && (RX_ECU_DATA_64890.DPF_Regen_Status_3801 == 2))
+			{
+				COUNT_FLAG.Flag_DPF_Info = 3;
+				COUNT_FLAG.Count_DPF_Info_Step3 = 0; //++,--, 220428 ysm, 9V_DPF
+				SetScreenIndex(SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_STEP3);
+			}
+			//++, 220428 ysm, 9V_DPF
+			#if 0
+			else if((ScreenIndex == SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_STEP3) && (RX_ECU_DATA_64890.DPF_Regen_Status_3801 != 2))
+			{
+				COUNT_FLAG.Flag_DPF_Info = 4;
+				if(RX_ECU_DATA_64890.DPF_Regen_Level_3800 == 0)
+					SetScreenIndex(SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_COMPLETE);
+				else
+					SetScreenIndex(SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_NOT_COMPLETE);
+			}
+			#else
+			else if(ScreenIndex == SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_STEP3)
+			{
+
+				if(HCESPN.rpm_310 <= 900)
+				{
+					COUNT_FLAG.Count_DPF_Info_Step3++;
+					if(COUNT_FLAG.Count_DPF_Info_Step3 > 10)
+					{
+						COUNT_FLAG.Count_DPF_Info_Step3 = 20;
+						COUNT_FLAG.Flag_DPF_Info = 4;
+						if(RX_ECU_DATA_64890.DPF_Regen_Level_3800 == 0)
+							SetScreenIndex(SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_COMPLETE);
+						else
+							SetScreenIndex(SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_NOT_COMPLETE);
+					}
+						
+				}
+				else
+				{
+					COUNT_FLAG.Count_DPF_Info_Step3 = 0;
+				}
+
+			}
+
+			#endif
+			//--, 220428 ysm, 9V_DPF
+			
+			
+		}
+	}
+	else if(COUNT_FLAG.Flag_DPF_Info == 0)
+	{
+		if(ScreenIndex == SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_STEP1)
+		{
+			SetScreenIndex(SCREEN_STATE_MAIN_TOP);
+		}
+	}
+    
+
+	if(COUNT_FLAG.Flag_DPF_Info == 3)
+	{
+		if(COUNT_FLAG.Flag_DPF_Info_Old != COUNT_FLAG.Flag_DPF_Info)
+		{
+			Cnt_Minute = 0;
+			//++, 220428 ysm, 9V_DPF
+			#if 0
+			Curr_Minute = 25;
+			#else
+			Curr_Minute = 28;
+			#endif
+			//--, 220428 ysm, 9V_DPF
+		
+		}
+	
+		if(++Cnt_Minute >= 600)
+		{
+			Cnt_Minute = 0;
+			if(Curr_Minute > 0)
+				Curr_Minute--;
+		}
+	}
+	else
+	{
+		Cnt_Minute = 0;
+		//++, 220428 ysm, 9V_DPF
+		#if 0
+		Curr_Minute = 25;
+		#else
+		Curr_Minute = 28;
+		#endif
+		//--, 220428 ysm, 9V_DPF
+	}
+
+	COUNT_FLAG.Flag_DPF_Info_Old = COUNT_FLAG.Flag_DPF_Info;
+
+	//++, 220627 ysm, DPF_BUZZER
+	if((RX_ECU_DATA_64890.DPF_Regen_Level_3800 == 2)&&(RX_ECU_DATA_64890.DPF_Regen_Status_3801 == 0)&&(EngineStartFlag == 1))
+	{
+		COUNT_FLAG.Flag_DPF_Buzzer_Alarm = 1;		
+	}
+	else if((RX_ECU_DATA_64890.DPF_Regen_Level_3800 == 3)&&(RX_ECU_DATA_64890.DPF_Regen_Status_3801 == 0)&&(EngineStartFlag == 1))
+	{
+		COUNT_FLAG.Flag_DPF_Buzzer_Alarm = 2;		
+	}
+	else if((RX_ECU_DATA_64890.DPF_Regen_Level_3800 == 4)&&(RX_ECU_DATA_64890.DPF_Regen_Status_3801 == 0)&&(EngineStartFlag == 1))
+	{
+		COUNT_FLAG.Flag_DPF_Buzzer_Alarm = 3;
+	}
+	else
+	{		
+		COUNT_FLAG.Count_DPF_Buzzer_Alarm = 0;
+		COUNT_FLAG.Flag_DPF_Buzzer_Alarm = 0;
+	}
+
+	if(COUNT_FLAG.Flag_DPF_Buzzer_Alarm_Old != COUNT_FLAG.Flag_DPF_Buzzer_Alarm)
+	{
+		COUNT_FLAG.Flag_DPF_Buzzer_Alarm_Old = COUNT_FLAG.Flag_DPF_Buzzer_Alarm;
+		COUNT_FLAG.Count_DPF_Buzzer_Alarm = 0;
+		COUNT_FLAG.Flag_DPF_ESC_Buzzer_Alarm = 0;
+	}
+
+
+	if(COUNT_FLAG.Flag_DPF_ESC_Buzzer_Alarm == 0)
+	{
+		
+		if(COUNT_FLAG.Flag_DPF_Buzzer_Alarm == 1)
+		{
+			COUNT_FLAG.Count_DPF_Buzzer_Alarm++;
+			if(COUNT_FLAG.Count_DPF_Buzzer_Alarm <= 30)
+			{			
+				BUZZER_FLAG.DPFRegenAlarm = 1;
+			}
+			else if(COUNT_FLAG.Count_DPF_Buzzer_Alarm > 30)
+			{
+				BUZZER_FLAG.DPFRegenAlarm = 0;
+				if(COUNT_FLAG.Count_DPF_Buzzer_Alarm >= 60)
+					COUNT_FLAG.Count_DPF_Buzzer_Alarm = 0;
+			}
+
+		}
+		else if(COUNT_FLAG.Flag_DPF_Buzzer_Alarm == 2)
+		{
+			COUNT_FLAG.Count_DPF_Buzzer_Alarm++;
+			if(COUNT_FLAG.Count_DPF_Buzzer_Alarm <= 30)
+			{			
+				BUZZER_FLAG.DPFRegenAlarm = 1;
+			}
+			else if(COUNT_FLAG.Count_DPF_Buzzer_Alarm > 30)
+			{
+				BUZZER_FLAG.DPFRegenAlarm = 0;
+				if(COUNT_FLAG.Count_DPF_Buzzer_Alarm >= 40)
+					COUNT_FLAG.Count_DPF_Buzzer_Alarm = 0;
+			}
+
+		}
+		else if(COUNT_FLAG.Flag_DPF_Buzzer_Alarm == 3)
+		{
+			BUZZER_FLAG.DPFRegenAlarm = 1;
+		}
+		else
+		{
+			COUNT_FLAG.Count_DPF_Buzzer_Alarm = 0;
+			BUZZER_FLAG.DPFRegenAlarm = 0;
+		}
+		
+	
+	}
+	else
+	{
+		if(COUNT_FLAG.Flag_DPF_Buzzer_Alarm == 3)
+		{
+			BUZZER_FLAG.DPFRegenAlarm = 1;
+		}
+		else
+		{
+			BUZZER_FLAG.DPFRegenAlarm = 0;
+		}
+		COUNT_FLAG.Count_DPF_Buzzer_Alarm = 0;
+	}
+	//--, 220627 ysm, DPF_BUZZER
+}
+
+
+void EnterKeyEventDPFPopup()
+{
+	switch(ScreenIndex&0xff000000)
+	{
+		case SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_NOT_COMPLETE:	//++,--, 220428 ysm, 9V_DPF
+		case SCREEN_STATE_MAIN_POPUP_DPF_REGEN_REQUEST_STEP4:
+			COUNT_FLAG.Flag_DPF_Info = 0;
+			SetScreenIndex(SCREEN_STATE_MAIN_TOP);
+			break;
+	}
+    
+}

@@ -1,0 +1,509 @@
+#include "main.h"
+#include "FLV_Cluster_APP.h"
+
+unsigned char SystemReset = 0;
+
+UINT32 CalibrationFlag;
+UCHAR Checkcnt100ms;
+char KeyUIcnt100ms = 3;
+
+MarqueeTextView m_MarText[10];
+MarqueeTextInfo m_MarInfo;
+
+
+extern TIM_HandleTypeDef htim1;
+extern TIM_HandleTypeDef htim3;
+extern TIM_HandleTypeDef htim6;
+
+extern Img_Version_Info			Info_Version_Img;
+
+extern VERSION_DATA_61423* 		TX_VERSION_DATA_61423;
+
+unsigned char System_Init_flag;
+unsigned short TimerCnt=0;
+unsigned short ADC_TimerCnt=0;
+
+extern unsigned char Flag_ESL;
+//++, 211124 ysm
+extern unsigned char MSS_ESL_Flag;
+//--, 211124 ysm
+
+extern RTC_HandleTypeDef hrtc;
+extern st_DATA_RTC RTC_Data;
+
+unsigned char Check_maintenance_Alarm = 0;
+unsigned char Clock_Cnt=0;
+unsigned char OSHA_Cnt=0;
+unsigned char Filter_Count = 0;
+extern unsigned char MAST_EQUIPMENT;
+extern unsigned char RMCU_EQUIPMENT;
+
+extern unsigned char Engine_Type;
+extern EEPROM_MODEL_DATA1 InfoModel1;
+
+extern unsigned char Count_Send_CID;
+extern unsigned char Flag_Send_CID2;
+
+// ++, 210225 ctw Auto JIG Final Test
+extern unsigned char Flag_Send_CID;
+extern unsigned char Flag_Send_Final_Test;
+unsigned char Tab_Number = 0xff;
+extern unsigned char CAN_DATA_0xABAB_Flag;
+extern unsigned char Flag_Send_HW_Test;
+// --, 210225 ctw Auto JIG Final Test
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)  // 타이머 카운트 주기가 경과되면 호출되는 함수
+{
+	if(htim -> Instance == TIM6)    //100000000 / 99 * 1000 = 1ms
+	{
+		if(System_Init_flag==0xff)
+		{
+			ADC_TimerCnt = 0;
+		
+			COUNT_FLAG.Comm_Error_ECU++;
+			COUNT_FLAG.Comm_Error_RMCU++;
+
+			//++, 221226 ysm, FSCU
+			if(COUNT_FLAG.Flag_FSCU_Enable == 1)
+			{
+				COUNT_FLAG.Comm_Error_FSCU++;
+				if(COUNT_FLAG.Comm_Error_FSCU >= 10000) // TEST
+				{
+					COUNT_FLAG.Comm_Error_FSCU = 10000; //++,--, 230116 ysm, FSCU_BUG_FIX
+					COUNT_FLAG.Flag_FSCUCommError = 1;
+				}
+			}
+			else
+			{
+				COUNT_FLAG.Comm_Error_FSCU = 0;				
+				//COUNT_FLAG.Flag_FSCUCommError = 0; //++,--, 230116 ysm, FSCU_BUG_FIX
+				
+			}
+			//--, 221226 ysm, FSCU
+
+			if(COUNT_FLAG.Comm_Error_RMCU>=90000)
+				COUNT_FLAG.Comm_Error_RMCU=90000;
+
+			if((InfoModel1.ModelInfo >= MODEL_35D_9S)&&(InfoModel1.ModelInfo <= MODEL_50D_9S))
+			{
+				COUNT_FLAG.Comm_Error_ECU=0;
+				COUNT_FLAG.Flag_ECU_Comm_error=0;
+
+			}
+			else
+			{
+				if(COUNT_FLAG.Comm_Error_ECU>1000)
+				{
+					COUNT_FLAG.Comm_Error_ECU=1100;
+					COUNT_FLAG.Flag_ECU_Comm_error=1;
+				}
+			}
+
+
+			//if(COUNT_FLAG.Flag_ECU_Comm_error == 0) //++,--, 210317 ysm, 9SA
+			CAN1_TX_RingBuffer();
+			CAN2_TX_RingBuffer();
+
+				
+			
+			if(++TimerCnt % 1000 == 0)
+			{
+				TimerCnt = 0;
+				CanTx1sSecOperationFunc();
+			}
+			if(TimerCnt % 5 == 0)			// 5ms
+			{
+				KeySwitch_Process();
+											
+				
+			}
+			if(TimerCnt % 10 == 0)		// 10ms
+			{
+				Run_ADC();
+				Buzzer_Operating();
+
+
+				Check_Tacho_Value();						
+				CanTx10mSecOperationFunc();
+		
+				
+			}
+
+			if(TimerCnt % 50 == 0)		// 50ms
+			{	
+				CanTx50mSecOperationFunc();				
+			}
+			if(TimerCnt % 100 == 0)		// 100ms
+			{			
+				Calculate_HourMeter();
+				Calculate_Odometer();
+				Speed_limit_process(); //++,--, 201209 ysm, SPEED_LIMIT
+				CanTx100mSecOperationFunc();
+
+				
+			}
+			if(TimerCnt % 200 == 0)		// 200ms
+			{
+				//++, 211124 ysm
+				CanTx200mSecOperationFunc();
+				//--, 211124 ysm
+			}
+			if(TimerCnt % 500 == 0)		// 500ms
+			{
+			
+			}
+
+
+		}
+		else
+		{
+			if(++ADC_TimerCnt % 1000 == 0)
+			{
+				ADC_TimerCnt = 0;
+			}
+				
+			if(ADC_TimerCnt % 10 == 0)		// 10ms
+			{
+				Run_ADC();
+			}
+
+		}
+
+	}
+}
+
+void IWDG_ReloadCounter(void)
+{
+    IWDG->KR = 0xAAAA;
+}
+
+void FLV_1mSecOperationFunc(void)
+{
+}
+
+void FLV_10mSecOperationFunc(void)
+{
+	CAN_UPDATE_Operation();
+	Check_ADC_Value();
+	Make_AIN();
+	Calculate_Led();
+	AutoShiftMode_Control();
+	MCU_Diagnosis();
+	//++, 210524 ysm, ACC_TEST
+	#if 0
+	if(MAST_EQUIPMENT == 1)
+		Check_Vehicle_Angle();
+	#else	
+	ACC_Test();
+	Check_Vehicle_Angle();
+	#endif
+	AutoLeveling();
+	Run_Dout();
+	Run_Dout2();
+	
+	//--, 210524 ysm, ACC_TEST
+}
+
+void FLV_50mSecOperationFunc(void)
+{
+}
+
+
+void FLV_100mSecOperationFunc(void)
+{
+	
+	Input_Key();
+
+	if((ScreenIndex != SCREEN_STATE_NOTIMAGE)&&(ScreenIndex != SCREEN_STATE_UPDATEIMAGE)&&(ScreenIndex != SCREEN_STATE_SWUPDATE)) //++,--, 221226 ysm, FSCU
+	{
+        
+		if((ScreenIndex == SCREEN_STATE_CLOCK_TOP) && (++Clock_Cnt>=15))
+		{                
+			Clock_Cnt = 20;
+
+			if(Flag_ESL == ESL_ENABLE)
+				ScreenIndex = SCREEN_STATE_ESL_PASSWORD;
+			else
+				ScreenIndex = SCREEN_STATE_MAIN_TOP;
+
+		}
+
+		if(ScreenIndex != SCREEN_STATE_OSHA_TOP)
+		  Check_MSS();
+
+
+		if(Clock_Cnt < 20)
+		{
+		    if(ScreenIndex == SCREEN_STATE_MSS_TOP)
+		      Clock_Cnt = 0;
+		    else
+		    {
+		      if(ScreenIndex != SCREEN_STATE_OSHA_TOP)
+		        ScreenIndex = SCREEN_STATE_CLOCK_TOP;
+		    }
+		}
+	}
+	
+	Relay_Control();
+	//Check_Main_Popup();
+	Check_DPFInfo();
+	Check_RMCUSet();
+
+	LCD_System();
+	if((m_MarInfo.cntMarText > 0) && (OldScreenIndex == ScreenIndex))
+		DisplayMarqueeTextView();
+	
+	LED_Update_System();
+
+	if(KeyUIcnt100ms < 3)
+		CheckKey();
+
+	if(CalibrationFlag != 0)
+	{
+		CheckCalibrationFlag();
+	}
+
+	//++, 210705 ysm, RCM
+	SatelliteCommRun3();
+	//--, 210705 ysm, RCM
+	
+	System_CheckPowerIG();
+
+	Check_maintenance_Alarm = Check_maintenance();
+
+	if (SystemReset == 1)
+	{
+		return;
+	}
+	
+	// ++, 210904 ctw Auto JIG Final Test
+	if(Tab_Number != 0xff)
+	{
+		TransRTCData();
+		if(Flag_Send_HW_Test == 1)
+		{
+			  prepare_HW_Test_Data_2nd();	  // ++, --, 210629 ctw Auto JIG Final Test
+		}
+		CAN_TX_HW_2nd_Test();
+	}
+	// --, 210904 ctw Auto JIG Final Test
+
+	
+}
+
+#if 1
+void FLV_200mSecOperationFunc(void)
+#else
+void FLV_500mSecOperationFunc(void)
+#endif
+{
+	if((InfoModel1.ModelInfo <= MODEL_35DN_9VB)||((InfoModel1.ModelInfo >= MODEL_25D_9VS)&&(InfoModel1.ModelInfo <= MODEL_35DN_9VS)))
+		Power_Standard_Mode();
+
+	if((ScreenIndex == SCREEN_STATE_OSHA_TOP) && (++OSHA_Cnt>=50))
+	{
+		OSHA_Cnt = 50;
+		ScreenIndex = SCREEN_STATE_CLOCK_TOP;
+
+	}
+}       
+
+
+void FLV_1SecOperationFunc(void)
+{
+#if TEST_MODE
+	MainChange();
+#endif
+
+	if(ScreenIndex == SCREEN_STATE_MENU_EQUIPMENT_WEIGHTSENSOR_LOADADJUST_LOAD_INFO)
+		DisplayWeighSensorLoadSetting_Sec();
+
+	IWDG_ReloadCounter();
+
+	read_RTC(&RTC_Data);
+
+	//++, 210705 ysm, RCM
+	SatelliteDataProcessing();
+	//--, 210705 ysm, RCM	
+			
+	if(++Count_Send_CID>20)
+	{
+		Flag_Send_CID2 = 0;
+		Count_Send_CID = 200;
+
+	}
+	else
+	{
+		if(Count_Send_CID%2 == 0)
+		{
+			Flag_Send_CID2=1;
+		}
+	}
+	
+}
+
+void FLV_2SecOperationFunc(void)
+{
+
+}
+
+void System_Init_Start()
+{	
+	Initialize_DOUT();
+	Initialize_EEPROM(); //++,--, 230118 ysm, FSCU_BUG_FIX
+	Initialize_CanSystem(1);
+	Initialize_CanSystem(2);
+
+	Initialize_LcdSystem();
+//	Initialize_EEPROM();
+	HAL_Delay(100);
+	Initialize_LEDSystem();
+	Initialize_Image_Variable();
+	
+	/* TACHO INIT*/
+	HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);   //C_HALL_REF_H
+	HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);   //C_HALL_REF_L
+	HAL_TIM_IC_Start_IT(&htim1, TIM_CHANNEL_1);  //C_HALL	
+	HAL_TIM_Base_Start_IT(&htim6);  // KEY SWITCH TIMER(=1ms TIMER)
+
+	prepare_CID_Data(); //++,--, 230206 ysm, FSCU
+	
+	SetVersion();
+	//prepare_CID_Data(); //++,--, 230206 ysm, FSCU
+	prepare_MCU_HCECID_Data();
+
+	HAL_PWR_EnableBkUpAccess();	// RTC Init
+
+	//HAL_RTC_GetTime(&hrtc, &sTime, FORMAT_BIN);
+	//HAL_RTC_GetDate(&hrtc, &sDate, FORMAT_BIN);
+
+	read_RTC(&RTC_Data);
+
+	HAL_Delay(1000);
+	
+	ControlLEDBrightnessLevel(InfoDisplaySetting.LEDBrightnessLevel);
+	ControlLCDBrightnessLevel(InfoDisplaySetting.LCDBrightnessLevel);
+	if((Info_Version_Img.Version_High == 0xff) && (Info_Version_Img.Version_Low== 0xff) && (Info_Version_Img.Version_Sub== 0xff))
+	{
+		//Initialize_EEPROM_Frist();		// ++, --, 200326 bwk 간헐적으로 시리얼 못읽어서 0xff 되는 부분 발생하여 제거 
+		ScreenIndex = SCREEN_STATE_NOTIMAGE;
+	}
+	else if((Info_Version_Img.Version_High == 1) && (Info_Version_Img.Version_Low == 3) && (Info_Version_Img.Version_Sub== 0))
+	{
+		if(InfoDisplaySetting.Language == 1)// ENGLISH
+			SetScreenIndex(SCREEN_STATE_OSHA_TOP);
+		else
+			SetScreenIndex(SCREEN_STATE_CLOCK_TOP);
+	}
+	else 
+		ScreenIndex = SCREEN_STATE_UPDATEIMAGE;
+
+	SendVersion();
+
+	Flag_Send_CID = 1;      // ++, --, 210311 ctw CID
+
+}
+
+
+/**
+* @brief  Application Program Start Point.
+* @param  None
+* @retval None
+*/
+
+void StageV_FL_Cluster_APP(void)
+{
+SYSTEM_RESET :    
+	/* USER CODE BEGIN 1 */
+
+	/* USER CODE END 1 */
+
+
+	/* MCU Configuration--------------------------------------------------------*/
+
+	/* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+	HAL_Init();
+
+	/* USER CODE BEGIN Init */
+
+	/* USER CODE END Init */
+
+	System_Configuration();
+	System_Initialize();	
+
+	System_Variable_Init();
+	System_Init_Start();        
+    prepare_HW_Test_Data_2nd();     // ++, --, 210629 ctw Auto JIG Final Test
+
+	//++, 230118 ysm, FSCU_BUG_FIX	
+	TimerCnt = 0;
+	System_Init_flag=0xff;
+	//--, 230118 ysm, FSCU_BUG_FIX	
+        
+	/* Infinite loop */
+	while (1)
+	{  
+
+		if (FLV_TIME.Flag_1mSec == 1)     //  1msec
+		{
+			FLV_TIME.Flag_1mSec = 0;
+
+			FLV_1mSecOperationFunc();
+		}            
+
+		if (FLV_TIME.Flag_10mSec == 1)    //  10msec
+		{
+			FLV_TIME.Flag_10mSec = 0;
+
+			FLV_10mSecOperationFunc();
+		}
+
+		if (FLV_TIME.Flag_50mSec == 1)    //  50msec
+		{
+			FLV_TIME.Flag_50mSec = 0;
+
+			FLV_50mSecOperationFunc();
+		}
+
+		if (FLV_TIME.Flag_100mSec == 1)   //  100 msec
+		{
+			FLV_TIME.Flag_100mSec = 0;
+
+			FLV_100mSecOperationFunc();
+
+			if (SystemReset == 1)
+			{
+				goto SYSTEM_RESET;
+			}
+		}
+#if 1
+		if (FLV_TIME.Flag_200mSec == 1)   //  200 msec
+		{
+			FLV_TIME.Flag_200mSec = 0;
+
+			FLV_200mSecOperationFunc();
+		}
+#else		
+
+		if (FLV_TIME.Flag_500mSec == 1)   //  500 msec
+		{
+			FLV_TIME.Flag_500mSec = 0;
+
+			FLV_500mSecOperationFunc();
+		}
+#endif
+		if (FLV_TIME.Flag_1Sec == 1)      //  1000 msec
+		{
+			FLV_TIME.Flag_1Sec = 0;
+
+			FLV_1SecOperationFunc();
+		}
+
+		if (FLV_TIME.Flag_2Sec == 1)      //  2000 msec
+		{
+			FLV_TIME.Flag_2Sec = 0;
+
+			FLV_2SecOperationFunc();
+		}
+	}
+}

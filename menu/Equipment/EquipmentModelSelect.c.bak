@@ -1,0 +1,495 @@
+#include "FLV_Cluster_APP.h"
+
+UCHAR Model_Index[]={MODEL_25D_9VB, MODEL_30D_9VB, MODEL_35DN_9VB};
+UCHAR LastCurIndex;
+
+extern unsigned char Engine_Type;
+extern unsigned char Engine_Type_Temp;
+
+
+extern UCHAR CurListCount;
+extern unsigned short* StringModel[];
+
+extern EEPROM_MODEL_DATA1	InfoModel1;
+extern unsigned char temp_ModelInfo;
+
+void DisplayModelSettingModelInfo()
+{
+	if(OldScreenIndex != SCREEN_STATE_MENU_EQUIPMENT_MODELSELECT_MODEL)
+	{
+		OldCurserIndex = CurserIndex;
+
+		SetListString_1(StringModel[InfoModel1.ModelInfo]);
+		DisplaySubListAll(1);		
+		
+		DrawMenuFull();
+	}
+	else if(OldCurserIndex != CurserIndex)
+	{				
+
+		DisplayList(1);
+		OldCurserIndex = CurserIndex;
+	}
+}
+
+void DisplayModelSettingTypeList()
+{
+	unsigned char temp_posx = 9;
+	unsigned char temp_posy = 48;
+
+
+	if(OldScreenIndex != SCREEN_STATE_MENU_EQUIPMENT_MODELSELECT_TYPE)
+	{
+		OldCurserIndex = CurserIndex;
+
+		LCD_Draw_Color(0, 48, 220, 128, COLOR_BLACK);
+
+		if(CurserIndex == 0)//DIESEL
+		{	
+			PCXtoBMP_16bit(temp_posx, temp_posy, 98, 122, FL_Image.bg_setting_4_select);
+			PCXtoBMP_16bit(temp_posx+18, temp_posy+94, 64, 18, FL_Image.diesel_orange);
+			PCXtoBMP_16bit(temp_posx+27, temp_posy+16, 45, 65, FL_Image.menu_icon_diesel_selected);
+			
+			PCXtoBMP_16bit(temp_posx+102, temp_posy, 98, 122, FL_Image.bg_gray_4_nor);
+			PCXtoBMP_16bit(temp_posx+102+31, temp_posy+94, 40, 17, FL_Image.lpg_gray);
+			PCXtoBMP_16bit(temp_posx+129, temp_posy+16, 45, 65, FL_Image.menu_icon_lpg_nor);
+		}
+		else // LPG
+		{
+			PCXtoBMP_16bit(temp_posx, temp_posy, 98, 122, FL_Image.bg_gray_4_nor);
+			PCXtoBMP_16bit(temp_posx+18, temp_posy+94, 64, 18, FL_Image.diesel_gray);
+			PCXtoBMP_16bit(temp_posx+27, temp_posy+16, 45, 65, FL_Image.menu_icon_diesel_nor);
+			
+			PCXtoBMP_16bit(temp_posx+102, temp_posy, 98, 122, FL_Image.bg_setting_4_select);
+			PCXtoBMP_16bit(temp_posx+102+31, temp_posy+94, 40, 17, FL_Image.lpg_orange);
+			PCXtoBMP_16bit(temp_posx+129, temp_posy+16, 45, 65, FL_Image.menu_icon_lpg_selected);
+		}
+		DrawMenuFull();
+	}
+	else if(OldCurserIndex != CurserIndex)
+	{
+		if(CurserIndex == 0)//DIESEL
+		{	
+			PCXtoBMP_16bit(temp_posx, temp_posy, 98, 122, FL_Image.bg_setting_4_select);
+			PCXtoBMP_16bit(temp_posx+18, temp_posy+94, 64, 18, FL_Image.diesel_orange);
+			PCXtoBMP_16bit(temp_posx+27, temp_posy+16, 45, 65, FL_Image.menu_icon_diesel_selected);
+			
+			PCXtoBMP_16bit(temp_posx+102, temp_posy, 98, 122, FL_Image.bg_gray_4_nor);
+			PCXtoBMP_16bit(temp_posx+102+31, temp_posy+94, 40, 17, FL_Image.lpg_gray);
+			PCXtoBMP_16bit(temp_posx+129, temp_posy+16, 45, 65, FL_Image.menu_icon_lpg_nor);
+		}
+		else // LPG
+		{
+			PCXtoBMP_16bit(temp_posx, temp_posy, 98, 122, FL_Image.bg_gray_4_nor);
+			PCXtoBMP_16bit(temp_posx+18, temp_posy+94, 64, 18, FL_Image.diesel_gray);
+			PCXtoBMP_16bit(temp_posx+27, temp_posy+16, 45, 65, FL_Image.menu_icon_diesel_nor);
+			
+			PCXtoBMP_16bit(temp_posx+102, temp_posy, 98, 122, FL_Image.bg_setting_4_select);
+			PCXtoBMP_16bit(temp_posx+102+31, temp_posy+94, 40, 17, FL_Image.lpg_orange);
+			PCXtoBMP_16bit(temp_posx+129, temp_posy+16, 45, 65, FL_Image.menu_icon_lpg_selected);
+		}
+
+		OldCurserIndex = CurserIndex;
+		
+	}
+}
+
+void DisplayModelSettingTIREList()
+{
+	if(OldScreenIndex != SCREEN_STATE_MENU_EQUIPMENT_MODELSELECT_TIRE)
+	{
+		OldCurserIndex = CurserIndex;
+
+		SetListString_2(StringTire[0], StringTire[1]);
+		DisplaySubListAll(CurserIndex+1);		
+		
+		DrawMenuFull();
+	}
+	else if(OldCurserIndex != CurserIndex)
+	{				
+		if(CurserIndex == 0) 					
+		{						
+			DisplayList(1);
+		}
+		else
+		{			
+			DisplayList(2);
+		
+		}
+
+
+		OldCurserIndex = CurserIndex;
+	}
+
+
+}
+
+void DisplayModelSettingInfoList()
+{
+
+	if(OldScreenIndex != SCREEN_STATE_MENU_EQUIPMENT_MODELSELECT_INFO)
+	{
+		OldCurserIndex = CurserIndex;
+
+		//++, 211016 ysm
+		#if 1
+		if(Engine_Type_Temp == DIESEL_TYPE)
+		{
+			if(CurserIndex < 3)			
+			{
+				SetListString(3, StringModel[MODEL_35D_9S], StringModel[MODEL_40D_9S], StringModel[MODEL_45D_9S]); //0,1,2
+				DisplaySubListAll(CurserIndex+1);
+				DisplayListPage(1,4);
+			}
+			else if((CurserIndex >= 3)&&(CurserIndex < 6))
+			{
+				SetListString(3, StringModel[MODEL_50D_9S], StringModel[MODEL_25D_9VB], StringModel[MODEL_30D_9VB]); // 3,4,5
+				DisplaySubListAll(CurserIndex-2);
+				DisplayListPage(2,4);
+
+			}
+			else if((CurserIndex >= 6)&&(CurserIndex < 9))
+			{
+				SetListString(3, StringModel[MODEL_35DN_9VB], StringModel[MODEL_25D_9VS], StringModel[MODEL_30D_9VS]); // 6,7,8
+				DisplaySubListAll(CurserIndex-5);
+				DisplayListPage(3,4);
+
+			}
+			else
+			{
+				SetListString_1(StringModel[MODEL_35DN_9VS]); // 9
+				DisplaySubListAll(1);
+				DisplayListPage(4,4);
+
+			}
+		}
+		else
+		{
+			if(CurserIndex < 3)						
+			{
+				SetListString(3, StringModel[MODEL_35L_9], StringModel[MODEL_40L_9], StringModel[MODEL_45L_9]); //0, 1, 2
+				DisplaySubListAll(CurserIndex+1);
+				DisplayListPage(1,2);
+			}
+			else if((CurserIndex >= 3)&&(CurserIndex < 6))
+			{
+				SetListString(3, StringModel[MODEL_50L_9], StringModel[MODEL_25LC_9], StringModel[MODEL_30LC_9]); // 3,4,5
+				DisplaySubListAll(CurserIndex-2);
+				DisplayListPage(2,3);
+
+			}
+			else
+			{			
+				SetListString_1(StringModel[MODEL_33LC_9]); // 6
+				DisplaySubListAll(1);
+				DisplayListPage(3,3);
+
+			}
+		}		
+		
+		DrawMenuFull();
+		#else
+		if(Engine_Type_Temp == DIESEL_TYPE)
+		{
+			if(CurserIndex < 3)			
+			{
+				SetListString(3, StringModel[MODEL_35D_9S], StringModel[MODEL_40D_9S], StringModel[MODEL_45D_9S]); //0,1,2
+				DisplaySubListAll(CurserIndex+1);
+				DisplayListPage(1,2);
+			}
+			else
+			{
+				SetListString_1(StringModel[MODEL_50D_9S]); // 3
+				DisplaySubListAll(1);
+				DisplayListPage(2,2);
+
+			}
+		}
+		else
+		{
+			if(CurserIndex < 3)						
+			{
+				SetListString(3, StringModel[MODEL_35L_9], StringModel[MODEL_40L_9], StringModel[MODEL_45L_9]); //0, 1, 2
+				DisplaySubListAll(CurserIndex+1);
+				DisplayListPage(1,2);
+			}
+			else
+			{			
+				SetListString_1(StringModel[MODEL_50L_9]); // 3
+				DisplaySubListAll(1);
+				DisplayListPage(2,2);
+
+			}
+		}		
+		
+		DrawMenuFull();
+		#endif
+		//--, 211016 ysm
+	}
+	else if(OldCurserIndex != CurserIndex)
+	{				
+
+		//++, 211016 ysm
+		#if 1
+		if(Engine_Type_Temp == DIESEL_TYPE)
+		{
+			if((CurserIndex == 0)||(CurserIndex == 1)||(CurserIndex == 2))
+			{
+
+				if((OldCurserIndex != 0)&&(OldCurserIndex != 1)&&(OldCurserIndex != 2))
+				{
+					SetListString(3, StringModel[MODEL_35D_9S], StringModel[MODEL_40D_9S], StringModel[MODEL_45D_9S]); //0,1,2
+					DisplaySubListAll(CurserIndex+1);
+					DisplayListPage(1,4);
+
+				}
+				else
+					DisplaySubList(CurserIndex+1);
+			}
+			else if((CurserIndex == 3)||(CurserIndex == 4)||(CurserIndex == 5))
+			{
+
+				if((OldCurserIndex != 3)&&(OldCurserIndex != 4)&&(OldCurserIndex != 5))
+				{
+					SetListString(3, StringModel[MODEL_50D_9S], StringModel[MODEL_25D_9VB], StringModel[MODEL_30D_9VB]); // 4,5,6
+					DisplaySubListAll(CurserIndex-2);
+					DisplayListPage(2,4);
+
+				}
+				else
+					DisplaySubList(CurserIndex-2);
+			}	
+			else if((CurserIndex == 6)||(CurserIndex == 7)||(CurserIndex == 8))
+			{
+
+				if((OldCurserIndex != 6)&&(OldCurserIndex != 7)&&(OldCurserIndex != 8))
+				{
+					SetListString(3, StringModel[MODEL_35DN_9VB], StringModel[MODEL_25D_9VS], StringModel[MODEL_30D_9VS]); // 6,7,8
+					DisplaySubListAll(CurserIndex-5);
+					DisplayListPage(3,4);
+
+				}
+				else
+					DisplaySubList(CurserIndex-5);
+
+			}	
+			else
+			{
+				if(OldCurserIndex != 9)
+				{
+					SetListString_1(StringModel[MODEL_35DN_9VS]); // 6
+					DisplaySubListAll(1);
+					DisplayListPage(4,4);
+				}
+				else
+					DisplaySubList(1);
+			}	
+		}
+		else
+		{
+			if((CurserIndex == 0)||(CurserIndex == 1)||(CurserIndex == 2))
+			{
+
+				if((OldCurserIndex != 0)&&(OldCurserIndex != 1)&&(OldCurserIndex != 2))
+				{
+					SetListString(3, StringModel[MODEL_35L_9], StringModel[MODEL_40L_9], StringModel[MODEL_45L_9]); //0, 1, 2
+					DisplaySubListAll(CurserIndex+1);
+					DisplayListPage(1,3);
+				}
+				else
+					DisplaySubList(CurserIndex+1);
+			}
+			else if((CurserIndex == 3)||(CurserIndex == 4)||(CurserIndex == 5))
+			{
+
+				if((OldCurserIndex != 3)&&(OldCurserIndex != 4)&&(OldCurserIndex != 5))
+				{
+					SetListString(3, StringModel[MODEL_50L_9], StringModel[MODEL_25LC_9], StringModel[MODEL_30LC_9]); //3,4,5
+					DisplaySubListAll(CurserIndex-2);
+					DisplayListPage(2,3);
+
+				}
+				else
+					DisplaySubList(CurserIndex-2);
+			}	
+			else
+			{
+
+				if(OldCurserIndex != 6)
+				{
+					SetListString_1(StringModel[MODEL_33LC_9]); // 6
+					DisplaySubListAll(1);
+					DisplayListPage(3,3);
+				}
+				else
+					DisplaySubList(1);
+			}	
+
+		}
+		OldCurserIndex = CurserIndex;
+		#else
+		if(Engine_Type_Temp == DIESEL_TYPE)
+		{
+			if((CurserIndex == 0)||(CurserIndex == 1)||(CurserIndex == 2))
+			{
+
+				if((OldCurserIndex != 0)&&(OldCurserIndex != 1)&&(OldCurserIndex != 2))
+				{
+					SetListString(3, StringModel[MODEL_35D_9S], StringModel[MODEL_40D_9S], StringModel[MODEL_45D_9S]); //0,1,2
+					DisplaySubListAll(CurserIndex+1);
+					DisplayListPage(1,2);
+
+				}
+				else
+					DisplaySubList(CurserIndex+1);
+			}	
+			else
+			{
+
+				if(OldCurserIndex != 3)
+				{
+					SetListString_1(StringModel[MODEL_50D_9S]); // 3
+					DisplaySubListAll(1);
+					DisplayListPage(2,2);
+				}
+				else
+					DisplaySubList(1);
+			}	
+		}
+		else
+		{
+			if((CurserIndex == 0)||(CurserIndex == 1)||(CurserIndex == 2))
+			{
+
+				if((OldCurserIndex != 0)&&(OldCurserIndex != 1)&&(OldCurserIndex != 2))
+				{
+					SetListString(3, StringModel[MODEL_35L_9], StringModel[MODEL_40L_9], StringModel[MODEL_45L_9]); //0, 1, 2
+					DisplaySubListAll(CurserIndex+1);
+					DisplayListPage(1,2);
+				}
+				else
+					DisplaySubList(CurserIndex+1);
+			}
+			else
+			{
+
+				if(OldCurserIndex != 3)
+				{
+					SetListString_1(StringModel[MODEL_50L_9]); // 3
+					DisplaySubListAll(1);
+					DisplayListPage(2,2);
+				}
+				else
+					DisplaySubList(1);
+			}	
+
+		}
+		OldCurserIndex = CurserIndex;
+
+
+		#endif
+		//--, 211016 ysm
+	}
+	
+}
+
+void DisplayModelInitSetting()
+{
+	if(OldScreenIndex != ScreenIndex)
+	{
+		DisplayMenuPopup();
+	
+		USHORT y_Height = GetStringMultiLineHeight((USHORT*)*StringSentence[28], StringEtc[SIGN_NOSTRING], StringEtc[SIGN_NOSTRING], 200,  23);
+		USHORT y_offset = 0, y_margin = 0;
+
+		if(y_Height < 122)
+		{
+			y_offset = (122 - (y_Height) - 30)/2;
+			if((122 - (y_Height) - 30) % 2 == 1)
+				y_offset -= 1;
+			y_margin = 30;
+		}
+		else
+		{
+			y_offset = (122 - (y_Height) - 10)/2;
+			if((122 - (y_Height) - 10) % 2 == 1)
+				y_offset -= 1;
+			y_margin = 10;
+		}
+
+		y_offset += 48;
+
+
+		DisplayStringAt(StringModel[temp_ModelInfo], 11, y_offset, gui_font23, COLOR_WHITE);
+
+		y_offset+=y_margin;
+		GUI_DisplayMultiStringAt((USHORT*)*StringSentence[26], 11, y_offset, 200, 0, COLOR_WHITE, 23);
+
+		DrawMenuFull();
+	}
+
+
+}
+
+/*
+void DisplayResetPopup()
+{
+	CurserIndex = 0;
+	BSP_LCD_FillRect_temp(0,0,800,480);
+
+	UCHAR buf[20];
+	USHORT covbuf[20];
+
+	memset((&buf), 0x0, sizeof( buf));
+	memset((&covbuf), 0x0, sizeof( covbuf));
+
+	sprintf ( (char*)buf, "Reset Machine!!!");
+	String_Func(covbuf, buf);
+
+	GUI_DisplayMultiLineCenterStringAt(&covbuf[0], 0, 0,800,480,  LCD_COLOR_TITLE, 55);
+
+	DrawMenuFull();
+}
+*/
+
+void DisplayModelSetting()
+{
+	switch(ScreenIndex)
+	{
+		case SCREEN_STATE_MENU_EQUIPMENT_MODELSELECT_MODEL:
+			if((OldScreenIndex != ScreenIndex) || (OldCurserIndex != CurserIndex))
+				DisplayModelSettingModelInfo();
+			break;
+			
+		case SCREEN_STATE_MENU_EQUIPMENT_MODELSELECT_TYPE:
+			if((OldScreenIndex != ScreenIndex) || (OldCurserIndex != CurserIndex))
+				DisplayModelSettingTypeList();
+			break;
+			
+		case SCREEN_STATE_MENU_EQUIPMENT_MODELSELECT_INFO:		
+			if((OldScreenIndex != ScreenIndex) || (OldCurserIndex != CurserIndex))
+				DisplayModelSettingInfoList();
+			break;
+
+		case SCREEN_STATE_MENU_EQUIPMENT_MODELSELECT_TIRE:		
+			if((OldScreenIndex != ScreenIndex) || (OldCurserIndex != CurserIndex))
+				DisplayModelSettingTIREList();
+			break;
+		case SCREEN_STATE_MENU_EQUIPMENT_MODELSELECT_CHANGE_POPUP:			
+			if(OldScreenIndex != ScreenIndex)
+				DisplayModelInitSetting();
+			break;
+		case SCREEN_STATE_MENU_EQUIPMENT_MODELSELECT_CHANGE_COMPLETE:	
+		case SCREEN_STATE_MENU_EQUIPMENT_MODELSELECT_CHANGE_NOT_COMPLETE:
+			DisplayPopupStringComplete();
+			break;
+			/*
+		case SCREEN_STATE_MENU_EQUIPMENT_MODELSELECT_CHANGE_RESET:
+					
+			if(OldScreenIndex != ScreenIndex) 
+				DisplayResetPopup();
+			break;
+			*/
+	}
+	
+}

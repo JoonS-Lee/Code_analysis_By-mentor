@@ -1,0 +1,386 @@
+#include "FLV_Cluster_APP.h"
+
+USHORT	OldSpeed;
+UCHAR ShowSpeedUnit;
+UCHAR ShowTime;
+UCHAR OldSpeedLimit;
+
+//++, 211129 ysm
+unsigned char TimeReset_flag = 0;
+unsigned char Change_DisplayTop_flag = 0;
+unsigned char Change_DisplayTop_count = 0;
+//--, 211129 ysm
+
+extern float Calculate_Speed_Value;
+
+
+extern unsigned char MAST_EQUIPMENT;
+
+extern UCHAR ShowMast;
+extern UCHAR OldDisplayMast;
+extern UCHAR CurrDisplayMast;
+
+extern st_DATA_RTC RTC_Data;
+extern st_DATA_RTC RTC_Data_Old;
+
+extern EEPROM_MODEL_DATA1 InfoModel1;
+
+void InitialTopValuable()
+{
+	OldSpeed = 0xffff;
+	OldSpeedLimit = 0xff;
+	ShowSpeedUnit = 0;
+	ShowTime = 0;
+}
+
+void DisplaySpeed()
+{
+	USHORT tempspeed;
+
+	//++, 211129 ysm
+	#if 1
+	if(Change_DisplayTop_flag == 1) // Current Display = SPEED
+	{
+		
+		if(Calculate_Speed_Value <= 2)
+		{
+			Change_DisplayTop_count++;
+			if(Change_DisplayTop_count > 10)
+			{
+				Change_DisplayTop_count = 0;
+				Change_DisplayTop_flag = 0; // SPEED -> CLOCK
+
+				RTC_Data_Old.Minutes = 0xff;
+				ShowSpeedUnit = 0;
+				ShowTime = 0;
+			}			
+			else
+				Change_DisplayTop_flag = 1; // SPEED
+		
+		}
+		else
+		{
+			Change_DisplayTop_count = 0;
+			Change_DisplayTop_flag = 1; // SPEED -> SPEED
+		
+		}
+
+	}
+	else // Current Display = CLOCK
+	{
+		if(Calculate_Speed_Value > 2)
+		{
+			Change_DisplayTop_count++;
+			if(Change_DisplayTop_count > 5)
+			{
+				Change_DisplayTop_count = 0;
+				Change_DisplayTop_flag = 1; // CLOCK -> SPEED
+
+				RTC_Data_Old.Minutes = 0xff;
+				ShowSpeedUnit = 0;
+				ShowTime = 0;
+			}
+			else
+				Change_DisplayTop_flag = 0; // CLOCK
+
+		}
+		else
+		{
+			Change_DisplayTop_count = 0;
+			Change_DisplayTop_flag = 0; // CLOCK -> CLOCK
+
+		}
+	}
+
+	if(Change_DisplayTop_flag == 1)
+	{
+		if((OldSpeed != (unsigned short)(Calculate_Speed_Value))||OldSpeedLimit != COUNT_FLAG.Flag_SpeedLimit)
+		{
+
+			if(OldSpeedLimit != COUNT_FLAG.Flag_SpeedLimit)
+			{
+				ShowSpeedUnit = 0;
+			}
+
+			OldSpeed = (unsigned short)(Calculate_Speed_Value);
+			OldSpeedLimit = COUNT_FLAG.Flag_SpeedLimit;
+	
+			if(OldSpeed  > 999)
+				tempspeed  = 0;
+			else
+				tempspeed  = OldSpeed;
+
+			//++, 220208 ysm, 30LC-9
+			if(((InfoModel1.ModelInfo >= MODEL_25LC_9)&&(InfoModel1.ModelInfo <= MODEL_33LC_9))||
+				((InfoModel1.ModelInfo >= MODEL_25L_9A)&&(InfoModel1.ModelInfo <= MODEL_35LN_9A)))				
+			{
+				if(tempspeed%10 >= 5)
+					tempspeed += 10;
+			}
+			//--, 220208 ysm, 30LC-9
+			
+			
+			if(InfoDisplaySetting.SpeedUnit == UNIT_SPEED_MPH)
+			{
+				 tempspeed = (USHORT)((float)OldSpeed* 0.621371);
+			}
+
+			
+			if(ShowSpeedUnit == 0)
+			{
+				LCD_Draw_Color(37, 0, 144, 91, COLOR_BLACK);  //++,--, 201221 ysm, UI2
+			}
+			
+			if(((tempspeed% 1000) / 100) == 0)
+				LCD_Draw_Color(37, 12, 46, 79, COLOR_BLACK);
+			else
+			{
+				if(COUNT_FLAG.Flag_SpeedLimit == 1)
+					PCXtoBMP_16bit(37, 12, 46, 79, FL_Image.top_red_num[(tempspeed% 1000) / 100]);
+				else
+					PCXtoBMP_16bit(37, 12, 46, 79, FL_Image.top_num[(tempspeed% 1000) / 100]);
+			}
+			
+			if(COUNT_FLAG.Flag_SpeedLimit == 1)
+				PCXtoBMP_16bit(83, 12, 46, 79, FL_Image.top_red_num[(tempspeed% 100) / 10]);
+			else
+				PCXtoBMP_16bit(83, 12, 46, 79, FL_Image.top_num[(tempspeed% 100) / 10]);
+			
+			
+			if(ShowSpeedUnit == 0)
+			{
+				ShowSpeedUnit = 1;
+				
+				if(InfoDisplaySetting.SpeedUnit == UNIT_SPEED_KMH)
+				{
+					if(COUNT_FLAG.Flag_SpeedLimit == 1)
+						PCXtoBMP_16bit(129, 12, 52, 26, FL_Image.mid_red_kmh);
+					else
+						PCXtoBMP_16bit(129, 12, 52, 26, FL_Image.mid_kmh);
+				}
+				else
+				{
+					if(COUNT_FLAG.Flag_SpeedLimit == 1)
+						PCXtoBMP_16bit(129, 12, 52, 26, FL_Image.mid_red_mph);
+					else
+						PCXtoBMP_16bit(129, 12, 52, 26, FL_Image.mid_mph);
+				}
+			
+				DisplayCurrentGear2(); //++,--, 201221 ysm, UI2
+			}
+		}
+	}
+	else
+	{
+		if(OldSpeed == 0xffff)
+		{
+
+			RTC_Data_Old.Minutes = 0xff;
+			ShowSpeedUnit = 0;
+			ShowTime = 0;
+			OldSpeed = (unsigned short)(Calculate_Speed_Value);
+
+		}
+
+	
+		if(RTC_Data_Old.Minutes != RTC_Data.Minutes)
+		{
+		
+			unsigned char x_Pos[]={42,72,107,118,148};
+			unsigned char y_Pos = 10;
+			unsigned char ampm, hour;
+			
+			RTC_Data_Old = RTC_Data;
+			hour = RTC_Data_Old.Hours;
+			if(hour>11)
+			{
+				ampm = CLOCK_PM;
+				hour -= 12;
+			}
+			else
+				ampm = CLOCK_AM;
+		
+			if(hour == 0)
+				hour = 12;
+		
+			if(ShowTime == 0)
+			{
+				LCD_Draw_Color(37, 0, 144, 91, COLOR_BLACK);	
+				DisplayCurrentGear2();
+				ShowTime = 1;
+
+			}
+			
+			PCXtoBMP_16bit(x_Pos[0], y_Pos, 29, 45, FL_Image.clock_num[hour/10]);
+			PCXtoBMP_16bit(x_Pos[1], y_Pos, 29, 45, FL_Image.clock_num[hour%10]);
+			PCXtoBMP_16bit(x_Pos[2], y_Pos+9, 5, 28, FL_Image.clock);
+			PCXtoBMP_16bit(x_Pos[3], y_Pos, 29, 45, FL_Image.clock_num[RTC_Data_Old.Minutes/10]);
+			PCXtoBMP_16bit(x_Pos[4], y_Pos, 29, 45, FL_Image.clock_num[RTC_Data_Old.Minutes%10]);
+		
+			PCXtoBMP_16bit(43,63, 29, 19, (ampm == CLOCK_AM)?FL_Image.clock_AM:FL_Image.clock_PM);
+		
+		}
+
+	}
+	#else	
+	if((OldSpeed != (unsigned short)(Calculate_Speed_Value))||OldSpeedLimit != COUNT_FLAG.Flag_SpeedLimit)
+	{
+		if(OldSpeedLimit != COUNT_FLAG.Flag_SpeedLimit)
+		{
+			ShowSpeedUnit = 0;
+		}
+
+		//++, 210903 ysm
+		if((Calculate_Speed_Value <= 2)&&(OldSpeed <= 2))
+		{
+			TimeReset_flag = 0;
+		}
+		else
+		{
+			TimeReset_flag = 1;
+		}
+		//--, 210903 ysm
+	
+		OldSpeed = (unsigned short)(Calculate_Speed_Value);
+		OldSpeedLimit = COUNT_FLAG.Flag_SpeedLimit;
+
+
+
+		if(OldSpeed <= 2) // 0->2 //++,--, 210903 ysm
+		{
+			//++, 210903 ysm
+			if(TimeReset_flag == 1)
+			{
+				RTC_Data_Old.Minutes = 0xff;
+				ShowSpeedUnit = 0;
+				ShowTime = 0;
+			}
+			//--, 210903 ysm
+			/*
+			if(MAST_EQUIPMENT)
+				LCD_Draw_Color(129, 99, 52, 26, COLOR_BLACK);
+			else
+				LCD_Draw_Color(129, 99, 52, 26, COLOR_BLACK);*/
+		}
+		else
+		{
+			if(OldSpeed  > 999)
+				tempspeed  = 0;
+			else
+				tempspeed  = OldSpeed;
+
+			if(InfoDisplaySetting.SpeedUnit == UNIT_SPEED_MPH)
+			{
+				 tempspeed = (USHORT)((float)OldSpeed* 0.621371);
+			}
+
+			if(ShowSpeedUnit == 0)
+			{
+				LCD_Draw_Color(37, 0, 144, 91, COLOR_BLACK);  //++,--, 201221 ysm, UI2
+			}
+			
+			if(((tempspeed% 1000) / 100) == 0)
+				LCD_Draw_Color(37, 12, 46, 79, COLOR_BLACK);
+			else
+			{
+				if(COUNT_FLAG.Flag_SpeedLimit == 1)
+					PCXtoBMP_16bit(37, 12, 46, 79, FL_Image.top_red_num[(tempspeed% 1000) / 100]);
+				else
+					PCXtoBMP_16bit(37, 12, 46, 79, FL_Image.top_num[(tempspeed% 1000) / 100]);
+			}
+
+			if(COUNT_FLAG.Flag_SpeedLimit == 1)
+				PCXtoBMP_16bit(83, 12, 46, 79, FL_Image.top_red_num[(tempspeed% 100) / 10]);
+			else
+				PCXtoBMP_16bit(83, 12, 46, 79, FL_Image.top_num[(tempspeed% 100) / 10]);
+
+			if(ShowSpeedUnit == 0)
+			{
+				ShowSpeedUnit = 1;
+				
+				if(InfoDisplaySetting.SpeedUnit == UNIT_SPEED_KMH)
+				{
+					if(COUNT_FLAG.Flag_SpeedLimit == 1)
+						PCXtoBMP_16bit(129, 12, 52, 26, FL_Image.mid_red_kmh);
+					else
+						PCXtoBMP_16bit(129, 12, 52, 26, FL_Image.mid_kmh);
+				}
+				else
+				{
+					if(COUNT_FLAG.Flag_SpeedLimit == 1)
+						PCXtoBMP_16bit(129, 12, 52, 26, FL_Image.mid_red_mph);
+					else
+						PCXtoBMP_16bit(129, 12, 52, 26, FL_Image.mid_mph);
+				}
+
+				DisplayCurrentGear2(); //++,--, 201221 ysm, UI2
+			}
+
+		}
+
+	}
+	if((OldSpeed <= 2) && (RTC_Data_Old.Minutes != RTC_Data.Minutes)) //0->2 //++,--, 210903 ysm
+	{
+		if(RTC_Data_Old.Minutes != RTC_Data.Minutes)
+		{
+
+			unsigned char x_Pos[]={42,72,107,118,148};
+			unsigned char y_Pos = 10;
+			unsigned char ampm, hour;
+			
+			RTC_Data_Old = RTC_Data;
+			hour = RTC_Data_Old.Hours;
+			if(hour>11)
+			{
+				ampm = CLOCK_PM;
+				hour -= 12;
+			}
+			else
+				ampm = CLOCK_AM;
+
+			if(hour == 0)
+				hour = 12;
+
+			if(ShowTime == 0)
+			{
+				LCD_Draw_Color(37, 0, 144, 91, COLOR_BLACK);	
+				DisplayCurrentGear2();
+				ShowTime = 1;
+			}
+			
+			PCXtoBMP_16bit(x_Pos[0], y_Pos, 29, 45, FL_Image.clock_num[hour/10]);
+			PCXtoBMP_16bit(x_Pos[1], y_Pos, 29, 45, FL_Image.clock_num[hour%10]);
+			PCXtoBMP_16bit(x_Pos[2], y_Pos+9, 5, 28, FL_Image.clock);
+			PCXtoBMP_16bit(x_Pos[3], y_Pos, 29, 45, FL_Image.clock_num[RTC_Data_Old.Minutes/10]);
+			PCXtoBMP_16bit(x_Pos[4], y_Pos, 29, 45, FL_Image.clock_num[RTC_Data_Old.Minutes%10]);
+		
+			PCXtoBMP_16bit(43,63, 29, 19, (ampm == CLOCK_AM)?FL_Image.clock_AM:FL_Image.clock_PM);
+
+		}
+					
+	}
+
+	#endif
+}
+
+void DisplayMainTopBackground()
+{
+	InitialTopValuable();
+	//DisplaySpeed();
+}
+
+void DisplayMainTop()
+{
+
+	if(COUNT_FLAG.Flag_Mast_Display == 1)
+	{	
+		DisplayTiltLock();
+	}
+	else
+	{
+		if(ShowMast == 1)	ShowMast = 2;
+		
+		DisplaySpeed();
+	}
+
+}

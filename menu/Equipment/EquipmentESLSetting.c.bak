@@ -1,0 +1,142 @@
+#include "FLV_Cluster_APP.h"
+
+UCHAR ESL_Index = INACTIVE;
+UCHAR ESL_Delay = DELAYTIME_5MIN;
+
+void DisplayESLSettingList()
+{
+	if(OldScreenIndex != SCREEN_STATE_MENU_EQUIPMENT_ESL_CHANGE)
+	{
+		if(OldScreenIndex != SCREEN_STATE_MENU_EQUIPMENT_ESL_DELAYTIME_SELECT)
+			ESL_Index = OldCurserIndex = CurserIndex;
+		else
+			OldCurserIndex = CurserIndex = ESL_Index;
+		
+		SetListString3(50, 51, 52);
+		DisplayListAll(OldCurserIndex);
+		DrawMenuFull();
+	}
+	else if((OldCurserIndex != CurserIndex))
+	{
+		if(OldScreenIndex != SCREEN_STATE_MENU_EQUIPMENT_ESL_DELAYTIME_SELECT)
+			ESL_Index = OldCurserIndex = CurserIndex;
+		else
+			OldCurserIndex = CurserIndex = ESL_Index;
+		
+		DisplayList(OldCurserIndex);
+	}
+	
+}
+
+void DisplayESLSetting()
+{
+	USHORT y_Height;
+	USHORT y_offset = 0;
+
+	if(OldScreenIndex != ScreenIndex)
+	{
+		DisplayMenuPopup();
+
+		
+		if(ESL_Index == DELAYTIME)
+			y_Height = GetStringMultiLineHeight((USHORT*)*StringSentence[49], (USHORT*)*StringSentence[49+ESL_Index], StringEtc[SIGN_NOSTRING], 200,  23);
+		else
+			y_Height = GetStringMultiLineHeight((USHORT*)*StringSentence[49], (USHORT*)*StringSentence[49+ESL_Index], (USHORT*)*StringSentence[53+ESL_Delay], 200,  23);
+		
+		UCHAR y_line_num = 2;//=(ESL_Index == DELAYTIME)?3:2;
+
+		if(y_Height < 122)
+		{
+			y_offset = (122 - (y_Height) - 30)/y_line_num;
+			if((122 - (y_Height) - 30) % y_line_num == 1)
+				y_offset -= 1;
+		}
+		else
+		{
+			y_offset = (122 - (y_Height) - 10)/y_line_num;
+			if((122 - (y_Height) - 10) % y_line_num == 1)
+				y_offset -= 1;
+		}
+
+		y_offset += 10; //48
+
+		GUI_DisplayMultiStringAt((USHORT*)*StringSentence[49], 11, y_offset, 200, 0, COLOR_WHITE, 23);
+
+		//y_offset += y_margin;
+		//y_offset += (y_Height-23);
+
+		if(ESL_Index == DELAYTIME)
+		{
+			PCXtoBMP_16bit(0, 128, 17, 23, FL_Image.password_star); 	
+			DisplayStringAt((USHORT*)*StringSentence[49+ESL_Index], 20, 128, gui_font23, COLOR_WHITE);
+
+			PCXtoBMP_16bit(0, 149, 17, 23, FL_Image.password_star);
+			DisplayStringAt((USHORT*)*StringSentence[53+ESL_Delay], 20, 150, gui_font23, COLOR_WHITE);
+		}
+		else
+		{
+			PCXtoBMP_16bit(0, 140, 17, 23, FL_Image.password_star); 	
+			DisplayStringAt((USHORT*)*StringSentence[49+ESL_Index], 20, 140, gui_font23, COLOR_WHITE);
+
+		}
+
+		DrawMenuFull();
+		
+	}
+
+}
+
+void DisplayESLDelaySetting()
+{
+	if((OldScreenIndex != ScreenIndex)
+		|| (((OldCurserIndex % 6== 5) && (CurserIndex % 6 == 0)) || ((OldCurserIndex % 6 == 0) && (CurserIndex % 6 == 5))
+			|| ((OldCurserIndex == 0) && (CurserIndex == 8)) || ((OldCurserIndex == 8) && (CurserIndex == 0))))
+	{
+		if(CurserIndex < 6)
+		{
+			DisplayListPage(1,2);
+			SetSubListString6(53, 54, 55, 56, 57, 58, CurserIndex);
+		}
+		else 
+		{
+			DisplayListPage(2,2);
+			SetSubListString3(59, 60, 61, CurserIndex-6);
+		}
+		
+		ESL_Delay = OldCurserIndex = CurserIndex;
+	}
+	else if(OldCurserIndex != CurserIndex)
+	{
+		if(CurserIndex >= 6)
+			DisplaySubDoubleList(CurserIndex-6);
+		else
+			DisplaySubDoubleList(CurserIndex);
+		
+		ESL_Delay = OldCurserIndex;
+	}
+
+}
+
+void DisplayESL()
+{
+	switch(ScreenIndex)
+	{
+		case SCREEN_STATE_MENU_EQUIPMENT_ESL_CHANGE:									
+			if((OldScreenIndex != ScreenIndex) || (OldCurserIndex != CurserIndex))
+				DisplayESLSettingList();
+				break;
+		case SCREEN_STATE_MENU_EQUIPMENT_ESL_SET:										
+			if(OldScreenIndex != ScreenIndex)
+				DisplayESLSetting();
+			break;
+		case SCREEN_STATE_MENU_EQUIPMENT_ESL_DELAYTIME_SELECT:
+			if((OldScreenIndex != ScreenIndex) || (OldCurserIndex != CurserIndex))
+				DisplayESLDelaySetting();
+			break;
+		case SCREEN_STATE_MENU_EQUIPMENT_ESL_COMPLETE:
+		case SCREEN_STATE_MENU_EQUIPMENT_ESL_NOT_COMPLETE:
+			DisplayPopupStringComplete();
+			break;
+	}
+}
+

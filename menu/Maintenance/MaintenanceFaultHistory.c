@@ -1,0 +1,1330 @@
+#include "FLV_Cluster_APP.h"
+#include "ErrorCode.h"
+
+UINT32 OldErr_Code[ERROR_MAX_PACKET];
+UCHAR DTCTotalPacket;
+UCHAR OldDTCTotalPacket;
+UINT32 DTCStringIndex;
+
+UINT32 SPN_DISP = 0;
+UINT32 FMI_DISP = 0;
+
+extern UCHAR		nOldPageCount;
+
+extern unsigned char FaultCodeCount_ECM_Current;
+extern unsigned char FaultCodeCount_ECM_Logged;
+
+extern st_Fault 	FaultData_ECM_Current[];
+extern st_Fault	FaultData_ECM_Logged[];
+
+//++, 220221 ysm, FINGERTIP
+extern st_Fault FaultData_FLT[];
+//--, 220221 ysm, FINGERTIP
+
+//++, 221129 ysm, FSCU
+extern st_Fault FaultData_FSCU[];
+//--, 221129 ysm, FSCU
+
+extern GUI_FONT* gui_font17[];
+
+extern unsigned char Engine_Type;
+extern EEPROM_MODEL_DATA1	InfoModel1;
+
+void InitialFaultList()
+{
+	nOldPageCount = 0;
+	OldCurserIndex = 0xff;
+	if((OldScreenIndex != SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_ECM_CURRENT_DETAIL)
+		&& (OldScreenIndex != SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_ECM_LOGGED_DETAIL)
+		&& (OldScreenIndex != SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_FLT_CURRENT_DETAIL)
+		&& (OldScreenIndex != SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_FLT_LOGGED_DETAIL)
+		&& (OldScreenIndex != SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_FSCU_CURRENT_DETAIL)
+		&& (OldScreenIndex != SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_FSCU_LOGGED_DETAIL)) //++,--, 221129 ysm, FSCU
+	{
+		OldDTCTotalPacket = 0xff;
+		CurserIndex = 0;
+		memset(&OldErr_Code[0], 0, sizeof(OldErr_Code));
+	}
+}
+
+void DisplayFaultTitle()
+{
+	USHORT x_pos = 6;
+	UCHAR width[]={72,83,45,};
+
+	USHORT strDTC[]={'D','T','C',};
+	USHORT strSPN[]={'S','P','N',};
+	USHORT strFMI[]={'F','M','I',};
+
+	for(UCHAR i=0;i<3;i++)
+	{
+		switch(i)
+		{
+			case 0: DisplayStringCenterAt(&strDTC[0], x_pos, 45, width[i], gui_font23, COLOR_MENU_GREEN);break;
+			case 1: DisplayStringCenterAt(&strSPN[0], x_pos, 45, width[i], gui_font23, COLOR_MENU_GREEN);break;
+			case 2: DisplayStringCenterAt(&strFMI[0], x_pos, 45, width[i], gui_font23, COLOR_MENU_GREEN);break;
+		}
+		x_pos+=width[i];
+
+	}
+}
+
+//++, 221129 ysm, FSCU
+void DisplayErrorList_FSCU(UCHAR DTCIndex, UCHAR SeqIndex, UINT32 ErrorCode)
+{
+	USHORT y_Pos[]={69,104,139};
+	UCHAR buf[40]={0,};
+	USHORT covbuf[40]={0,};
+
+	UCHAR width[]={72,83,45,};
+	USHORT x_pos = 6;
+
+	UINT32 i, _ErrorCode, SPN, FMI;
+
+	SPN = ErrorCode & 0xffff;
+	SPN |= ((ErrorCode & 0xe00000) >> 5);
+	FMI = ((ErrorCode & 0x1f0000) >> 16);
+	
+	if(ErrorCode == 0)	// 고장내역이 없습니다. 
+	{
+		DTCStringIndex = MAX_F_FSCU;		
+		DisplayMultiLineStringAt((USHORT*)*StringSentence[74], 6, y_Pos[SeqIndex],  210, 31, gui_font23, COLOR_WHITE);	
+	}
+	else
+	{
+		if(CurserIndex == (((CurserIndex/NUMBEROFLIST)*NUMBEROFLIST)+SeqIndex))
+		{
+			LCD_Draw_Color(6, y_Pos[SeqIndex], 200, 31, COLOR_MENU_GREEN);
+			SPN_DISP = SPN;
+			FMI_DISP = FMI;
+		}
+		else
+			LCD_Draw_Color(6, y_Pos[SeqIndex], 200, 31, COLOR_MENU_GRAY);
+		
+		_ErrorCode = 0;
+
+		for(i = 0; i< MAX_F_FSCU; i++)
+		{
+			if((DTC_LIST_FSCU[i][1] == SPN) && (DTC_LIST_FSCU[i][2] == FMI))
+			{
+				_ErrorCode = DTC_LIST_FSCU[i][0] ;
+				break;
+			}
+		}		
+			
+		if(CurserIndex == (((CurserIndex/NUMBEROFLIST)*NUMBEROFLIST)+SeqIndex))
+		{
+			if(_ErrorCode == 0)
+			{				
+				DTCStringIndex = MAX_F_FSCU;				
+			}
+			else
+				DTCStringIndex = i;
+		}
+
+		for(i=0;i<3;i++)
+		{
+			memset(&buf, 0x00, sizeof(buf));
+			memset(&covbuf, 0x00, sizeof(covbuf));
+
+			if(i==0)
+			{
+				sprintf ( (char*)buf, "%04X",_ErrorCode);				
+			}
+			else
+			{
+				sprintf ( (char*)buf, "%d",(i==1)?SPN:FMI) ; 
+			}
+			
+			String_Func(covbuf, buf);	
+			DisplayStringCenterAt(&covbuf[0], x_pos, y_Pos[SeqIndex]+6, width[i], gui_font23, COLOR_WHITE);
+			x_pos+=width[i];
+
+		}
+	}			
+}
+//--, 221129 ysm, FSCU
+
+
+
+void DisplayErrorList_FLT(UCHAR DTCIndex, UCHAR SeqIndex, UINT32 ErrorCode)
+{
+	USHORT y_Pos[]={69,104,139};
+	UCHAR buf[40]={0,};
+	USHORT covbuf[40]={0,};
+
+	UCHAR width[]={72,83,45,};
+	USHORT x_pos = 6;
+
+	UINT32 i, _ErrorCode, SPN, FMI;
+
+	SPN = ErrorCode & 0xffff;
+	SPN |= ((ErrorCode & 0xe00000) >> 5);
+	FMI = ((ErrorCode & 0x1f0000) >> 16);
+	
+	if(ErrorCode == 0)	// 고장내역이 없습니다. 
+	{
+		DTCStringIndex = MAX_F_FINGERTIP;		
+		DisplayMultiLineStringAt((USHORT*)*StringSentence[74], 6, y_Pos[SeqIndex],  210, 31, gui_font23, COLOR_WHITE);	
+	}
+	else
+	{
+		if(CurserIndex == (((CurserIndex/NUMBEROFLIST)*NUMBEROFLIST)+SeqIndex))
+		{
+			LCD_Draw_Color(6, y_Pos[SeqIndex], 200, 31, COLOR_MENU_GREEN);
+			SPN_DISP = SPN;
+			FMI_DISP = FMI;
+		}
+		else
+			LCD_Draw_Color(6, y_Pos[SeqIndex], 200, 31, COLOR_MENU_GRAY);
+		
+		_ErrorCode = 0;
+
+		for(i = 0; i< MAX_F_FINGERTIP; i++)
+		{
+			if((DTC_LIST_FLT[i][1] == SPN) && (DTC_LIST_FLT[i][2] == FMI))
+			{
+				_ErrorCode = DTC_LIST_FLT[i][0] ;
+				break;
+			}
+		}		
+			
+		if(CurserIndex == (((CurserIndex/NUMBEROFLIST)*NUMBEROFLIST)+SeqIndex))
+		{
+			if(_ErrorCode == 0)
+			{				
+				DTCStringIndex = MAX_F_FINGERTIP;				
+			}
+			else
+				DTCStringIndex = i;
+		}
+
+		for(i=0;i<3;i++)
+		{
+			memset(&buf, 0x00, sizeof(buf));
+			memset(&covbuf, 0x00, sizeof(covbuf));
+
+			if(i==0)
+			{
+				sprintf ( (char*)buf, "%04X",_ErrorCode);				
+			}
+			else
+			{
+				sprintf ( (char*)buf, "%d",(i==1)?SPN:FMI) ; 
+			}
+			
+			String_Func(covbuf, buf);	
+			DisplayStringCenterAt(&covbuf[0], x_pos, y_Pos[SeqIndex]+6, width[i], gui_font23, COLOR_WHITE);
+			x_pos+=width[i];
+
+		}
+	}			
+}
+
+
+void DisplayErrorList(UCHAR DTCIndex, UCHAR SeqIndex, UINT32 ErrorCode)
+{
+	USHORT y_Pos[]={69,104,139};
+	UCHAR buf[40]={0,};
+	USHORT covbuf[40]={0,};
+#if 0
+	UCHAR buf1[40]={0,};
+	USHORT covbuf1[40]={0,};
+#else
+	UCHAR width[]={72,83,45,};
+	USHORT x_pos = 6;
+#endif
+	UINT32 i, _ErrorCode, SPN, FMI;
+	UCHAR model_flag;
+
+	if( (InfoModel1.ModelInfo >= MODEL_35L_9) && (InfoModel1.ModelInfo <= MODEL_50L_9) )
+		model_flag = 1;
+	else if( (InfoModel1.ModelInfo >= MODEL_25D_9HDI) && (InfoModel1.ModelInfo <= MODEL_50DN_9HDI) )
+		model_flag = 2;
+	else if(((InfoModel1.ModelInfo >= MODEL_25LC_9)&&(InfoModel1.ModelInfo <= MODEL_33LC_9))||
+			((InfoModel1.ModelInfo >= MODEL_25L_9A)&&(InfoModel1.ModelInfo <= MODEL_35LN_9A)))
+	{
+		if(COUNT_FLAG.Flag_ECM_ECON == 1)
+			model_flag = 3;
+		else
+			model_flag = 4;
+	}
+	else
+		model_flag = 0;
+
+	SPN = ErrorCode & 0xffff;
+	SPN |= ((ErrorCode & 0xe00000) >> 5);
+	FMI = ((ErrorCode & 0x1f0000) >> 16); 
+
+
+	
+	if(ErrorCode == 0)	// 고장내역이 없습니다. 
+	{
+		if(model_flag == 0)
+			DTCStringIndex = MAX_F_TIER5;
+		else if(model_flag == 2)
+			DTCStringIndex = MAX_F_HDI_TIER4;
+		else if(model_flag == 3)
+			DTCStringIndex = MAX_F_ECON;
+		else if(model_flag == 4)
+			DTCStringIndex = MAX_F_WOODWARD;
+		else
+			DTCStringIndex = MAX_F_KUBOTA;
+		
+		DisplayMultiLineStringAt((USHORT*)*StringSentence[74], 6, y_Pos[SeqIndex],  210, 31, gui_font23, COLOR_WHITE);	
+	}
+	else
+	{
+		if(CurserIndex == (((CurserIndex/NUMBEROFLIST)*NUMBEROFLIST)+SeqIndex))
+		{
+			LCD_Draw_Color(6, y_Pos[SeqIndex], 200, 31, COLOR_MENU_GREEN);
+			SPN_DISP = SPN;
+			FMI_DISP = FMI;
+		}
+		else
+			LCD_Draw_Color(6, y_Pos[SeqIndex], 200, 31, COLOR_MENU_GRAY);
+		
+		_ErrorCode = 0;
+
+		if(model_flag == 0)
+		{
+		
+			for(i = 0; i< MAX_F_TIER5; i++)
+			{
+				if((DTC_LIST_TIER_5[i][1] == SPN) && (DTC_LIST_TIER_5[i][2] == FMI))
+				{
+					_ErrorCode = DTC_LIST_TIER_5[i][0] ;
+					break;
+				}
+			}
+		}
+		else if(model_flag == 2)
+		{
+		
+			for(i = 0; i< MAX_F_HDI_TIER4; i++)
+			{
+				if((DTC_LIST_HDI[i][1] == SPN) && (DTC_LIST_HDI[i][2] == FMI))
+				{
+					_ErrorCode = DTC_LIST_HDI[i][0] ;
+					break;
+				}
+			}
+		}
+		else if(model_flag == 3)
+		{
+		
+			for(i = 0; i< MAX_F_ECON; i++)
+			{
+				if((DTC_LIST_ECON[i][1] == SPN) && (DTC_LIST_ECON[i][2] == FMI))
+				{
+					_ErrorCode = DTC_LIST_ECON[i][0] ;
+					break;
+				}
+			}
+		}
+		else if(model_flag == 4)
+		{
+		
+			for(i = 0; i< MAX_F_WOODWARD; i++)
+			{
+				if((DTC_LIST_WOODWARD[i][1] == SPN) && (DTC_LIST_WOODWARD[i][2] == FMI))
+				{
+					_ErrorCode = DTC_LIST_WOODWARD[i][0] ;
+					break;
+				}
+			}
+		}
+		else
+		{
+			for(i = 0; i< MAX_F_KUBOTA; i++)
+			{
+				if((DTC_LIST_KUBOTA[i][1] == SPN) && (DTC_LIST_KUBOTA[i][2] == FMI))
+				{
+					_ErrorCode = DTC_LIST_KUBOTA[i][0] ;
+					break;
+				}
+			}
+
+		}
+		
+			
+		if(CurserIndex == (((CurserIndex/NUMBEROFLIST)*NUMBEROFLIST)+SeqIndex))
+		{
+			if(_ErrorCode == 0)
+			{
+				
+				if(model_flag == 0)
+					DTCStringIndex = MAX_F_TIER5;
+				else if(model_flag == 2)
+					DTCStringIndex = MAX_F_HDI_TIER4;
+				else if(model_flag == 3)
+					DTCStringIndex = MAX_F_ECON;
+				else if(model_flag == 4)
+					DTCStringIndex = MAX_F_WOODWARD;
+				else
+					DTCStringIndex = MAX_F_KUBOTA;
+				
+			}
+			else
+				DTCStringIndex = i;
+		}
+
+		for(i=0;i<3;i++)
+		{
+			memset(&buf, 0x00, sizeof(buf));
+			memset(&covbuf, 0x00, sizeof(covbuf));
+
+			if(i==0)
+			{
+				if(model_flag == 0)
+				{			
+					if(((SPN == 639) && (FMI == 19)) ||((SPN == 639) && (FMI == 2)))
+						sprintf ( (char*)buf, "U%04X",_ErrorCode) ; 
+					else
+						sprintf ( (char*)buf, "P%04X",_ErrorCode) ; 
+				}
+				else if(model_flag == 2)
+				{
+					if(((SPN == 0) && (FMI == 19))||((SPN == 91) && (FMI == 19))||((SPN == 639) && (FMI == 2))
+						||((SPN == 639) && (FMI == 19))||((SPN == 970) && (FMI == 12))||((SPN == 3219) && (FMI == 7))
+						||((SPN == 3229) && (FMI == 7))||((SPN == 6385) && (FMI == 19))||((SPN == 57344) && (FMI == 19))
+						||((SPN == 61441) && (FMI == 19))||((SPN == 61454) && (FMI == 19))||((SPN == 61455) && (FMI == 19))
+						||((SPN == 64923) && (FMI == 19))||((SPN == 65110) && (FMI == 19))||((SPN == 65164) && (FMI == 19))
+						||((SPN == 65241) && (FMI == 19))||((SPN == 65265) && (FMI == 19))||((SPN == 65320) && (FMI == 19))
+						||((SPN == 65400) && (FMI == 19))||((SPN == 65400) && (FMI == 22))||((SPN == 65400) && (FMI == 23))
+						||((SPN == 65401) && (FMI == 19))||((SPN == 65402) && (FMI == 19)))
+					{
+						sprintf ( (char*)buf, "U%04X",_ErrorCode) ; 
+					}
+					else
+					{
+						sprintf ( (char*)buf, "P%04X",_ErrorCode) ; 
+					}
+
+				}
+				else if((model_flag == 3)||(model_flag == 4))
+				{
+					sprintf ( (char*)buf, "%04X",_ErrorCode);
+				}
+				else
+				{
+					sprintf ( (char*)buf, "P%04X",_ErrorCode);
+				}
+			}
+			else
+			{
+				sprintf ( (char*)buf, "%d",(i==1)?SPN:FMI) ; 
+			}
+			String_Func(covbuf, buf);	
+			DisplayStringCenterAt(&covbuf[0], x_pos, y_Pos[SeqIndex]+6, width[i], gui_font23, COLOR_WHITE);
+			x_pos+=width[i];
+
+		}
+	}
+
+			
+}
+
+//++, 221129 ysm, FSCU
+void DisplayFaultList_FSCU(int nIndex)
+{
+	unsigned char Change=0;
+	unsigned int tempErr_Code[ERROR_MAX_PACKET]={0,};
+
+	if(OldScreenIndex != ScreenIndex)
+	{
+		InitialFaultList();
+		
+	}
+
+	ReadFSCUFault(nIndex);
+	
+	switch(nIndex)
+	{
+		case REQ_ERR_ENGINE_ACTIVE://		2
+			nOldPageCount = DTCTotalPacket = HCESPN.H1528;
+			break;
+		case REQ_ERR_ENGINE_LOGGED://		3
+			nOldPageCount = DTCTotalPacket = HCESPN.H1529;
+			break;
+	}
+	if((OldDTCTotalPacket != DTCTotalPacket) && (DTCTotalPacket == 0))
+	{
+		OldScreenIndex = ScreenIndex;
+		OldDTCTotalPacket = DTCTotalPacket;
+		memset(&OldErr_Code[0], 0, sizeof(OldErr_Code));
+		DisplayMenuBackgroundBG();
+		DisplayErrorList_FSCU(nIndex, 0, 0);
+	}
+	else if(DTCTotalPacket != 0)
+	{
+		OldDTCTotalPacket = DTCTotalPacket;
+		
+		for(UCHAR i=0;i<OldDTCTotalPacket;i++)
+		{			
+			memcpy(&tempErr_Code[i], &FaultData_FSCU[i].TroubleCode, 3);
+		}
+		
+		for(UCHAR i=0;i<ERROR_MAX_PACKET;i++)
+		{
+			if(OldErr_Code[i] != tempErr_Code[i])
+			{
+				Change = 1;
+				break;
+			}
+		}
+
+		if(Change == 1)
+		{
+			memcpy(&OldErr_Code[0], &tempErr_Code[0], sizeof(OldErr_Code));
+			
+			if(((CurserIndex*NUMBEROFLIST) >= OldDTCTotalPacket) && (CurserIndex != 0))
+			{
+				CurserIndex = CurserIndex -1;
+			}
+		}
+
+		if((Change == 1) || (OldScreenIndex != ScreenIndex))
+		{
+			OldScreenIndex = ScreenIndex;
+			OldCurserIndex = CurserIndex;
+			DisplayMenuBackgroundBG();
+			DisplayFaultTitle();
+			DisplayListPage((CurserIndex/NUMBEROFLIST)+1,((nOldPageCount-1)/NUMBEROFLIST)+1);
+			
+			for(UCHAR i=0;i<NUMBEROFLIST;i++)
+			{
+				if((((OldCurserIndex/NUMBEROFLIST)*NUMBEROFLIST)+i) < OldDTCTotalPacket)
+					DisplayErrorList_FSCU(nIndex, i, OldErr_Code[((OldCurserIndex/NUMBEROFLIST)*NUMBEROFLIST)+i]);
+				else
+					break;			
+			}
+		}
+		else if((OldDTCTotalPacket>NUMBEROFLIST) && (((OldCurserIndex % NUMBEROFLIST== (NUMBEROFLIST-1)) && (CurserIndex % NUMBEROFLIST == 0)) || ((OldCurserIndex % NUMBEROFLIST == 0) && (CurserIndex % NUMBEROFLIST == (NUMBEROFLIST-1)))
+				|| ((OldCurserIndex == 0) && (CurserIndex == (OldDTCTotalPacket-1))) || ((OldCurserIndex == (OldDTCTotalPacket-1)) && (CurserIndex == 0))))
+		{
+			OldCurserIndex = CurserIndex;
+			LCD_Draw_Color(0, 68, LCD_WIDTH, LCD_HEIGHT-68, COLOR_BLACK);
+			DisplayListPage((CurserIndex/NUMBEROFLIST)+1,((nOldPageCount-1)/NUMBEROFLIST)+1);
+			for(UCHAR i=0;i<NUMBEROFLIST;i++)
+			{
+				if((((OldCurserIndex/NUMBEROFLIST)*NUMBEROFLIST)+i) < OldDTCTotalPacket)
+					DisplayErrorList_FSCU(nIndex, i, OldErr_Code[((OldCurserIndex/NUMBEROFLIST)*NUMBEROFLIST)+i]);
+				else
+					break;			
+			}
+		}		
+		else if(OldCurserIndex != CurserIndex)
+		{
+			DisplayErrorList_FSCU(nIndex, (CurserIndex%NUMBEROFLIST), OldErr_Code[CurserIndex]);
+			DisplayErrorList_FSCU(nIndex, (OldCurserIndex%NUMBEROFLIST), OldErr_Code[OldCurserIndex]);
+			OldCurserIndex = CurserIndex;
+
+		}
+
+
+	}
+
+
+}
+
+//--, 221129 ysm, FSCU
+
+//++, 220217 ysm, FINGERTIP
+void DisplayFaultList_FLT(int nIndex)
+{
+	unsigned char Change=0;
+	unsigned int tempErr_Code[ERROR_MAX_PACKET]={0,};
+
+	if(OldScreenIndex != ScreenIndex)
+	{
+		InitialFaultList();
+		
+	}
+
+	ReadFLTFault(nIndex);
+	
+	switch(nIndex)
+	{
+		case REQ_ERR_ENGINE_ACTIVE://		2
+			nOldPageCount = DTCTotalPacket = HCESPN.H1526;
+			break;
+		case REQ_ERR_ENGINE_LOGGED://		3
+			nOldPageCount = DTCTotalPacket = HCESPN.H1527;
+			break;
+	}
+	if((OldDTCTotalPacket != DTCTotalPacket) && (DTCTotalPacket == 0))
+	{
+		OldScreenIndex = ScreenIndex;
+		OldDTCTotalPacket = DTCTotalPacket;
+		memset(&OldErr_Code[0], 0, sizeof(OldErr_Code));
+		DisplayMenuBackgroundBG();
+		DisplayErrorList_FLT(nIndex, 0, 0);
+	}
+	else if(DTCTotalPacket != 0)
+	{
+		OldDTCTotalPacket = DTCTotalPacket;
+		
+		for(UCHAR i=0;i<OldDTCTotalPacket;i++)
+		{			
+			memcpy(&tempErr_Code[i], &FaultData_FLT[i].TroubleCode, 3);
+		}
+		
+		for(UCHAR i=0;i<ERROR_MAX_PACKET;i++)
+		{
+			if(OldErr_Code[i] != tempErr_Code[i])
+			{
+				Change = 1;
+				break;
+			}
+		}
+
+		if(Change == 1)
+		{
+			memcpy(&OldErr_Code[0], &tempErr_Code[0], sizeof(OldErr_Code));
+			
+			if(((CurserIndex*NUMBEROFLIST) >= OldDTCTotalPacket) && (CurserIndex != 0))
+			{
+				CurserIndex = CurserIndex -1;
+			}
+		}
+
+		if((Change == 1) || (OldScreenIndex != ScreenIndex))
+		{
+			OldScreenIndex = ScreenIndex;
+			OldCurserIndex = CurserIndex;
+			DisplayMenuBackgroundBG();
+			DisplayFaultTitle();
+			DisplayListPage((CurserIndex/NUMBEROFLIST)+1,((nOldPageCount-1)/NUMBEROFLIST)+1);
+			
+			for(UCHAR i=0;i<NUMBEROFLIST;i++)
+			{
+				if((((OldCurserIndex/NUMBEROFLIST)*NUMBEROFLIST)+i) < OldDTCTotalPacket)
+					DisplayErrorList_FLT(nIndex, i, OldErr_Code[((OldCurserIndex/NUMBEROFLIST)*NUMBEROFLIST)+i]);
+				else
+					break;			
+			}
+		}
+		else if((OldDTCTotalPacket>NUMBEROFLIST) && (((OldCurserIndex % NUMBEROFLIST== (NUMBEROFLIST-1)) && (CurserIndex % NUMBEROFLIST == 0)) || ((OldCurserIndex % NUMBEROFLIST == 0) && (CurserIndex % NUMBEROFLIST == (NUMBEROFLIST-1)))
+				|| ((OldCurserIndex == 0) && (CurserIndex == (OldDTCTotalPacket-1))) || ((OldCurserIndex == (OldDTCTotalPacket-1)) && (CurserIndex == 0))))
+		{
+			OldCurserIndex = CurserIndex;
+			LCD_Draw_Color(0, 68, LCD_WIDTH, LCD_HEIGHT-68, COLOR_BLACK);
+			DisplayListPage((CurserIndex/NUMBEROFLIST)+1,((nOldPageCount-1)/NUMBEROFLIST)+1);
+			for(UCHAR i=0;i<NUMBEROFLIST;i++)
+			{
+				if((((OldCurserIndex/NUMBEROFLIST)*NUMBEROFLIST)+i) < OldDTCTotalPacket)
+					DisplayErrorList_FLT(nIndex, i, OldErr_Code[((OldCurserIndex/NUMBEROFLIST)*NUMBEROFLIST)+i]);
+				else
+					break;			
+			}
+		}		
+		else if(OldCurserIndex != CurserIndex)
+		{
+			DisplayErrorList_FLT(nIndex, (CurserIndex%NUMBEROFLIST), OldErr_Code[CurserIndex]);
+			DisplayErrorList_FLT(nIndex, (OldCurserIndex%NUMBEROFLIST), OldErr_Code[OldCurserIndex]);
+			OldCurserIndex = CurserIndex;
+
+		}
+
+
+	}
+
+
+}
+//--, 220217 ysm, FINGERTIP
+
+void DisplayFaultList(int nIndex)
+{
+	unsigned char Change=0;
+	unsigned int tempErr_Code[ERROR_MAX_PACKET]={0,};
+
+	if(OldScreenIndex != ScreenIndex)
+	{
+		InitialFaultList();
+	}
+	
+	switch(nIndex)
+	{
+		case REQ_ERR_ENGINE_ACTIVE://		2
+			nOldPageCount = DTCTotalPacket = FaultCodeCount_ECM_Current;
+			break;
+		case REQ_ERR_ENGINE_LOGGED://		3
+			nOldPageCount = DTCTotalPacket = FaultCodeCount_ECM_Logged;
+			break;
+	}
+	if((OldDTCTotalPacket != DTCTotalPacket) && (DTCTotalPacket == 0))
+	{
+		OldScreenIndex = ScreenIndex;
+		OldDTCTotalPacket = DTCTotalPacket;
+		memset(&OldErr_Code[0], 0, sizeof(OldErr_Code));
+		DisplayMenuBackgroundBG();
+		DisplayErrorList(nIndex, 0, 0);
+	}
+	else if(DTCTotalPacket != 0)
+	{
+		OldDTCTotalPacket = DTCTotalPacket;
+		
+		for(UCHAR i=0;i<OldDTCTotalPacket;i++)
+		{
+			if(nIndex == REQ_ERR_ENGINE_ACTIVE)
+				memcpy(&tempErr_Code[i], &FaultData_ECM_Current[i].TroubleCode, 3);
+			else
+				memcpy(&tempErr_Code[i], &FaultData_ECM_Logged[i].TroubleCode, 3);
+		}
+		
+		for(UCHAR i=0;i<ERROR_MAX_PACKET;i++)
+		{
+			if(OldErr_Code[i] != tempErr_Code[i])
+			{
+				Change = 1;
+				break;
+			}
+		}
+
+		if(Change == 1)
+		{
+			memcpy(&OldErr_Code[0], &tempErr_Code[0], sizeof(OldErr_Code));
+			
+			if(((CurserIndex*NUMBEROFLIST) >= OldDTCTotalPacket) && (CurserIndex != 0))
+			{
+				CurserIndex = CurserIndex -1;
+			}
+		}
+
+		if((Change == 1) || (OldScreenIndex != ScreenIndex))
+		{
+			OldScreenIndex = ScreenIndex;
+			OldCurserIndex = CurserIndex;
+			DisplayMenuBackgroundBG();
+			DisplayFaultTitle();
+			DisplayListPage((CurserIndex/NUMBEROFLIST)+1,((nOldPageCount-1)/NUMBEROFLIST)+1);
+			
+			for(UCHAR i=0;i<NUMBEROFLIST;i++)
+			{
+				if((((OldCurserIndex/NUMBEROFLIST)*NUMBEROFLIST)+i) < OldDTCTotalPacket)
+					DisplayErrorList(nIndex, i, OldErr_Code[((OldCurserIndex/NUMBEROFLIST)*NUMBEROFLIST)+i]);
+				else
+					break;			
+			}
+		}
+		else if((OldDTCTotalPacket>NUMBEROFLIST) && (((OldCurserIndex % NUMBEROFLIST== (NUMBEROFLIST-1)) && (CurserIndex % NUMBEROFLIST == 0)) || ((OldCurserIndex % NUMBEROFLIST == 0) && (CurserIndex % NUMBEROFLIST == (NUMBEROFLIST-1)))
+				|| ((OldCurserIndex == 0) && (CurserIndex == (OldDTCTotalPacket-1))) || ((OldCurserIndex == (OldDTCTotalPacket-1)) && (CurserIndex == 0))))
+		{
+			OldCurserIndex = CurserIndex;
+			LCD_Draw_Color(0, 68, LCD_WIDTH, LCD_HEIGHT-68, COLOR_BLACK);
+			DisplayListPage((CurserIndex/NUMBEROFLIST)+1,((nOldPageCount-1)/NUMBEROFLIST)+1);
+			for(UCHAR i=0;i<NUMBEROFLIST;i++)
+			{
+				if((((OldCurserIndex/NUMBEROFLIST)*NUMBEROFLIST)+i) < OldDTCTotalPacket)
+					DisplayErrorList(nIndex, i, OldErr_Code[((OldCurserIndex/NUMBEROFLIST)*NUMBEROFLIST)+i]);
+				else
+					break;			
+			}
+		}		
+		else if(OldCurserIndex != CurserIndex)
+		{
+			DisplayErrorList(nIndex, (CurserIndex%NUMBEROFLIST), OldErr_Code[CurserIndex]);
+			DisplayErrorList(nIndex, (OldCurserIndex%NUMBEROFLIST), OldErr_Code[OldCurserIndex]);
+			OldCurserIndex = CurserIndex;
+
+		}
+
+
+	}
+
+
+}
+
+//++, 221129 ysm, FSCU
+void DisplayFSCUDetail()
+{
+	DisplayMenuBackgroundBG();
+	DisplayFaultTitle();
+	LCD_Draw_Color(6, 90, 210, 79, COLOR_MENU_GRAY);
+
+	UCHAR width[]={72,83,45,};
+	UCHAR buf[40]={0,};
+	USHORT covbuf[100];			// 최대 79글자 
+	USHORT x_pos = 6;
+
+	for(UCHAR i=0;i<3;i++)
+	{
+		memset(&buf, 0x00, sizeof(buf));
+		memset(&covbuf, 0x00, sizeof(covbuf));
+	
+	
+		if(i==0)
+		{
+			if(DTCStringIndex < MAX_F_FSCU)							
+				sprintf ( (char*)buf, "%04X",DTC_LIST_FSCU[DTCStringIndex][0]) ; 
+			else
+				sprintf ( (char*)buf, "%04X",0x0000) ;
+		}
+		else
+		{
+			if(DTCStringIndex < MAX_F_FSCU)	
+				sprintf ( (char*)buf, "%d",DTC_LIST_FSCU[DTCStringIndex][i]) ; 
+			else
+			{
+				if(i==1)
+					sprintf ( (char*)buf, "%d",SPN_DISP) ;
+				else
+					sprintf ( (char*)buf, "%d",FMI_DISP) ;
+			}
+			
+		}			
+	
+		String_Func(covbuf, buf);	
+		DisplayStringCenterAt(&covbuf[0], x_pos, 68, width[i], gui_font23, COLOR_WHITE);
+		x_pos+=width[i];
+	
+	}
+
+
+
+	
+	memset(&covbuf, 0x00, sizeof(covbuf));
+	String_Func(covbuf, textFSCUErrCode[DTCStringIndex]);	
+	DisplayMultiLineStringAt(&covbuf[0], 6, 90, 210, 79, gui_font17,COLOR_WHITE);
+
+	DrawMenuFull();
+}
+//--, 221129 ysm, FSCU
+
+
+//++, 220217 ysm, FINGERTIP
+void DisplayFLTDetail()
+{
+	DisplayMenuBackgroundBG();
+	DisplayFaultTitle();
+	LCD_Draw_Color(6, 90, 210, 79, COLOR_MENU_GRAY);
+
+	UCHAR width[]={72,83,45,};
+	UCHAR buf[40]={0,};
+	USHORT covbuf[100];			// 최대 79글자 
+	USHORT x_pos = 6;
+
+	for(UCHAR i=0;i<3;i++)
+	{
+		memset(&buf, 0x00, sizeof(buf));
+		memset(&covbuf, 0x00, sizeof(covbuf));
+	
+	
+		if(i==0)
+		{
+			if(DTCStringIndex < MAX_F_FINGERTIP)							
+				sprintf ( (char*)buf, "%04X",DTC_LIST_FLT[DTCStringIndex][0]) ; 
+			else
+				sprintf ( (char*)buf, "%04X",0x0000) ;
+		}
+		else
+		{
+			if(DTCStringIndex < MAX_F_FINGERTIP)	
+				sprintf ( (char*)buf, "%d",DTC_LIST_FLT[DTCStringIndex][i]) ; 
+			else
+			{
+				if(i==1)
+					sprintf ( (char*)buf, "%d",SPN_DISP) ;
+				else
+					sprintf ( (char*)buf, "%d",FMI_DISP) ;
+			}
+			
+		}			
+	
+		String_Func(covbuf, buf);	
+		DisplayStringCenterAt(&covbuf[0], x_pos, 68, width[i], gui_font23, COLOR_WHITE);
+		x_pos+=width[i];
+	
+	}
+
+
+
+	
+	memset(&covbuf, 0x00, sizeof(covbuf));
+	String_Func(covbuf, textFLTErrCode[DTCStringIndex]);	
+	DisplayMultiLineStringAt(&covbuf[0], 6, 90, 210, 79, gui_font17,COLOR_WHITE);
+
+	DrawMenuFull();
+}
+//--, 220217 ysm, FINGERTIP
+
+
+
+void DisplayECUDetail()
+{
+	DisplayMenuBackgroundBG();
+	DisplayFaultTitle();
+	LCD_Draw_Color(6, 90, 210, 79, COLOR_MENU_GRAY);
+
+	UCHAR width[]={72,83,45,};
+	UCHAR buf[40]={0,};
+	USHORT covbuf[100];			// 최대 79글자 
+	USHORT x_pos = 6;
+
+	UCHAR model_flag;
+
+	if( (InfoModel1.ModelInfo >= MODEL_35L_9) && (InfoModel1.ModelInfo <= MODEL_50L_9) )
+		model_flag = 1;
+	else if( (InfoModel1.ModelInfo >= MODEL_25D_9HDI) && (InfoModel1.ModelInfo <= MODEL_50DN_9HDI) )
+		model_flag = 2;
+	else if(((InfoModel1.ModelInfo >= MODEL_25LC_9)&&(InfoModel1.ModelInfo <= MODEL_33LC_9))||
+			((InfoModel1.ModelInfo >= MODEL_25L_9A)&&(InfoModel1.ModelInfo <= MODEL_35LN_9A)))
+	{
+		if(COUNT_FLAG.Flag_ECM_ECON == 1)
+			model_flag = 3;	
+		else
+			model_flag = 4;
+	}
+	else
+		model_flag = 0;
+
+
+	if(model_flag == 1)
+	{
+		for(UCHAR i=0;i<3;i++)
+		{
+			memset(&buf, 0x00, sizeof(buf));
+			memset(&covbuf, 0x00, sizeof(covbuf));
+
+
+			if(i==0)
+			{
+				if(DTCStringIndex < MAX_F_KUBOTA)							
+					sprintf ( (char*)buf, "P%04X",DTC_LIST_KUBOTA[DTCStringIndex][0]) ; 
+				else
+					sprintf ( (char*)buf, "P%04X",0x0000) ;
+			}
+			else
+			{
+				if(DTCStringIndex < MAX_F_KUBOTA)	
+					sprintf ( (char*)buf, "%d",DTC_LIST_KUBOTA[DTCStringIndex][i]) ; 
+				else
+				{
+					if(i==1)
+						sprintf ( (char*)buf, "%d",SPN_DISP) ;
+					else
+						sprintf ( (char*)buf, "%d",FMI_DISP) ;
+				}
+				
+			}			
+		
+			String_Func(covbuf, buf);	
+			DisplayStringCenterAt(&covbuf[0], x_pos, 68, width[i], gui_font23, COLOR_WHITE);
+			x_pos+=width[i];
+
+		}
+
+	}
+	else if(model_flag == 2)
+	{
+		for(UCHAR i=0;i<3;i++)
+		{
+			memset(&buf, 0x00, sizeof(buf));
+			memset(&covbuf, 0x00, sizeof(covbuf));
+
+			if(i==0)
+			{
+				if(DTCStringIndex < MAX_F_HDI_TIER4)
+				{
+			
+					if(((DTC_LIST_HDI[DTCStringIndex][1] == 0) && (DTC_LIST_HDI[DTCStringIndex][2] == 19)) 
+						||((DTC_LIST_HDI[DTCStringIndex][1] == 91) && (DTC_LIST_HDI[DTCStringIndex][2] == 19))
+						||((DTC_LIST_HDI[DTCStringIndex][1] == 639) && (DTC_LIST_HDI[DTCStringIndex][2] == 2))
+						||((DTC_LIST_HDI[DTCStringIndex][1] == 639) && (DTC_LIST_HDI[DTCStringIndex][2] == 19))
+						||((DTC_LIST_HDI[DTCStringIndex][1] == 970) && (DTC_LIST_HDI[DTCStringIndex][2] == 12))
+						||((DTC_LIST_HDI[DTCStringIndex][1] == 3219) && (DTC_LIST_HDI[DTCStringIndex][2] == 7))
+						||((DTC_LIST_HDI[DTCStringIndex][1] == 3229) && (DTC_LIST_HDI[DTCStringIndex][2] == 7))
+						||((DTC_LIST_HDI[DTCStringIndex][1] == 6385) && (DTC_LIST_HDI[DTCStringIndex][2] == 19))
+						||((DTC_LIST_HDI[DTCStringIndex][1] == 57344) && (DTC_LIST_HDI[DTCStringIndex][2] == 19))
+						||((DTC_LIST_HDI[DTCStringIndex][1] == 61441) && (DTC_LIST_HDI[DTCStringIndex][2] == 19))
+						||((DTC_LIST_HDI[DTCStringIndex][1] == 61454) && (DTC_LIST_HDI[DTCStringIndex][2] == 19))
+						||((DTC_LIST_HDI[DTCStringIndex][1] == 61455) && (DTC_LIST_HDI[DTCStringIndex][2] == 19))
+						||((DTC_LIST_HDI[DTCStringIndex][1] == 64923) && (DTC_LIST_HDI[DTCStringIndex][2] == 19))
+						||((DTC_LIST_HDI[DTCStringIndex][1] == 65110) && (DTC_LIST_HDI[DTCStringIndex][2] == 19))
+						||((DTC_LIST_HDI[DTCStringIndex][1] == 65164) && (DTC_LIST_HDI[DTCStringIndex][2] == 19))
+						||((DTC_LIST_HDI[DTCStringIndex][1] == 65241) && (DTC_LIST_HDI[DTCStringIndex][2] == 19))
+						||((DTC_LIST_HDI[DTCStringIndex][1] == 65265) && (DTC_LIST_HDI[DTCStringIndex][2] == 19))
+						||((DTC_LIST_HDI[DTCStringIndex][1] == 65320) && (DTC_LIST_HDI[DTCStringIndex][2] == 19))
+						||((DTC_LIST_HDI[DTCStringIndex][1] == 65400) && (DTC_LIST_HDI[DTCStringIndex][2] == 19))
+						||((DTC_LIST_HDI[DTCStringIndex][1] == 65400) && (DTC_LIST_HDI[DTCStringIndex][2] == 22))
+						||((DTC_LIST_HDI[DTCStringIndex][1] == 65400) && (DTC_LIST_HDI[DTCStringIndex][2] == 23))
+						||((DTC_LIST_HDI[DTCStringIndex][1] == 65401) && (DTC_LIST_HDI[DTCStringIndex][2] == 19))
+						||((DTC_LIST_HDI[DTCStringIndex][1] == 65402) && (DTC_LIST_HDI[DTCStringIndex][2] == 19)))
+					{
+						sprintf ( (char*)buf, "U%04X",DTC_LIST_HDI[DTCStringIndex][0]) ; 
+					}
+					else
+					{
+						sprintf ( (char*)buf, "P%04X",DTC_LIST_HDI[DTCStringIndex][0]) ; 
+					}
+				}
+				else
+					sprintf ( (char*)buf, "P%04X",0x0000) ;
+			}
+			else
+			{
+				if(DTCStringIndex < MAX_F_HDI_TIER4)
+					sprintf ( (char*)buf, "%d",DTC_LIST_HDI[DTCStringIndex][i]) ; 
+				else
+				{
+
+					if(i==1)
+						sprintf ( (char*)buf, "%d",SPN_DISP) ;
+					else
+						sprintf ( (char*)buf, "%d",FMI_DISP) ;
+
+				}
+			}
+		
+			String_Func(covbuf, buf);	
+			DisplayStringCenterAt(&covbuf[0], x_pos, 68, width[i], gui_font23, COLOR_WHITE);
+			x_pos+=width[i];
+
+		}
+
+	}
+	else if(model_flag == 3)
+	{
+		for(UCHAR i=0;i<3;i++)
+		{
+			memset(&buf, 0x00, sizeof(buf));
+			memset(&covbuf, 0x00, sizeof(covbuf));
+
+			if(i==0)
+			{
+				if(DTCStringIndex < MAX_F_ECON)
+				{
+					sprintf ( (char*)buf, "%04X",DTC_LIST_ECON[DTCStringIndex][0]) ; 
+				}
+				else
+					sprintf ( (char*)buf, "%04X",0x0000) ;
+			}
+			else
+			{
+				if(DTCStringIndex < MAX_F_ECON)
+					sprintf ( (char*)buf, "%d",DTC_LIST_ECON[DTCStringIndex][i]) ; 
+				else
+				{
+
+					if(i==1)
+						sprintf ( (char*)buf, "%d",SPN_DISP) ;
+					else
+						sprintf ( (char*)buf, "%d",FMI_DISP) ;
+
+				}
+			}
+		
+			String_Func(covbuf, buf);	
+			DisplayStringCenterAt(&covbuf[0], x_pos, 68, width[i], gui_font23, COLOR_WHITE);
+			x_pos+=width[i];
+
+		}
+
+	}
+	else if(model_flag == 4)
+	{
+		for(UCHAR i=0;i<3;i++)
+		{
+			memset(&buf, 0x00, sizeof(buf));
+			memset(&covbuf, 0x00, sizeof(covbuf));
+
+			if(i==0)
+			{
+				if(DTCStringIndex < MAX_F_WOODWARD)
+				{
+					sprintf ( (char*)buf, "%04X",DTC_LIST_WOODWARD[DTCStringIndex][0]) ; 
+				}
+				else
+					sprintf ( (char*)buf, "%04X",0x0000) ;
+			}
+			else
+			{
+				if(DTCStringIndex < MAX_F_WOODWARD)
+					sprintf ( (char*)buf, "%d",DTC_LIST_WOODWARD[DTCStringIndex][i]) ; 
+				else
+				{
+
+					if(i==1)
+						sprintf ( (char*)buf, "%d",SPN_DISP) ;
+					else
+						sprintf ( (char*)buf, "%d",FMI_DISP) ;
+
+				}
+			}
+		
+			String_Func(covbuf, buf);	
+			DisplayStringCenterAt(&covbuf[0], x_pos, 68, width[i], gui_font23, COLOR_WHITE);
+			x_pos+=width[i];
+
+		}
+
+	}
+	else
+	{
+		for(UCHAR i=0;i<3;i++)
+		{
+			memset(&buf, 0x00, sizeof(buf));
+			memset(&covbuf, 0x00, sizeof(covbuf));
+
+			if(i==0)
+			{
+
+				if(DTCStringIndex < MAX_F_TIER5)
+				{
+			
+					if(((DTC_LIST_TIER_5[DTCStringIndex][1] == 639) && (DTC_LIST_TIER_5[DTCStringIndex][2] == 19)) 
+						||((DTC_LIST_TIER_5[DTCStringIndex][1] == 639) && (DTC_LIST_TIER_5[DTCStringIndex][2] == 2)))
+						sprintf ( (char*)buf, "U%04X",DTC_LIST_TIER_5[DTCStringIndex][0]) ; 
+					else
+						sprintf ( (char*)buf, "P%04X",DTC_LIST_TIER_5[DTCStringIndex][0]) ; 
+				}
+				else
+					sprintf ( (char*)buf, "P%04X",0x0000) ;
+			}
+			else
+			{
+				if(DTCStringIndex < MAX_F_TIER5)
+					sprintf ( (char*)buf, "%d",DTC_LIST_TIER_5[DTCStringIndex][i]) ; 
+				else
+				{
+
+					if(i==1)
+						sprintf ( (char*)buf, "%d",SPN_DISP) ;
+					else
+						sprintf ( (char*)buf, "%d",FMI_DISP) ;
+
+				}
+				
+			}
+			String_Func(covbuf, buf);	
+			DisplayStringCenterAt(&covbuf[0], x_pos, 68, width[i], gui_font23, COLOR_WHITE);
+			x_pos+=width[i];
+
+		}
+	}
+	
+	memset(&covbuf, 0x00, sizeof(covbuf));
+	if(model_flag == 1)
+		String_Func(covbuf, textECMErrCode_KUBOTA[DTCStringIndex]);
+	else if(model_flag == 2)
+		String_Func(covbuf, textHDIErrCode[DTCStringIndex]);
+	else if(model_flag == 3)
+		String_Func(covbuf, textECMErrCode_ECON[DTCStringIndex]);	
+	else if(model_flag == 4)
+		String_Func(covbuf, textECMErrCode_WOODWARD[DTCStringIndex]);
+	else
+		String_Func(covbuf, textECMErrCode[DTCStringIndex]);
+	
+	DisplayMultiLineStringAt(&covbuf[0], 6, 90, 210, 79, gui_font17,COLOR_WHITE);
+
+	DrawMenuFull();
+}
+
+
+void DisplayLoggedFaultDelete()
+{
+	if(OldScreenIndex != ScreenIndex)
+	{
+		DisplayPopupString1((USHORT*)*StringSentence[75]);
+		DrawMenuFull();
+	}
+}
+
+void DisplayFaultHistory()
+{
+	USHORT y_Pos[] = {48, 90, 132};
+	
+	switch(ScreenIndex)
+	{	
+		//++, 220217 ysm, FINGERTIP
+		case SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_ECM_CURRENT_TOP:
+		case SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_ECM_LOGGED_TOP:
+		case SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_ECM_LOGGED_DELETE_TOP:
+			if(OldScreenIndex != ScreenIndex)
+			{
+
+				if((OldScreenIndex != SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_ECM_CURRENT_TOP)
+					&& (OldScreenIndex != SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_ECM_LOGGED_TOP)
+					&& (OldScreenIndex != SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_ECM_LOGGED_DELETE_TOP))
+				{
+					SetListString3(71, 72, 73);
+					if(ScreenIndex == SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_ECM_CURRENT_TOP)
+						DisplayListAll(1);
+					else if(ScreenIndex == SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_ECM_LOGGED_TOP)
+						DisplayListAll(2);
+					else
+						DisplayListAll(3);
+					DrawMenuFull();
+
+					GUI_DisplayRightStringAt_Value2(FaultCodeCount_ECM_Current, 142, y_Pos[0]+9,  60, COLOR_WHITE);
+					GUI_DisplayRightStringAt_Value2(FaultCodeCount_ECM_Logged, 142, y_Pos[1]+9,  60, COLOR_WHITE);
+					
+				}
+				else if(OldScreenIndex != ScreenIndex)
+				{
+					if(ScreenIndex == SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_ECM_CURRENT_TOP)
+						DisplayList(1);
+					else if(ScreenIndex == SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_ECM_LOGGED_TOP)
+						DisplayList(2);
+					else
+						DisplayList(3);
+
+					GUI_DisplayRightStringAt_Value2(FaultCodeCount_ECM_Current, 142, y_Pos[0]+9,  60, COLOR_WHITE);
+					GUI_DisplayRightStringAt_Value2(FaultCodeCount_ECM_Logged, 142, y_Pos[1]+9,  60, COLOR_WHITE);
+				}
+			}
+			break;
+
+		case SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_FLT_CURRENT_TOP:
+		case SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_FLT_LOGGED_TOP:
+		case SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_FLT_LOGGED_DELETE_TOP:			
+			if(OldScreenIndex != ScreenIndex)			
+			{				
+				if((OldScreenIndex != SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_FLT_CURRENT_TOP)
+					&& (OldScreenIndex != SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_FLT_LOGGED_TOP)
+					&& (OldScreenIndex != SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_FLT_LOGGED_DELETE_TOP))
+				{
+					SetListString3(71, 72, 73);
+					if(ScreenIndex == SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_FLT_CURRENT_TOP)
+						DisplayListAll(1);
+					else if(ScreenIndex == SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_FLT_LOGGED_TOP)
+						DisplayListAll(2);
+					else
+						DisplayListAll(3);
+					DrawMenuFull();
+
+					ReadFLTFault(REQ_ERR_ENGINE_ACTIVE);
+					ReadFLTFault(REQ_ERR_ENGINE_LOGGED);
+
+					GUI_DisplayRightStringAt_Value2(HCESPN.H1526, 142, y_Pos[0]+9,  60, COLOR_WHITE);
+					GUI_DisplayRightStringAt_Value2(HCESPN.H1527, 142, y_Pos[1]+9,  60, COLOR_WHITE);
+					
+				}
+				else if(OldScreenIndex != ScreenIndex)
+				{
+					if(ScreenIndex == SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_FLT_CURRENT_TOP)
+						DisplayList(1);
+					else if(ScreenIndex == SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_FLT_LOGGED_TOP)
+						DisplayList(2);
+					else
+						DisplayList(3);
+
+					GUI_DisplayRightStringAt_Value2(HCESPN.H1526, 142, y_Pos[0]+9,  60, COLOR_WHITE);
+					GUI_DisplayRightStringAt_Value2(HCESPN.H1527, 142, y_Pos[1]+9,  60, COLOR_WHITE);
+					
+				}
+
+				
+			}
+			break;
+		//--, 220217 ysm, FINGERTIP			
+
+		//++, 221129 ysm, FSCU
+		case SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_FSCU_CURRENT_TOP:
+		case SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_FSCU_LOGGED_TOP:
+		case SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_FSCU_LOGGED_DELETE_TOP:			
+			if(OldScreenIndex != ScreenIndex)			
+			{				
+				if((OldScreenIndex != SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_FSCU_CURRENT_TOP)
+					&& (OldScreenIndex != SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_FSCU_LOGGED_TOP)
+					&& (OldScreenIndex != SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_FSCU_LOGGED_DELETE_TOP))
+				{
+					SetListString3(71, 72, 73);
+					if(ScreenIndex == SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_FSCU_CURRENT_TOP)
+						DisplayListAll(1);
+					else if(ScreenIndex == SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_FSCU_LOGGED_TOP)
+						DisplayListAll(2);
+					else
+						DisplayListAll(3);
+					DrawMenuFull();
+
+					ReadFSCUFault(REQ_ERR_ENGINE_ACTIVE);
+					ReadFSCUFault(REQ_ERR_ENGINE_LOGGED);
+
+					GUI_DisplayRightStringAt_Value2(HCESPN.H1528, 142, y_Pos[0]+9,  60, COLOR_WHITE);
+					GUI_DisplayRightStringAt_Value2(HCESPN.H1529, 142, y_Pos[1]+9,  60, COLOR_WHITE);
+					
+				}
+				else if(OldScreenIndex != ScreenIndex)
+				{
+					if(ScreenIndex == SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_FSCU_CURRENT_TOP)
+						DisplayList(1);
+					else if(ScreenIndex == SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_FSCU_LOGGED_TOP)
+						DisplayList(2);
+					else
+						DisplayList(3);
+
+					GUI_DisplayRightStringAt_Value2(HCESPN.H1528, 142, y_Pos[0]+9,  60, COLOR_WHITE);
+					GUI_DisplayRightStringAt_Value2(HCESPN.H1529, 142, y_Pos[1]+9,  60, COLOR_WHITE);
+					
+				}
+
+				
+			}
+			break;
+		//--, 221129 ysm, FSCU
+
+			
+		case SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_ECM_CURRENT_LIST:
+			DisplayFaultList(REQ_ERR_ENGINE_ACTIVE);
+			break;
+
+		case SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_ECM_LOGGED_LIST:
+			DisplayFaultList(REQ_ERR_ENGINE_LOGGED);
+			break;
+
+		//++, 220217 ysm, FINGERTIP
+		case SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_FLT_CURRENT_LIST:
+			DisplayFaultList_FLT(REQ_ERR_ENGINE_ACTIVE);
+			break;
+
+		case SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_FLT_LOGGED_LIST:
+			DisplayFaultList_FLT(REQ_ERR_ENGINE_LOGGED);
+			break;
+		//--, 220217 ysm, FINGERTIP	
+
+
+		//++, 221129 ysm, FSCU
+		case SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_FSCU_CURRENT_LIST:
+			DisplayFaultList_FSCU(REQ_ERR_ENGINE_ACTIVE);
+			break;
+
+		case SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_FSCU_LOGGED_LIST:
+			DisplayFaultList_FSCU(REQ_ERR_ENGINE_LOGGED);
+			break;
+		//--, 221129 ysm, FSCU
+
+		
+
+		case SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_ECM_CURRENT_DETAIL:
+		case SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_ECM_LOGGED_DETAIL:
+			if(OldScreenIndex != ScreenIndex)
+				DisplayECUDetail();
+			break;
+
+		//++, 220217 ysm, FINGERTIP
+		case SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_FLT_CURRENT_DETAIL:
+		case SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_FLT_LOGGED_DETAIL:
+			if(OldScreenIndex != ScreenIndex)
+				DisplayFLTDetail();
+			break;
+		//--, 220217 ysm, FINGERTIP			
+
+		//++, 221129 ysm, FSCU
+		case SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_FSCU_CURRENT_DETAIL:
+		case SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_FSCU_LOGGED_DETAIL:
+			if(OldScreenIndex != ScreenIndex)
+				DisplayFSCUDetail();
+			break;
+		//--, 221129 ysm, FSCU		
+			
+		case SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_ECM_LOGGED_DELETE:
+		case SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_FLT_LOGGED_DELETE:	
+		case SCREEN_STATE_MENU_MAINTENANCE_FAULTHISTORY_FSCU_LOGGED_DELETE:		//++,--, 221129 ysm, FSCU
+			if(OldScreenIndex != ScreenIndex)
+				DisplayLoggedFaultDelete();
+			break;
+
+	}
+}

@@ -1,0 +1,1193 @@
+#include "FLV_Cluster_APP.h"
+
+
+unsigned char ack;
+unsigned long Symbol_state;
+unsigned long Led_SIG_TEMP[10];
+unsigned int LED_Timing_Delay = 0;
+
+UCHAR gEngineCheck_Status = 0;
+UCHAR gEngineCheck_Blinking_Cnt=0;
+UCHAR gEngineCheck_Blinking_Disp=0;
+
+UCHAR gRegeneration_Status = 0;
+UCHAR gRegeneration_Blinking_Cnt=0;
+UCHAR gRegeneration_Blinking_Disp=0;
+
+//++, 210421 ysm, 9S
+unsigned char Signal_Engine_Check_lamp = 0;
+unsigned char Signal_WIF_lamp = 0;
+unsigned char Signal_Engine_Oil_Check_lamp = 0;
+
+//--, 210421 ysm, 9S
+
+unsigned char Signal_TM_Oil_Check_lamp = 0;
+
+short Temp_Engine_Oil_Pressure;
+unsigned char Temp_Engine_Oil_Pressure_Flag;
+
+extern unsigned char HDI_Oil_Pressure_Lamp_Warning_Count;
+extern unsigned char HDI_WIF_Warning_Count_Fmi14;
+extern unsigned char HDI_WIF_Warning_Count_Fmi23;
+
+
+unsigned char WarnningFlag[11] = {0,}; 
+unsigned short WarnningCounter[11] = {0,}; 
+
+unsigned short Brake_Oil_Level_Low_Count; //++,--, 230102 ysm, BRAKE_OIL
+
+
+extern unsigned char Engine_Type;
+
+extern unsigned char ALT_Level_Status;
+extern unsigned char OPSS_Status;
+
+extern st_DOUT_DATA				DOUT_DATA;
+
+extern CAN_ECU_DATA_65226							RX_ECU_DATA_65226;
+extern CAN_ECU_DATA_65252							RX_ECU_DATA_65252;
+extern CAN_ECU_DATA_65279							RX_ECU_DATA_65279;
+extern CAN_ECU_DATA_65262							RX_ECU_DATA_65262;
+extern CAN_ECU_DATA_64890							RX_ECU_DATA_64890;
+
+// ++, 200924 ctw LPG
+extern CAN_ECU_DATA_65253							RX_ECU_DATA_65253;
+extern CAN_ECU_DATA_65263							RX_ECU_DATA_65263;
+// --, 200924 ctw LPG
+
+extern CAN_JIG_DATA_65292							RX_JIG_DATA_65292;
+extern unsigned char Check_maintenance_Alarm;
+extern st_HCESPN 		HCESPN;
+
+extern unsigned char PROTO_EQUIPMENT;
+extern EEPROM_MODEL_DATA1 InfoModel1;
+extern unsigned short WIF_Level_rowdata;
+
+extern unsigned char EngineStartFlag;
+extern unsigned char Tab_Number;     // ++, --, 210225 ctw Auto JIG Final Test
+
+extern CAN_FSCU_STATE1_65525						RX_FSCU_DATA_65525; //++,--, 221013 ysm, FSCU_2
+
+//++, 221212 ysm, FSCU
+extern st_BUZZER BUZZER_FLAG;
+extern unsigned char BrakeOilLevelLow_BuzzerStop;
+//--, 221212 ysm, FSCU
+
+
+void Initialize_LED_Variable()
+{
+	unsigned char i;
+
+	Symbol_state=0xffffff;
+
+	for (i = 0; i < 10; i++)
+	{
+		Led_SIG_TEMP[i] = 0; 		
+	}
+
+	gEngineCheck_Status = gEngineCheck_Blinking_Cnt = gEngineCheck_Blinking_Disp = 0;
+	gRegeneration_Status = gRegeneration_Blinking_Cnt = gRegeneration_Blinking_Disp = 0;
+
+	Brake_Oil_Level_Low_Count = 0; //++,--, 230102 ysm, BRAKE_OIL
+
+	
+}
+
+void LED_Delay(void)
+{
+	nop () ;nop () ;nop () ;nop () ;nop () ;nop () ;nop () ;
+	nop () ;nop () ;nop () ;nop () ;nop () ;nop () ;nop () ;
+	nop () ;nop () ;nop () ;nop () ;nop () ;nop () ;nop () ;
+	nop () ;nop () ;nop () ;nop () ;nop () ;nop () ;nop () ;
+	nop () ;nop () ;nop () ;nop () ;nop () ;nop () ;nop () ;
+	nop () ;nop () ;nop () ;nop () ;nop () ;nop () ;nop () ;
+	nop () ;nop () ;nop () ;nop () ;nop () ;nop () ;nop () ;
+	nop () ;nop () ;nop () ;nop () ;nop () ;nop () ;nop () ;
+	nop () ;nop () ;nop () ;nop () ;nop () ;nop () ;nop () ;
+}
+
+void LED_Delay2(unsigned int delay)
+{
+	LED_Timing_Delay = delay;
+	while(--LED_Timing_Delay != 0);
+}
+
+
+void LED_START(void)
+{
+	SDAOUT ;
+	SDA1;    
+	/* start */
+	SDA1;
+	SCL1 ;
+	LED_Delay();
+	SDA0;
+	LED_Delay();
+	SCL0 ;
+}
+
+void LED_END(void)
+{
+	/* stop */
+	SDA0;
+	LED_Delay();
+	SCL1 ;
+	LED_Delay();
+	SDA1;    
+	LED_Delay2(25);
+}
+
+void LED_PortChange(unsigned char dir)
+{	
+	GPIO_InitTypeDef GPIO_InitStruct;
+	if(dir)	// Output
+	{	
+		/*Configure GPIO pins : C_EEP_SDA_Pin */
+		GPIO_InitStruct.Pin = GPIO_PIN_2;
+		GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
+		GPIO_InitStruct.Pull = GPIO_NOPULL;
+		GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+		HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+	}
+	else	// Input
+	{	
+		/*Configure GPIO pins : C_EEP_SDA_Pin */
+		GPIO_InitStruct.Pin = GPIO_PIN_2;
+		GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+		GPIO_InitStruct.Pull = GPIO_NOPULL;
+		HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+	}
+}
+
+void LED_ByteWrite(unsigned char WData)
+{
+	unsigned char i, j;
+
+	LED_Delay();
+
+	for(i = 0; i < 8; i++)
+	{
+		j = ( WData & 0x80 ) ? 1 : 0;
+		(j) ? SDA1 : SDA0;
+		LED_Delay();
+		SCL1;
+		LED_Delay();
+		WData <<= 1;
+		SCL0;
+		LED_Delay();
+	}
+}
+
+unsigned char LED_ack(void)
+{
+	unsigned char i;
+
+	unsigned char RData = 0;
+
+	LED_Delay();
+	SCL0;
+	LED_Delay();
+	SDAIN;
+
+	for(i = 0; i < 1; i++)
+	{
+		SCL1;
+		LED_Delay();
+		RData = (RData << 1) | SDA_READ;
+		SCL0;
+		LED_Delay();
+	}
+
+	SDAOUT;
+	SDA0;
+
+	return(RData);
+}
+void LED_ON_OFF(char add, char on_off)
+{
+	LED_START();
+
+	LED_ByteWrite(0x78);
+	ack = LED_ack();
+	SDAOUT;
+	LED_ByteWrite(add);
+	ack = LED_ack();
+	SDAOUT;
+	LED_ByteWrite(on_off);
+	ack = LED_ack();
+
+	LED_END();
+}
+
+void LED_Write(unsigned Add, unsigned char WData)
+{ 
+
+	LED_START();
+
+	LED_ByteWrite(0x78);
+	ack = LED_ack();
+	SDAOUT;
+	LED_ByteWrite(0X00);
+	ack = LED_ack();
+	SDAOUT;
+	LED_ByteWrite(0x40);
+	ack = LED_ack();
+
+	LED_END();
+
+	for(int i = 3; i < 0x26; i++)
+	{
+		LED_START();
+
+		LED_ByteWrite(0x78);
+		ack = LED_ack();
+		SDAOUT;
+		LED_ByteWrite(i);
+		ack = LED_ack();
+		SDAOUT;
+		LED_ByteWrite(0xFE);
+		ack = LED_ack();
+
+		LED_END();
+	}  
+
+}
+
+void Initialize_LEDSystem(void)
+{
+	LED_Write(0,1); 	//LED ? LP5024 ON! 
+}
+
+void LED_ALL_ON(void)
+{
+	LED_ON_OFF(LED0, ON);
+	LED_ON_OFF(LED1, ON);
+	LED_ON_OFF(LED2, ON);  
+	LED_ON_OFF(LED3, ON); 
+	LED_ON_OFF(LED4, ON);
+	LED_ON_OFF(LED5, ON);
+	LED_ON_OFF(LED6, ON);
+	LED_ON_OFF(LED7, ON);
+	LED_ON_OFF(LED8, ON);
+	LED_ON_OFF(LED9, ON);
+	LED_ON_OFF(LED10, ON);
+	LED_ON_OFF(LED11, ON);
+	LED_ON_OFF(LED12, ON);
+	LED_ON_OFF(LED13, ON);
+	LED_ON_OFF(LED14, ON);
+	LED_ON_OFF(LED15, ON);
+	LED_ON_OFF(LED16, ON);
+	LED_ON_OFF(LED17, ON);
+	LED_ON_OFF(LED18, ON);
+
+}
+
+void LED_ALL_OFF(void)
+{
+	LED_ON_OFF(LED0, OFF);
+	LED_ON_OFF(LED1, OFF);
+	LED_ON_OFF(LED2, OFF);  
+	LED_ON_OFF(LED3, OFF);
+	LED_ON_OFF(LED4, OFF);
+	LED_ON_OFF(LED5, OFF);
+	LED_ON_OFF(LED6, OFF);
+	LED_ON_OFF(LED7, OFF);
+	LED_ON_OFF(LED8, OFF);
+	LED_ON_OFF(LED9, OFF);
+	LED_ON_OFF(LED10, OFF);
+	LED_ON_OFF(LED11, OFF);
+	LED_ON_OFF(LED12, OFF);
+	LED_ON_OFF(LED13, OFF);
+	LED_ON_OFF(LED14, OFF);
+	LED_ON_OFF(LED15, OFF);
+	LED_ON_OFF(LED16, OFF);
+	LED_ON_OFF(LED17, OFF);
+	LED_ON_OFF(LED18, OFF);
+
+}
+
+void LED_Update_System(void)
+{
+	unsigned long temp;
+	unsigned char i;
+	unsigned char add_LED[]={LED0,LED1,LED2,LED3,LED4,LED5,LED6,LED7,LED8,LED9,LED10,LED11,LED12,LED13,LED14,LED15,LED16,LED17,LED18};
+
+	// SIG
+	temp = 0x00000001;
+#if 1
+
+	for ( i = 0 ; i < 19 ; i++)
+	{  
+		if ( Symbol_state & temp )
+			LED_ON_OFF(add_LED[i],ON);
+		else	
+			LED_ON_OFF(add_LED[i],OFF);
+
+		temp = temp << 1;
+	}
+#else
+	if(Symbol_state == 0)
+		LED_ALL_ON();
+	else
+		LED_ALL_OFF();
+#endif
+}
+
+
+void Check_Warnning_Data(void)
+{
+
+	
+	if(EngineStartFlag==1)
+	{	
+
+		if(WarnningFlag[WARNING_BAT_VOLTAGE_LOW] == 1)
+			WarnningCounter[WARNING_BAT_VOLTAGE_LOW]++;
+		else
+		{
+			WarnningCounter[WARNING_BAT_VOLTAGE_LOW] = 0;
+			HCESPN.H706 = 0;
+		}
+		if((WarnningCounter[WARNING_BAT_VOLTAGE_LOW] >= 6000) && (WarnningFlag[WARNING_BAT_VOLTAGE_LOW] == 1))
+		{
+			WarnningCounter[WARNING_BAT_VOLTAGE_LOW] = 10000;
+			HCESPN.H706 = 1;
+		}
+
+		if(WarnningFlag[WARNING_BRAKE_OIL_PRESSURE_LOW] == 1)
+			WarnningCounter[WARNING_BRAKE_OIL_PRESSURE_LOW]++;
+		else
+		{
+			WarnningCounter[WARNING_BRAKE_OIL_PRESSURE_LOW] = 0;
+			HCESPN.H504 = 0;
+		}
+		if((WarnningCounter[WARNING_BRAKE_OIL_PRESSURE_LOW] >= 6000) && (WarnningFlag[WARNING_BRAKE_OIL_PRESSURE_LOW] == 1))
+		{
+			WarnningCounter[WARNING_BRAKE_OIL_PRESSURE_LOW] = 10000;
+			HCESPN.H504 = 1;
+		}		
+    
+		if(WarnningFlag[WARNING_ENGINE_COOLANT_TEMP] == 1)
+			WarnningCounter[WARNING_ENGINE_COOLANT_TEMP]++;
+		else  
+		{
+			WarnningCounter[WARNING_ENGINE_COOLANT_TEMP] = 0;
+			HCESPN.H305 = 0;
+		}  
+		if((WarnningCounter[WARNING_ENGINE_COOLANT_TEMP] >= 6000) && (WarnningFlag[WARNING_ENGINE_COOLANT_TEMP] == 1))
+		{
+			WarnningCounter[WARNING_ENGINE_COOLANT_TEMP] = 10000;
+			HCESPN.H305 = 1;
+		}        
+		
+
+		if(WarnningFlag[WARNING_ENGINE_OIL_PRESSURE_LOW] == 1)
+			WarnningCounter[WARNING_ENGINE_OIL_PRESSURE_LOW]++;
+		else
+		{
+			WarnningCounter[WARNING_ENGINE_OIL_PRESSURE_LOW] = 0;
+			HCESPN.H313 = 0;
+		}
+		if((WarnningCounter[WARNING_ENGINE_OIL_PRESSURE_LOW] >= 6000) && (WarnningFlag[WARNING_ENGINE_OIL_PRESSURE_LOW] == 1))
+		{
+			WarnningCounter[WARNING_ENGINE_OIL_PRESSURE_LOW] = 10000;
+			HCESPN.H313 = 1;
+		}		
+
+		if(WarnningFlag[WARNING_TRANSMISSION_OIL_TEMP] == 1)
+			WarnningCounter[WARNING_TRANSMISSION_OIL_TEMP]++;
+		else
+		{
+			WarnningCounter[WARNING_TRANSMISSION_OIL_TEMP] = 0;
+			HCESPN.H537 = 0;
+		}
+		if((WarnningCounter[WARNING_TRANSMISSION_OIL_TEMP] >= 6000) && (WarnningFlag[WARNING_TRANSMISSION_OIL_TEMP] == 1)) //++,--, 201214 ysm, MOBILE (6000->1)
+		{
+			WarnningCounter[WARNING_TRANSMISSION_OIL_TEMP] = 10000;
+			HCESPN.H537 = 1;
+		}
+	
+
+		if(WarnningFlag[WARNING_ENGINE_CHECK] == 1)
+			WarnningCounter[WARNING_ENGINE_CHECK]++;
+		else
+		{
+			WarnningCounter[WARNING_ENGINE_CHECK] = 0;
+			HCESPN.H320 = 0;
+		}		
+
+		if((WarnningCounter[WARNING_ENGINE_CHECK] >= 6000) && (WarnningFlag[WARNING_ENGINE_CHECK] == 1))
+		{
+			WarnningCounter[WARNING_ENGINE_CHECK] = 10000;
+			HCESPN.H320 = 1;
+		}	
+	}
+	
+
+	if(WarnningFlag[WARNING_FUEL_LEVEL_LOW] == 1)
+		WarnningCounter[WARNING_FUEL_LEVEL_LOW]++;
+	else
+	{
+		WarnningCounter[WARNING_FUEL_LEVEL_LOW] = 0;
+		HCESPN.H303 = 0;
+	}		
+	if((WarnningCounter[WARNING_FUEL_LEVEL_LOW] >= 1) && (WarnningFlag[WARNING_FUEL_LEVEL_LOW] == 1))
+	{
+		WarnningCounter[WARNING_FUEL_LEVEL_LOW] = 10000;
+		HCESPN.H303 = 1;
+	}
+	
+	if(WarnningFlag[WARNING_AIR_CLEANER_CLOG] == 1)
+		WarnningCounter[WARNING_AIR_CLEANER_CLOG]++;
+	else
+	{
+		WarnningCounter[WARNING_AIR_CLEANER_CLOG] = 0;
+		HCESPN.H317 = 0;
+	}		
+	if((WarnningCounter[WARNING_AIR_CLEANER_CLOG] >= 1) && (WarnningFlag[WARNING_AIR_CLEANER_CLOG] == 1))
+	{
+		WarnningCounter[WARNING_AIR_CLEANER_CLOG] = 10000;
+		HCESPN.H317 = 1;
+	}
+	
+	if(WarnningFlag[WARNING_WATER_IN_FUEL] == 1)
+		WarnningCounter[WARNING_WATER_IN_FUEL]++;
+	else
+	{
+		WarnningCounter[WARNING_WATER_IN_FUEL] = 0;
+		HCESPN.H360 = 0;
+	}		
+	if((WarnningCounter[WARNING_WATER_IN_FUEL] >= 1) && (WarnningFlag[WARNING_WATER_IN_FUEL] == 1))
+	{
+		WarnningCounter[WARNING_WATER_IN_FUEL] = 10000;
+		HCESPN.H360 = 1;
+	}	
+}
+
+
+void Calculate_Led(void)
+{
+	unsigned char i;
+
+	for (i= 9;  i !=0; i--)
+	{
+		Led_SIG_TEMP[i] = Led_SIG_TEMP[i -1];
+	}
+
+	Led_SIG_TEMP[0]  = 0;
+
+	if((Led_SIG_TEMP[9] == Led_SIG_TEMP[8]) && (Led_SIG_TEMP[8] == Led_SIG_TEMP[1]) && (Led_SIG_TEMP[1] == Led_SIG_TEMP[0])) 
+	{
+		Symbol_state = Led_SIG_TEMP[0];
+	}
+
+	Led_SIG_TEMP[0] += (Flag_DIN[INDEX_TURN_SIGNAL_LH])?(L_LEFT_TURN_SINGAL_INDICATOR):(0x00);		// 1
+	Led_SIG_TEMP[0] += (Flag_DIN[INDEX_TURN_SIGNAL_RH])?(L_RIGHT_TURN_SIGNAL_INDICATOR):(0x00);		// 2
+	Led_SIG_TEMP[0] += (Parking_Lamp_System())?(L_PARKING_SIGNAL):(0x00);				// 3
+	
+    if(Tab_Number == 0x04)		
+       Led_SIG_TEMP[0] += (RX_JIG_DATA_65292.LED_1==1)?(L_FUEL_WARM_UP):(0x00);					// 4           
+	else if((Engine_Type == LPG_TYPE)||((InfoModel1.ModelInfo >= MODEL_35D_9S)&&(InfoModel1.ModelInfo <= MODEL_50D_9S))	)
+    {
+       Led_SIG_TEMP[0] += 0x00;
+    }
+	else
+		Led_SIG_TEMP[0] += (Flag_DIN[INDEX_FUEL_WARMER_SIG])?(L_FUEL_WARM_UP):(0x00);				// 4
+		
+	Led_SIG_TEMP[0] += (Fuel_LampSystem())?(L_LOW_FUEL):(0x00);										// 5
+	Led_SIG_TEMP[0] += (Regeneration_LampSystem())?(L_REGENERATION):(0x00);							// 12		ok
+	Led_SIG_TEMP[0] += (Regeneration_Inhibit_Lamp_LampSystem())?(L_REGENERATION_INHIBIT):(0x00);	// 13		ok
+
+	Led_SIG_TEMP[0] += (TM_Oil_Temp_LampSystem())?(L_TM_OVERHEAT):(0x00);							// 6
+	Led_SIG_TEMP[0] += (Engine_Check_LampSystem())?(L_ENGINE_CHECK):(0x00);							// 7			ok
+	Led_SIG_TEMP[0] += (HEST_LampSystem())?(L_HEST):(0x00);											// 14		ok
+	Led_SIG_TEMP[0] += (OPSS_Status==1)?(L_OPSS_OPERATION):(0x00);									// 15
+	
+	Led_SIG_TEMP[0] += (Engine_Coolant_Overheat_LampSystem())?(L_EG_COOLANT_OVERHEAT):(0x00);		// 8			ok
+	
+	Led_SIG_TEMP[0] += (Air_Filter_Warning_LampSystem())?(L_AIRCLEANER_FILTER):(0x00);			// 9
+	Led_SIG_TEMP[0] += (Engine_Warm_Up_LampSystem())?(L_ENGINE_WARM_UP):(0x00);						// 16		ok
+	Led_SIG_TEMP[0] += (Brake_Oil_Pressure_LampSystem())?(L_BRAKE_OIL):(0x00);						// 17
+
+	//++, 201123 ysm, ENG_OIL
+	#if 0
+	Led_SIG_TEMP[0] += (Flag_DIN[INDEX_ENG_OIL_PRESSURE_SW])?(L_EG_OIL_PRESSURE):(0x00);			// 10
+	#else
+	Led_SIG_TEMP[0] += (Engine_Oil_Pressure_LampSystem())?(L_EG_OIL_PRESSURE):(0x00);	
+
+	#endif
+	//--, 201123 ysm, ENG_OIL
+	// Engine Stop : Hyundai ?”ì§„???†ìŒ 
+	//Led_SIG_TEMP[0] += (Engine_Stop_LampSystem())?(L_ENGINE_STOP):(0x00);							// 11
+        
+    // ++, 210904 ctw Auto JIG Final Test
+	#if 1          
+    if(Tab_Number == 0x04)
+            Led_SIG_TEMP[0] += (RX_JIG_DATA_65292.LED_17==1)?(L_MAINTENANCE_CHECK):(0x00);						// 7			ok
+    else
+            Led_SIG_TEMP[0] += (Check_maintenance_Alarm==1)?(L_MAINTENANCE_CHECK):(0x00);						// 7			ok
+	#else
+    Led_SIG_TEMP[0] += (Check_maintenance_Alarm==1)?(L_MAINTENANCE_CHECK):(0x00);						// 7			ok
+	#endif
+    // --, 210904 ctw Auto JIG Final Test
+        
+	Led_SIG_TEMP[0] += (Water_In_Fuel_LampSystem())?(L_WATER_IN_FUEL):(0x00);						// 18		ok
+	Led_SIG_TEMP[0] += (Battery_Low_LampSystem())?(L_BATTERY_CHARGE):(0x00);							// 19
+
+	if((Led_SIG_TEMP[9] == Led_SIG_TEMP[8]) && (Led_SIG_TEMP[8] == Led_SIG_TEMP[1]) && (Led_SIG_TEMP[1] == Led_SIG_TEMP[0])) 
+	{
+		Symbol_state = Led_SIG_TEMP[0];
+	}
+
+	Check_Warnning_Data();
+}
+
+
+void ControlLCDBrightnessLevel(unsigned char nLevel)
+{
+	unsigned short BrightLevel[BRIGHTNESS_MAX+1] = {150, 165, 180, 195, 210, 225, 240, 255};
+
+	LED_ON_OFF(0x0e, BrightLevel[nLevel]);
+}
+
+
+void ControlLEDBrightnessLevel(unsigned char nLevel)
+{
+	unsigned short BrightLevel[BRIGHTNESS_MAX+1] = {150, 165, 180, 195, 210, 225, 240, 255};
+
+	for(UCHAR i=0x07;i<0x0e;i++)
+	{
+		LED_ON_OFF(i, BrightLevel[nLevel]);
+	}
+}
+
+
+//------------------------------------------------------------------------------
+// Function Name 	: Lamp_Delay
+// Description 	: Lamp êµ¬ë™???¬ìš© delay.
+// Input 			: None
+// Return 		: None
+// Period 		: Lamp_Update_System?¨ìˆ˜ ?¬ìš©??
+//------------------------------------------------------------------------------
+void Lamp_Delay(unsigned int Value)
+{
+	unsigned int j;
+
+	for (j = 0; j < Value; j++);
+}
+
+// 100ms
+unsigned char Parking_Lamp_System(void)
+{
+	unsigned char Parking_Flag;
+
+	//++, 221013 ysm, FSCU_2
+	#if 0
+	Parking_Flag = Flag_DIN[INDEX_PARKING_PRESSURE_SW];
+	#else
+	if(COUNT_FLAG.Flag_FSCU_Enable == 1)
+	{
+		if(RX_FSCU_DATA_65525.Parking_Symbol_Demand < 0x03) 	
+			Parking_Flag = 	((RX_FSCU_DATA_65525.Parking_Symbol_Demand == 0x01) ? 0x01 : 0x00);
+		else 
+			Parking_Flag = 0;		
+	}
+	else
+		Parking_Flag = Flag_DIN[INDEX_PARKING_PRESSURE_SW];
+	#endif
+	//--, 221013 ysm, FSCU_2
+	return Parking_Flag;
+
+}
+
+unsigned short LPG_Fuel_Low_Cnt=0;
+unsigned char LPG_Fuel_Low_Flag=0;
+unsigned char Fuel_LampSystem(void)
+{
+	unsigned char Fuel_flag, fuel_state;
+	static unsigned short Fuel_Low_delay_cnt=0;
+	unsigned short fuel_low_cnt;
+
+	if(Engine_Type == DIESEL_TYPE)
+	{
+		fuel_low_cnt = 400;	
+		
+		if(HCESPN.Fuel_Level == 0)
+			fuel_state = 1;
+		else
+			fuel_state = 0;
+		
+	}
+	else
+	{
+		//++, 210419 ysm, FUEL LOW LAMP TEST
+		#if 0
+		fuel_low_cnt = 1000;
+		#else
+		fuel_low_cnt = 500; //++,--, 210427 ysm, FUEL LOW
+		#endif
+		//--, 210419 ysm, FUEL LOW LAMP TEST
+		if(Flag_DIN[INDEX_FUEL_EMPTY_SIG]==1)
+		{
+			fuel_state = 1;
+		}
+		else
+		{			
+			fuel_state = 0;
+		}
+	}
+
+	if(fuel_state == 1)      
+	{
+		if(++Fuel_Low_delay_cnt< fuel_low_cnt)
+			Fuel_flag = 0;
+		else
+		{
+			Fuel_Low_delay_cnt= (fuel_low_cnt+100);
+			Fuel_flag = 1;
+
+			if(Engine_Type == LPG_TYPE)
+			{
+				LPG_Fuel_Low_Flag = 1;
+				LPG_Fuel_Low_Cnt = 0;
+
+			}
+		}
+	}
+	else
+	{
+		if(Engine_Type == LPG_TYPE)
+		{
+			if(LPG_Fuel_Low_Flag == 1)
+			{
+				if(++LPG_Fuel_Low_Cnt > 1000)
+				{
+					LPG_Fuel_Low_Flag = 0;
+					LPG_Fuel_Low_Cnt = 0;
+					Fuel_flag = 0;
+					Fuel_Low_delay_cnt = 0;
+				}
+				else
+				{
+					Fuel_flag = 1;
+
+				}
+					
+			}
+			else
+			{
+				LPG_Fuel_Low_Flag = 0;
+				LPG_Fuel_Low_Cnt = 0;
+				Fuel_flag = 0;
+				Fuel_Low_delay_cnt = 0;
+
+			}
+		
+		}
+		else
+		{
+			Fuel_flag = 0;
+			Fuel_Low_delay_cnt = 0;
+
+		}
+
+	}
+
+	WarnningFlag[WARNING_FUEL_LEVEL_LOW] = Fuel_flag;
+
+	//++, 210902 ysm, RMS
+	if(Engine_Type == LPG_TYPE)
+	{
+		if(Fuel_flag == 1)
+			HCESPN.H301 = 0; // 0 %
+		else
+			HCESPN.H301 = 100; // 100 %
+	}
+	//--, 210902 ysm, RMS
+	return Fuel_flag;
+}
+
+void CheckRegenerationLamp(void)
+{
+	if(gRegeneration_Status==1) // slow blinking	// 1000ms on, 1000ms off
+	{
+		gRegeneration_Blinking_Cnt++;
+		if(gRegeneration_Blinking_Cnt < 100)
+			gRegeneration_Blinking_Disp = 1;
+		else if(gRegeneration_Blinking_Cnt < 200)
+			gRegeneration_Blinking_Disp = 0;
+		else
+		{
+			gRegeneration_Blinking_Cnt = 0;
+			gRegeneration_Blinking_Disp = 0;
+		}
+	}
+	else
+	{
+		gRegeneration_Blinking_Cnt=0;
+		gRegeneration_Blinking_Disp=0;
+	}
+}
+
+unsigned char Regeneration_LampSystem(void)
+{
+	unsigned char Regeneration_Lamp_flag;
+	// 2 : 1000(ON) -> 1000(OFF) -> 1000(ON) -> 1000(OFF)
+	// 1 : ON
+	// 0 : OFF
+	if(RX_ECU_DATA_64890.DPF_Regen_Request_Lamp_Status_3805 < 0x03)
+		Regeneration_Lamp_flag = RX_ECU_DATA_64890.DPF_Regen_Request_Lamp_Status_3805 ;
+	else
+		Regeneration_Lamp_flag=0;
+
+	if(Regeneration_Lamp_flag == 2)
+	{
+		gRegeneration_Status = 1;
+		CheckRegenerationLamp();
+		Regeneration_Lamp_flag = gRegeneration_Blinking_Disp;
+	}
+	else
+	{
+		gRegeneration_Status = gRegeneration_Blinking_Cnt = gRegeneration_Blinking_Disp = 0;
+	}
+
+	return Regeneration_Lamp_flag;
+
+}
+
+unsigned char Regeneration_Inhibit_Lamp_LampSystem(void)
+{
+	unsigned char Regeneration_Inhibit_Lamp_flag;
+
+	if(RX_ECU_DATA_64890.DPF_Active_Regen_Inhibit_Lamp_Status_3803 < 0x02)
+		Regeneration_Inhibit_Lamp_flag = RX_ECU_DATA_64890.DPF_Active_Regen_Inhibit_Lamp_Status_3803 ;
+	else
+		Regeneration_Inhibit_Lamp_flag=0;
+
+	return Regeneration_Inhibit_Lamp_flag;
+}
+
+unsigned char TM_Oil_Temp_LampSystem(void)
+{
+	unsigned char TM_Oil_Temp_Lamp_flag;
+
+	#if 0
+	if((InfoModel1.ModelInfo >= MODEL_25LC_9)&&(InfoModel1.ModelInfo <= MODEL_33LC_9)) // PROTO
+	{
+		TM_Oil_Temp_Lamp_flag = Signal_TM_Oil_Check_lamp;
+
+		if(TM_Oil_Temp_Lamp_flag == 1)
+		{
+			HCESPN.TM_Oil_Temp = 120+40;
+		}
+		else
+		{
+			HCESPN.TM_Oil_Temp = 0;
+		}
+	}
+	else
+	{
+		if(HCESPN.TM_Oil_Temp > (120+40))
+			TM_Oil_Temp_Lamp_flag = 1 ;
+		else
+			TM_Oil_Temp_Lamp_flag=0;	
+	}
+	#else
+	if(HCESPN.TM_Oil_Temp > (120+40))
+		TM_Oil_Temp_Lamp_flag = 1 ;
+	else
+		TM_Oil_Temp_Lamp_flag=0;
+	#endif
+
+	WarnningFlag[WARNING_TRANSMISSION_OIL_TEMP] = TM_Oil_Temp_Lamp_flag;
+
+	return TM_Oil_Temp_Lamp_flag;
+
+}
+
+unsigned char HEST_LampSystem(void)
+{
+	unsigned char HEST_Lamp_flag;
+
+	if(RX_ECU_DATA_64890.DPF_Active_Regen_Lamp_Status_3804 < 0x02)
+		HEST_Lamp_flag = RX_ECU_DATA_64890.DPF_Active_Regen_Lamp_Status_3804 ;
+	else
+		HEST_Lamp_flag=0;
+
+	return HEST_Lamp_flag;
+}
+
+void CheckEnigneCheckLamp(void)
+{
+	if(gEngineCheck_Status==1) // fast blinking	// 500ms on, 500ms off
+	{
+		gEngineCheck_Blinking_Cnt++;
+		if(gEngineCheck_Blinking_Cnt < 50)
+			gEngineCheck_Blinking_Disp = 1;
+		else if(gEngineCheck_Blinking_Cnt < 100)
+			gEngineCheck_Blinking_Disp = 0;
+		else
+		{
+			gEngineCheck_Blinking_Cnt = 0;
+			gEngineCheck_Blinking_Disp = 0;
+		}
+	}
+	else
+	{
+		gEngineCheck_Blinking_Cnt=0;
+		gEngineCheck_Blinking_Disp=0;
+	}
+}
+
+
+unsigned char Engine_Check_LampSystem(void)
+{
+	unsigned char Engine_Check_flag;
+
+	if(Engine_Type == DIESEL_TYPE)
+	{
+		if((InfoModel1.ModelInfo >= MODEL_35D_9S)&&(InfoModel1.ModelInfo <= MODEL_50D_9S))
+		{
+			if(Make_EngineCheckLamp() < 100)
+			{
+				Engine_Check_flag = 1;
+			}
+			else
+			{
+				Engine_Check_flag=0;
+			}
+
+		}
+		else if((InfoModel1.ModelInfo >= MODEL_25D_9HDI)&&(InfoModel1.ModelInfo <= MODEL_50DN_9HDI))
+		{
+		
+			if(RX_ECU_DATA_65226.Flash_Protect_Lamp == 0)
+				Engine_Check_flag = 2; // SLOW FLASH
+			else
+			{
+				if(RX_ECU_DATA_65226.Protect_Lamp_Status == 1)
+					Engine_Check_flag = 1;
+				else
+					Engine_Check_flag = 0;				
+			}
+
+		}		
+		else
+		{
+
+			if(RX_ECU_DATA_65226.Amber_Warning_Lamp_Status_624 < 0x03)
+				Engine_Check_flag = RX_ECU_DATA_65226.Amber_Warning_Lamp_Status_624 ;
+			else
+				Engine_Check_flag=0;
+		}
+
+	}
+	else
+	{
+		if(RX_ECU_DATA_65226.Red_Stop_Lamp_Status == 0x00)
+		{
+			if(RX_ECU_DATA_65226.MIL_Status < 0x03)
+				Engine_Check_flag = RX_ECU_DATA_65226.MIL_Status;
+			else
+				Engine_Check_flag = 0;
+		}
+		else
+		{
+			Engine_Check_flag = 0;				
+		
+		}
+
+	}
+	
+	if(Engine_Check_flag == 2)
+	{
+		gEngineCheck_Status = 1;
+		CheckEnigneCheckLamp();
+		Engine_Check_flag = gEngineCheck_Blinking_Disp;
+	}
+	else
+	{
+		gEngineCheck_Status = gEngineCheck_Blinking_Cnt = gEngineCheck_Blinking_Disp = 0;
+	}
+	
+	WarnningFlag[WARNING_ENGINE_CHECK] = Signal_Engine_Check_lamp = Engine_Check_flag;
+	
+	return Engine_Check_flag;
+}
+
+//++, 201123 ysm, ENG_OIL
+
+short Temp_Engine_Oil_Pressure;
+unsigned char Temp_Engine_Oil_Pressure_Flag;
+unsigned char Engine_Oil_Pressure_LampSystem(void)
+{
+	unsigned char Engine_Oil_Pressure_Flag;
+	short Engine_Oil_Pressure;
+
+	if(Engine_Type == DIESEL_TYPE)
+	{
+		if((InfoModel1.ModelInfo >= MODEL_25D_9HDI)&&(InfoModel1.ModelInfo <= MODEL_50DN_9HDI))
+		{
+
+			if(HDI_Oil_Pressure_Lamp_Warning_Count >= 1)
+			{
+				Engine_Oil_Pressure_Flag=1;
+			}
+			else
+				Engine_Oil_Pressure_Flag=0;
+			
+		}
+		else
+		{
+			Engine_Oil_Pressure_Flag = Flag_DIN[INDEX_ENG_OIL_PRESSURE_SW];
+		}
+
+	}
+	else
+	{
+
+	
+		if(HCESPN.Engine_Oil_Pressure_LPG == 0xff)
+			return 0;
+		else
+			Engine_Oil_Pressure = HCESPN.Engine_Oil_Pressure_LPG;
+
+        Temp_Engine_Oil_Pressure= Engine_Oil_Pressure;
+
+		if(((InfoModel1.ModelInfo >= MODEL_25LC_9)&&(InfoModel1.ModelInfo <= MODEL_33LC_9))||
+			((InfoModel1.ModelInfo >= MODEL_25L_9A)&&(InfoModel1.ModelInfo <= MODEL_35LN_9A)))
+		{
+			if(Engine_Oil_Pressure < 0xAC) // 375kPA
+				Engine_Oil_Pressure_Flag = 1;
+			else
+				Engine_Oil_Pressure_Flag=0;
+
+		}
+		else // L-9
+		{
+		
+			if(Engine_Oil_Pressure == 0) // 0KPA
+				Engine_Oil_Pressure_Flag = 1;
+			else
+				Engine_Oil_Pressure_Flag=0;
+		}
+
+
+	}
+
+	WarnningFlag[WARNING_ENGINE_OIL_PRESSURE_LOW] = Signal_Engine_Oil_Check_lamp = Engine_Oil_Pressure_Flag;
+	
+	Signal_Engine_Oil_Check_lamp = Engine_Oil_Pressure_Flag;
+    Temp_Engine_Oil_Pressure_Flag= Engine_Oil_Pressure_Flag;
+	
+	return Engine_Oil_Pressure_Flag;
+}
+//--, 201123 ysm, ENG_OIL
+
+unsigned char Engine_Coolant_Overheat_LampSystem(void)
+{
+	unsigned char Engine_Coolant_Overheat_Flag;
+	short CoolantTemp;
+
+	#if 0
+	if((InfoModel1.ModelInfo >= MODEL_35D_9S)&&(InfoModel1.ModelInfo <= MODEL_50D_9S))
+	{
+		CoolantTemp = 0;
+
+
+	}
+	else
+	{		
+		if(RX_ECU_DATA_65262.CoolantTemp_110 == 0xff)
+			return 0;
+		else
+			CoolantTemp = RX_ECU_DATA_65262.CoolantTemp_110 -40;
+	}
+	#else
+	HCESPN.H304_Coolant_temp = RX_ECU_DATA_65262.CoolantTemp_110;
+	
+	if(RX_ECU_DATA_65262.CoolantTemp_110 == 0xff)
+	{
+     	WarnningFlag[WARNING_ENGINE_COOLANT_TEMP] = 0;
+		return 0;
+	}
+	else
+	{
+		CoolantTemp = RX_ECU_DATA_65262.CoolantTemp_110 -40;
+	}
+
+	
+	#endif
+
+	if(CoolantTemp >= 115) //210708 ysm, code_review
+		Engine_Coolant_Overheat_Flag = 1;
+	else
+		Engine_Coolant_Overheat_Flag=0;
+
+	 WarnningFlag[WARNING_ENGINE_COOLANT_TEMP] = Engine_Coolant_Overheat_Flag;
+
+	return Engine_Coolant_Overheat_Flag;
+}
+
+unsigned char Air_Filter_Warning_LampSystem(void)
+{
+	unsigned char air_filter_warning_flag;
+
+	if(Flag_DIN[INDEX_AIR_FILTER_WARNING] == 1)
+		air_filter_warning_flag = 1;
+	else
+		air_filter_warning_flag = 0;
+
+
+	WarnningFlag[WARNING_AIR_CLEANER_CLOG] = air_filter_warning_flag;
+	
+	return air_filter_warning_flag;
+}
+
+
+unsigned char Engine_Warm_Up_LampSystem(void)
+{
+	unsigned char Engine_Warm_Up_Flag;
+
+	if(RX_ECU_DATA_65252.WaittoStartLamp_1081 < 0x02)
+		Engine_Warm_Up_Flag = RX_ECU_DATA_65252.WaittoStartLamp_1081;
+	else
+		Engine_Warm_Up_Flag = 0;
+
+	return Engine_Warm_Up_Flag;
+}
+#if 0
+unsigned char Engine_Stop_LampSystem(void)
+{
+	unsigned char Engine_Stop_flag;
+
+	if(RX_JIG_DATA_65292.LED_EngineStop< 0x02)
+		Engine_Stop_flag = RX_JIG_DATA_65292.LED_EngineStop;
+	else
+		Engine_Stop_flag=0;
+
+	return Engine_Stop_flag;
+}
+#endif
+
+unsigned char Brake_Oil_Pressure_LampSystem(void)
+{
+
+	unsigned char brake_oil_level_flag;
+	
+	if(Flag_DIN[INDEX_BRAKE_OIL_LEVEL] == 1)
+	{
+		Brake_Oil_Level_Low_Count++;
+	}
+	else
+	{
+		Brake_Oil_Level_Low_Count = 0;
+	}
+
+	if(Tab_Number == 0x04)
+	{
+		if(Brake_Oil_Level_Low_Count >= 1)
+		{
+			Brake_Oil_Level_Low_Count = 1;
+			brake_oil_level_flag = 1;
+		}
+		else
+		{
+			brake_oil_level_flag = 0;
+		}
+
+	}
+	else
+	{
+		if(Brake_Oil_Level_Low_Count >= 6000)
+		{
+			Brake_Oil_Level_Low_Count = 10000;
+			brake_oil_level_flag = 1;
+		}
+		else
+		{
+			brake_oil_level_flag = 0;
+		}
+	}
+	
+	WarnningFlag[WARNING_BRAKE_OIL_PRESSURE_LOW] = brake_oil_level_flag;
+
+	//++, 221227 ysm, BRAKE_OIL
+	if(((InfoModel1.ModelInfo >= MODEL_25D_9VS)&&(InfoModel1.ModelInfo <= MODEL_35DN_9VS))||(InfoModel1.ModelInfo <= MODEL_35DN_9VB)
+		||((InfoModel1.ModelInfo >= MODEL_25LC_9)&&(InfoModel1.ModelInfo <= MODEL_33LC_9))||((InfoModel1.ModelInfo >= MODEL_25L_9A)&&(InfoModel1.ModelInfo <= MODEL_35LN_9A)))
+	{
+		BUZZER_FLAG.BrakeOilLevel = brake_oil_level_flag;
+
+		if(BUZZER_FLAG.BrakeOilLevel == 0)
+			BrakeOilLevelLow_BuzzerStop = 0;
+	}
+	else
+	{
+		BUZZER_FLAG.BrakeOilLevel = 0;
+		BrakeOilLevelLow_BuzzerStop = 0;
+	}
+	//--, 221227 ysm, BRAKE_OIL
+
+
+	return brake_oil_level_flag;
+
+}
+
+
+unsigned char Water_In_Fuel_LampSystem(void)
+{
+	unsigned char Water_In_Fuel_flag;
+
+	if((InfoModel1.ModelInfo >= MODEL_35D_9S)&&(InfoModel1.ModelInfo <= MODEL_50D_9S))
+	{
+	
+		if(WIF_Level_rowdata < 1000)
+		{
+			Water_In_Fuel_flag = 1;
+		}
+		else
+			Water_In_Fuel_flag = 0;
+	}
+	else
+	{
+
+		if((InfoModel1.ModelInfo >= MODEL_25D_9HDI)&&(InfoModel1.ModelInfo <= MODEL_50DN_9HDI))
+		{
+
+			if((HDI_WIF_Warning_Count_Fmi14>= 1)||(HDI_WIF_Warning_Count_Fmi23>= 1))
+			{
+				Water_In_Fuel_flag=1;
+			}
+			else
+				Water_In_Fuel_flag=0;
+			
+		}
+		else
+		{
+			if(RX_ECU_DATA_65279.WaterInFuelINdicator_97 < 0x02)
+				Water_In_Fuel_flag = RX_ECU_DATA_65279.WaterInFuelINdicator_97;
+			else
+				Water_In_Fuel_flag=0;
+		}
+
+	}
+
+	WarnningFlag[WARNING_WATER_IN_FUEL] = Signal_WIF_lamp = Water_In_Fuel_flag;
+	
+	return Water_In_Fuel_flag;
+}
+
+unsigned char Battery_Low_LampSystem(void)
+{
+	unsigned char Battery_Low_flag;
+
+	if(ALT_Level_Status == 0)
+		Battery_Low_flag = 1;
+	else
+		Battery_Low_flag=0;
+
+	WarnningFlag[WARNING_BAT_VOLTAGE_LOW] = Battery_Low_flag;
+
+	return Battery_Low_flag;
+}
+
